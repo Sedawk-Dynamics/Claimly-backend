@@ -26,6 +26,7 @@ import logger from './config/logger';
 import { apiLimiter, authLimiter, adminLimiter, uploadLimiter } from './middlewares/rateLimiter.middleware';
 import { requestLogger } from './middlewares/requestLogger.middleware';
 import { testDatabaseConnection } from './config/prismaClient';
+import { ensureDefaultAdmin } from './config/bootstrap';
 
 dotenv.config();
 
@@ -163,7 +164,13 @@ app.listen(PORT, async () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   
   // Test database connection
-  await testDatabaseConnection();
+  const connected = await testDatabaseConnection();
+
+  if (connected) {
+    await ensureDefaultAdmin();
+  } else {
+    logger.warn('Skipping default admin bootstrap because database connection failed');
+  }
 });
 
 export default app;
