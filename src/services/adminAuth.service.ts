@@ -32,8 +32,22 @@ export const adminLogin = async (data: AdminLoginRequest): Promise<AdminLoginRes
     throw new UnauthorizedError('Invalid email or password');
   }
 
-  // Verify password
-  const isPasswordValid = await bcrypt.compare(data.password, admin.password_hash);
+  if (!admin.password_hash) {
+    logger.error('Admin login failed: password hash missing', { email: data.email, adminId: admin.id.toString() });
+    throw new UnauthorizedError('Invalid email or password');
+  }
+
+  let isPasswordValid = false;
+  try {
+    isPasswordValid = await bcrypt.compare(data.password, admin.password_hash);
+  } catch (error) {
+    logger.error('Admin login failed: password verification error', {
+      email: data.email,
+      adminId: admin.id.toString(),
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    throw new UnauthorizedError('Invalid email or password');
+  }
 
   if (!isPasswordValid) {
     logger.warn('Admin login failed: invalid password', { email: data.email, adminId: admin.id.toString() });
