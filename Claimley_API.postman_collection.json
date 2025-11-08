@@ -1,0 +1,2274 @@
+{
+	"info": {
+		"_postman_id": "claimley-api-collection",
+		"name": "Claimley API",
+		"description": "Complete API collection for Claimley - Insurance Policy Management System",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "claimley-api"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Check if the server is running"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Test Login (No Frontend Required)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    if (response.data && response.data.token) {",
+									"        pm.environment.set('authToken', response.data.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mobileNumber\": \"9876543210\",\n  \"name\": \"Test User\",\n  \"dob\": \"1990-01-15\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/test-auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"test-auth",
+								"login"
+							]
+						},
+						"description": "🔧 TEST ENDPOINT - Login without frontend/Firebase client SDK\n\nThis endpoint allows you to authenticate without needing a Firebase client app.\n\n**Requirements:**\n- Server must be running in development mode (NODE_ENV !== 'production')\n- Firebase Admin SDK must be configured\n\n**Features:**\n- Creates Firebase user automatically if needed\n- Creates/updates user in database\n- Returns JWT token directly (no need for Firebase idToken)\n- Automatically saves token to `authToken` variable\n\n**For New Users:**\n- Creates Firebase user and database user\n- Returns JWT token\n\n**For Existing Users:**\n- Finds existing user by mobile number\n- Returns JWT token\n\n**Note:** This endpoint is disabled in production for security."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify OTP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    if (response.data && response.data.token) {",
+									"        pm.environment.set('authToken', response.data.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"idToken\": \"firebase-id-token-from-client\",\n  \"mobileNumber\": \"9876543210\",\n  \"name\": \"John Doe\",\n  \"dob\": \"1990-01-15\",\n  \"deviceId\": \"device-12345\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/verify-otp",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"verify-otp"
+							]
+						},
+						"description": "Verify Firebase OTP and authenticate user. Returns JWT token for subsequent requests.\n\n**IMPORTANT: How to get Firebase idToken:**\n1. The `idToken` is obtained from Firebase Authentication after phone authentication\n2. Use your mobile/web app to authenticate with phone number + OTP\n3. After successful authentication, get the token:\n   - React Native: `user.getIdToken()`\n   - Web: `firebase.auth().currentUser.getIdToken()`\n   - Flutter: `FirebaseAuth.instance.currentUser?.getIdToken()`\n4. Copy the token and paste it in the request body\n5. For new users: `name` and `dob` are required\n6. For existing users: `name` and `dob` are optional\n\nSee POSTMAN_COLLECTION_GUIDE.md for detailed instructions."
+					},
+					"response": []
+				},
+				{
+					"name": "Exchange Custom Token (Test)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customToken\": \"firebase-custom-token\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/test-auth/exchange-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"test-auth",
+								"exchange-token"
+							]
+						},
+						"description": "🔧 TEST ENDPOINT - Exchange a Firebase custom token for an ID token.\n\n**Usage:**\n1. Call `Test Login (No Frontend Required)` to receive a `customToken` value.\n2. Paste the `customToken` into this request body.\n3. The response includes `idToken` and `refreshToken` for simulating client auth flows.\n\n> This endpoint works only when `NODE_ENV !== 'production'` and requires `FIREBASE_API_KEY` to be configured."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User Management",
+			"item": [
+				{
+					"name": "Get Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								"profile"
+							]
+						},
+						"description": "Get the authenticated user's profile"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"John Doe Updated\",\n  \"dob\": \"1990-01-15\",\n  \"email\": \"john.doe@example.com\",\n  \"deviceId\": \"device-12345\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								"profile"
+							]
+						},
+						"description": "Update the authenticated user's profile"
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "user-id-here"
+								}
+							]
+						},
+						"description": "Get a user by their ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update User by ID",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"John Doe\",\n  \"dob\": \"1990-01-15\",\n  \"email\": \"john.doe@example.com\",\n  \"deviceId\": \"device-12345\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "user-id-here"
+								}
+							]
+						},
+						"description": "Update a user by their ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Subscription",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/subscription",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								"subscription"
+							]
+						},
+						"description": "Get the user's current subscription status. Append `?all=true` to retrieve the full subscription history."
+					},
+					"response": []
+				},
+				{
+					"name": "Get KYC Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/kyc-status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								"kyc-status"
+							]
+						},
+						"description": "Get the user's KYC completion status including pending document requirements"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Policies",
+			"item": [
+				{
+					"name": "Create Policy",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"insuranceCompanyId\": \"company-id-here\",\n  \"policyNumber\": \"POL-1234567890\",\n  \"sumAssured\": \"1000000\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/policies",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policies"
+							]
+						},
+						"description": "Create a new insurance policy"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Policies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/policies",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policies"
+							]
+						},
+						"description": "Get all policies for the authenticated user"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Policy by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/policies/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policies",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "policy-id-here"
+								}
+							]
+						},
+						"description": "Get a specific policy by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Policy",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"insuranceCompanyId\": \"company-id-here\",\n  \"policyNumber\": \"POL-1234567890-UPDATED\",\n  \"sumAssured\": \"1500000\",\n  \"status\": \"ACTIVE\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/policies/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policies",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "policy-id-here"
+								}
+							]
+						},
+						"description": "Update a policy by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Policy",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/policies/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policies",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "policy-id-here"
+								}
+							]
+						},
+						"description": "Delete a policy by ID"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Companies",
+			"item": [
+				{
+					"name": "Get Insurance Companies",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/companies",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"companies"
+							]
+						},
+						"description": "Retrieve the list of insurance companies available for policy creation. This endpoint is public and does not require authentication."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Nominees",
+			"item": [
+				{
+					"name": "Create Nominee",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Jane Doe\",\n  \"relationship\": \"SPOUSE\",\n  \"mobileNumber\": \"9876543211\",\n  \"email\": \"jane.doe@example.com\",\n  \"address\": \"123 Main Street, City, State, 12345\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/nominees",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"nominees"
+							]
+						},
+						"description": "Create a new nominee. Relationship can be: SPOUSE, CHILD, PARENT, SIBLING, FRIEND, OTHER"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Nominees",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/nominees",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"nominees"
+							]
+						},
+						"description": "Get all nominees for the authenticated user"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Nominee by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/nominees/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"nominees",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "nominee-id-here"
+								}
+							]
+						},
+						"description": "Get a specific nominee by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Nominee",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Jane Doe Updated\",\n  \"relationship\": \"SPOUSE\",\n  \"mobileNumber\": \"9876543211\",\n  \"email\": \"jane.doe.updated@example.com\",\n  \"address\": \"456 New Street, City, State, 12345\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/nominees/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"nominees",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "nominee-id-here"
+								}
+							]
+						},
+						"description": "Update a nominee by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Nominee",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/nominees/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"nominees",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "nominee-id-here"
+								}
+							]
+						},
+						"description": "Delete a nominee by ID"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Policy-Nominee Linking",
+			"item": [
+				{
+					"name": "Get Policy Nominees",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/policy/:policyId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policy",
+								":policyId"
+							],
+							"variable": [
+								{
+									"key": "policyId",
+									"value": "policy-id-here"
+								}
+							]
+						},
+						"description": "Get all nominees linked to a specific policy"
+					},
+					"response": []
+				},
+				{
+					"name": "Link Nominee to Policy",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nomineeId\": \"nominee-id-here\",\n  \"sharePercentage\": \"50\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/policy/:policyId/nominee",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policy",
+								":policyId",
+								"nominee"
+							],
+							"variable": [
+								{
+									"key": "policyId",
+									"value": "policy-id-here"
+								}
+							]
+						},
+						"description": "Link a nominee to a policy with a share percentage (0-100)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Nominee Share",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sharePercentage\": \"75\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/policy/:policyId/nominee/:nomineeId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policy",
+								":policyId",
+								"nominee",
+								":nomineeId"
+							],
+							"variable": [
+								{
+									"key": "policyId",
+									"value": "policy-id-here"
+								},
+								{
+									"key": "nomineeId",
+									"value": "nominee-id-here"
+								}
+							]
+						},
+						"description": "Update the share percentage for a nominee linked to a policy"
+					},
+					"response": []
+				},
+				{
+					"name": "Unlink Nominee from Policy",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/policy/:policyId/nominee/:nomineeId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policy",
+								":policyId",
+								"nominee",
+								":nomineeId"
+							],
+							"variable": [
+								{
+									"key": "policyId",
+									"value": "policy-id-here"
+								},
+								{
+									"key": "nomineeId",
+									"value": "nominee-id-here"
+								}
+							]
+						},
+						"description": "Unlink a nominee from a policy"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Documents",
+			"item": [
+				{
+					"name": "User Documents",
+					"item": [
+						{
+							"name": "Upload User Document",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "documentType",
+											"value": "AADHAAR",
+											"type": "text",
+											"description": "AADHAAR, PAN, or OTHER"
+										},
+										{
+											"key": "documentName",
+											"value": "Aadhaar Card",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{baseUrl}}/user/document",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"user",
+										"document"
+									]
+								},
+								"description": "Upload a user document. Document types: AADHAAR, PAN, OTHER. Max file size: 10MB"
+							},
+							"response": []
+						},
+						{
+							"name": "Get All User Documents",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/user/document",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"user",
+										"document"
+									]
+								},
+								"description": "Get all documents for the authenticated user"
+							},
+							"response": []
+						},
+						{
+							"name": "Get User Document by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/user/document/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"user",
+										"document",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "document-id-here"
+										}
+									]
+								},
+								"description": "Get a specific user document by ID"
+							},
+							"response": []
+						},
+						{
+							"name": "Delete User Document",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/user/document/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"user",
+										"document",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "document-id-here"
+										}
+									]
+								},
+								"description": "Delete a user document by ID"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Policy Documents",
+					"item": [
+						{
+							"name": "Upload Policy Document",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "documentType",
+											"value": "POLICY_COPY",
+											"type": "text",
+											"description": "POLICY_COPY, RECEIPT, or OTHER"
+										},
+										{
+											"key": "documentName",
+											"value": "Policy Document",
+											"type": "text"
+										}
+									]
+								},
+						"url": {
+							"raw": "{{baseUrl}}/policy/:policyId/document",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policy",
+								":policyId",
+								"document"
+							],
+							"variable": [
+								{
+									"key": "policyId",
+									"value": "policy-id-here"
+								}
+							]
+						},
+								"description": "Upload a policy document. Document types: POLICY_COPY, RECEIPT, OTHER. Max file size: 10MB"
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Policy Documents",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+						"url": {
+							"raw": "{{baseUrl}}/policy/:policyId/document",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policy",
+								":policyId",
+								"document"
+							],
+							"variable": [
+								{
+									"key": "policyId",
+									"value": "policy-id-here"
+								}
+							]
+						},
+								"description": "Get all documents for a specific policy"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Policy Document by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+						"url": {
+							"raw": "{{baseUrl}}/policy/:policyId/document/:documentId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policy",
+								":policyId",
+								"document",
+								":documentId"
+							],
+							"variable": [
+								{
+									"key": "policyId",
+									"value": "policy-id-here"
+								},
+								{
+									"key": "documentId",
+									"value": "document-id-here"
+								}
+							]
+						},
+								"description": "Get a specific policy document by ID"
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Policy Document",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+						"url": {
+							"raw": "{{baseUrl}}/policy/:policyId/document/:documentId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"policy",
+								":policyId",
+								"document",
+								":documentId"
+							],
+							"variable": [
+								{
+									"key": "policyId",
+									"value": "policy-id-here"
+								},
+								{
+									"key": "documentId",
+									"value": "document-id-here"
+								}
+							]
+						},
+								"description": "Delete a policy document by ID"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Nominee Documents",
+					"item": [
+						{
+							"name": "Upload Nominee Document",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "documentType",
+											"value": "NOMINEE_ID",
+											"type": "text",
+											"description": "NOMINEE_ID, ADDRESS_PROOF, DEATH_CERTIFICATE, or OTHER"
+										},
+										{
+											"key": "documentName",
+											"value": "Nominee ID Proof",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{baseUrl}}/nominee/:nomineeId/document",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"nominee",
+										":nomineeId",
+										"document"
+									],
+									"variable": [
+										{
+											"key": "nomineeId",
+											"value": "nominee-id-here"
+										}
+									]
+								},
+								"description": "Upload a nominee document. Document types: NOMINEE_ID, ADDRESS_PROOF, DEATH_CERTIFICATE, OTHER. Max file size: 10MB"
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Nominee Documents",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/nominee/:nomineeId/document",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"nominee",
+										":nomineeId",
+										"document"
+									],
+									"variable": [
+										{
+											"key": "nomineeId",
+											"value": "nominee-id-here"
+										}
+									]
+								},
+								"description": "Get all documents for a specific nominee"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Nominee Document by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/nominee/:nomineeId/document/:documentId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"nominee",
+										":nomineeId",
+										"document",
+										":documentId"
+									],
+									"variable": [
+										{
+											"key": "nomineeId",
+											"value": "nominee-id-here"
+										},
+										{
+											"key": "documentId",
+											"value": "document-id-here"
+										}
+									]
+								},
+								"description": "Get a specific nominee document by ID"
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Nominee Document",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/nominee/:nomineeId/document/:documentId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"nominee",
+										":nomineeId",
+										"document",
+										":documentId"
+									],
+									"variable": [
+										{
+											"key": "nomineeId",
+											"value": "nominee-id-here"
+										},
+										{
+											"key": "documentId",
+											"value": "document-id-here"
+										}
+									]
+								},
+								"description": "Delete a nominee document by ID"
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Subscriptions",
+			"item": [
+				{
+					"name": "Create Subscription",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"planName\": \"Premium Plan\",\n  \"amount\": \"999\",\n  \"paymentId\": \"payment-12345\",\n  \"paymentStatus\": \"SUCCESS\",\n  \"transactionDate\": \"2024-01-15T10:30:00Z\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/subscription",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subscription"
+							]
+						},
+						"description": "Create a new subscription. Payment status can be: SUCCESS, PENDING, FAILED"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Alerts",
+			"item": [
+				{
+					"name": "Create Alert",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"user-id-here\",\n  \"detectedVia\": \"SMS\",\n  \"detectionDate\": \"2024-01-15T10:30:00Z\",\n  \"remarks\": \"Policy expiry detected via SMS\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/alerts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"alerts"
+							]
+						},
+						"description": "Create an alert. Detected via can be: SMS or MANUAL"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Alert by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/alerts/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"alerts",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "alert-id-here"
+								}
+							]
+						},
+						"description": "Get an alert by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Alert (Admin)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"verificationStatus\": \"VERIFIED\",\n  \"remarks\": \"Alert verified successfully\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/alerts/:id/verify",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"alerts",
+								":id",
+								"verify"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "alert-id-here"
+								}
+							]
+						},
+						"description": "Verify an alert (Admin only). Verification status can be: VERIFIED or FALSE_ALERT"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin",
+			"item": [
+				{
+					"name": "Admin Authentication",
+					"item": [
+						{
+							"name": "Admin Login",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 200) {",
+											"    const response = pm.response.json();",
+											"    if (response.data && response.data.token) {",
+											"        pm.environment.set('adminToken', response.data.token);",
+											"    }",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"admin@claimley.com\",\n  \"password\": \"admin123\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/login",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"login"
+									]
+								},
+								"description": "Admin login. Returns JWT token for admin operations."
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Admin Users",
+					"item": [
+						{
+							"name": "Get All Users",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/users",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"users"
+									]
+								},
+								"description": "Get all users (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get User by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/users/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"users",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "user-id-here"
+										}
+									]
+								},
+								"description": "Get a specific user by ID (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Update User Status",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"status\": \"ACTIVE\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/users/:id/status",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"users",
+										":id",
+										"status"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "user-id-here"
+										}
+									]
+								},
+								"description": "Update user status (Admin only)"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Admin Alerts",
+					"item": [
+						{
+							"name": "Get Alert Stats",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/alerts/stats",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"alerts",
+										"stats"
+									]
+								},
+								"description": "Get alert statistics (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Alerts",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/alerts",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"alerts"
+									]
+								},
+								"description": "Get all alerts (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Alert by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/alerts/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"alerts",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "alert-id-here"
+										}
+									]
+								},
+								"description": "Get a specific alert by ID (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Verify Alert",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"verificationStatus\": \"VERIFIED\",\n  \"remarks\": \"Alert verified successfully\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/alerts/:id/verify",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"alerts",
+										":id",
+										"verify"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "alert-id-here"
+										}
+									]
+								},
+								"description": "Verify an alert (Admin only). Verification status: VERIFIED or FALSE_ALERT"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Admin Actions",
+					"item": [
+						{
+							"name": "Create Admin Action",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"actionType\": \"USER_VERIFIED\",\n  \"description\": \"User account verified\",\n  \"userId\": \"user-id-here\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/actions",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"actions"
+									]
+								},
+								"description": "Create an admin action log entry"
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Admin Actions",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/actions",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"actions"
+									]
+								},
+								"description": "Get all admin actions (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Admin Action by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/actions/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"actions",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "action-id-here"
+										}
+									]
+								},
+								"description": "Get a specific admin action by ID (Admin only)"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Admin Companies",
+					"item": [
+						{
+							"name": "Create Company",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"ABC Insurance Company\",\n  \"contactEmail\": \"contact@abcinsurance.com\",\n  \"contactNumber\": \"18001234567\",\n  \"websiteUrl\": \"https://www.abcinsurance.com\",\n  \"address\": \"123 Insurance Street, City, State, 12345\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/companies",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"companies"
+									]
+								},
+								"description": "Create a new insurance company (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Companies",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/companies",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"companies"
+									]
+								},
+								"description": "Get all insurance companies (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Company by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/companies/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"companies",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "company-id-here"
+										}
+									]
+								},
+								"description": "Get a specific company by ID (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Update Company",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"name\": \"ABC Insurance Company Updated\",\n  \"contactEmail\": \"newcontact@abcinsurance.com\",\n  \"contactNumber\": \"18001234568\",\n  \"websiteUrl\": \"https://www.abcinsurance.com\",\n  \"address\": \"456 New Street, City, State, 12345\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/companies/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"companies",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "company-id-here"
+										}
+									]
+								},
+								"description": "Update a company by ID (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Company",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/companies/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"companies",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "company-id-here"
+										}
+									]
+								},
+								"description": "Delete a company by ID (Admin only)"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Admin Policies",
+					"item": [
+						{
+							"name": "Get All Policies",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/policies",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"policies"
+									]
+								},
+								"description": "Get all policies across all users (Admin only)"
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Admin Documents",
+					"item": [
+				{
+					"name": "List KYC Documents",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/documents/kyc-documents?status=pending&page=1&limit=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"documents",
+								"kyc-documents"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending",
+									"description": "Filter by verification status: pending | verified"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Fetch paginated KYC documents awaiting review. Adjust the `status`, `page`, and `limit` query params as needed."
+					},
+					"response": []
+				},
+				{
+					"name": "List KYC Documents (Legacy Route)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/kyc-documents?status=pending&page=1&limit=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"kyc-documents"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending",
+									"description": "Filter by verification status: pending | verified"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Backwards-compatible endpoint that reuses the same controller as `/admin/documents/kyc-documents`."
+					},
+					"response": []
+				},
+						{
+							"name": "Verify Document",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"documentType\": \"user\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+						"url": {
+							"raw": "{{baseUrl}}/admin/documents/verify-document/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"documents",
+								"verify-document",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "document-id-here"
+								}
+							]
+						},
+						"description": "Verify a uploaded document (Admin only). `documentType` accepts `user`, `policy`, or `nominee`."
+							},
+							"response": []
+						}
+				,
+				{
+					"name": "Verify Document (Legacy Route)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Length",
+								"value": "36"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"documentType\": \"user\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/admin/verify-document/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"verify-document",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "document-id-here"
+								}
+							]
+						},
+						"description": "Legacy compatibility route that proxies to the same verification controller. Accepts documentType values: user, policy, nominee."
+					},
+					"response": []
+				}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "authToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "adminToken",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
+

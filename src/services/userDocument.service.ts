@@ -1,0 +1,129 @@
+import prisma from '../config/prismaClient';
+import { NotFoundError, ValidationError } from '../utils/errors';
+import { getFileUrl } from '../utils/fileUpload';
+
+export interface UploadUserDocumentData {
+  documentType: 'AADHAAR' | 'PAN' | 'OTHER';
+  documentName: string;
+  filename: string;
+}
+
+export const uploadUserDocument = async (userId: string, data: UploadUserDocumentData) => {
+  // Verify user exists
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  // Validate document type
+  const validTypes = ['AADHAAR', 'PAN', 'OTHER'];
+  if (!validTypes.includes(data.documentType)) {
+    throw new ValidationError(`documentType must be one of: ${validTypes.join(', ')}`);
+  }
+
+  // Generate file URL
+  const documentUrl = getFileUrl(data.filename, 'users');
+
+  const document = await prisma.userDocument.create({
+    data: {
+      user_id: BigInt(userId),
+      document_type: data.documentType,
+      document_name: data.documentName,
+      document_url: documentUrl,
+      is_verified: false,
+    },
+  });
+
+  return {
+    id: document.id.toString(),
+    userId: document.user_id.toString(),
+    documentType: document.document_type,
+    documentName: document.document_name,
+    documentUrl: document.document_url,
+    isVerified: document.is_verified,
+    uploadedAt: document.uploaded_at,
+    verifiedAt: document.verified_at,
+  };
+};
+
+export const getUserDocuments = async (userId: string) => {
+  // Verify user exists
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  const documents = await prisma.userDocument.findMany({
+    where: { user_id: BigInt(userId) },
+    orderBy: { uploaded_at: 'desc' },
+  });
+
+  return documents.map((doc) => ({
+    id: doc.id.toString(),
+    documentType: doc.document_type,
+    documentName: doc.document_name,
+    documentUrl: doc.document_url,
+    isVerified: doc.is_verified,
+    uploadedAt: doc.uploaded_at,
+    verifiedAt: doc.verified_at,
+  }));
+};
+
+export const getUserDocumentById = async (userId: string, documentId: string) => {
+  const document = await prisma.userDocument.findFirst({
+    where: {
+      id: BigInt(documentId),
+      user_id: BigInt(userId),
+    },
+  });
+
+  if (!document) {
+    throw new NotFoundError('Document not found');
+  }
+
+  return {
+    id: document.id.toString(),
+    userId: document.user_id.toString(),
+    documentType: document.document_type,
+    documentName: document.document_name,
+    documentUrl: document.document_url,
+    isVerified: document.is_verified,
+    uploadedAt: document.uploaded_at,
+    verifiedAt: document.verified_at,
+  };
+};
+
+export const deleteUserDocument = async (userId: string, documentId: string) => {
+  const document = await prisma.userDocument.findFirst({
+    where: {
+      id: BigInt(documentId),
+      user_id: BigInt(userId),
+    },
+  });
+
+  if (!document) {
+    throw new NotFoundError('Document not found');
+  }
+
+  // Extract filename from URL
+  const urlParts = document.document_url.split('/');
+  const filename = urlParts[urlParts.length - 1];
+
+  // Delete file from filesystem
+  const { deleteFile } = await import('../utils/fileUpload');
+  deleteFile(filename, 'users');
+
+  // Delete from database
+  await prisma.userDocument.delete({
+    where: { id: BigInt(documentId) },
+  });
+
+  return { message: 'Document deleted successfully' };
+};
+

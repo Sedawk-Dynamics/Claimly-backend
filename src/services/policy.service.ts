@@ -1,0 +1,369 @@
+import prisma from '../config/prismaClient';
+import { NotFoundError, ValidationError, ConflictError } from '../utils/errors';
+import logger from '../config/logger';
+import { getUserKycStatus } from './user.service';
+
+export interface CreatePolicyData {
+  insuranceCompanyId: string;
+  policyNumber: string;
+  sumAssured: string;
+}
+
+export interface UpdatePolicyData {
+  insuranceCompanyId?: string;
+  policyNumber?: string;
+  sumAssured?: string;
+  status?: 'ACTIVE' | 'INACTIVE';
+}
+
+export const createPolicy = async (userId: string, data: CreatePolicyData) => {
+  logger.info('Creating policy', { userId, policyNumber: data.policyNumber });
+  
+  // Ensure user has completed KYC (uploaded Aadhaar and PAN)
+  const kycStatus = await getUserKycStatus(userId);
+
+  if (kycStatus.status !== 'COMPLETED') {
+    logger.warn('Attempt to create policy without completed KYC', {
+      userId,
+      missingDocuments: kycStatus.missingDocuments,
+    });
+    throw new ValidationError('KYC verification is required before adding policies');
+  }
+
+  // Check if policy number already exists
+  const existingPolicy = await prisma.policy.findUnique({
+    where: { policy_number: data.policyNumber },
+  });
+
+  if (existingPolicy) {
+    throw new ConflictError('Policy number already exists');
+  }
+
+  // Verify insurance company exists
+  const insuranceCompany = await prisma.insuranceCompany.findUnique({
+    where: { id: BigInt(data.insuranceCompanyId) },
+  });
+
+  if (!insuranceCompany) {
+    throw new NotFoundError('Insurance company not found');
+  }
+
+  // Validate sum assured
+  const sumAssured = parseFloat(data.sumAssured);
+  if (isNaN(sumAssured) || sumAssured <= 0) {
+    throw new ValidationError('Sum assured must be a positive number');
+  }
+
+  const policy = await prisma.policy.create({
+    data: {
+      user_id: BigInt(userId),
+      insurance_company_id: BigInt(data.insuranceCompanyId),
+      policy_number: data.policyNumber,
+      sum_assured: sumAssured,
+      status: 'ACTIVE',
+    },
+    include: {
+      insurance_company: {
+        select: {
+          id: true,
+          name: true,
+          contact_email: true,
+          contact_number: true,
+        },
+      },
+      policy_nominees: {
+        include: {
+          nominee: {
+            select: {
+              id: true,
+              name: true,
+              relationship: true,
+            },
+          },
+        },
+      },
+      documents: true,
+    },
+  });
+
+  const result = {
+    id: policy.id.toString(),
+    userId: policy.user_id.toString(),
+    insuranceCompany: {
+      id: policy.insurance_company.id.toString(),
+      name: policy.insurance_company.name,
+      contactEmail: policy.insurance_company.contact_email,
+      contactNumber: policy.insurance_company.contact_number,
+    },
+    policyNumber: policy.policy_number,
+    sumAssured: policy.sum_assured.toString(),
+    status: policy.status,
+    uploadedAt: policy.uploaded_at,
+    nominees: policy.policy_nominees.map((pn) => ({
+      id: pn.id.toString(),
+      nominee: {
+        id: pn.nominee.id.toString(),
+        name: pn.nominee.name,
+        relationship: pn.nominee.relationship,
+      },
+      sharePercentage: pn.share_percentage.toString(),
+    })),
+    documents: policy.documents.map((doc) => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      documentUrl: doc.document_url,
+      isVerified: doc.is_verified,
+      uploadedAt: doc.uploaded_at,
+    })),
+  };
+  
+  logger.info('Policy created successfully', { policyId: policy.id.toString(), userId });
+  return result;
+};
+
+export const getUserPolicies = async (userId: string) => {
+  const policies = await prisma.policy.findMany({
+    where: { user_id: BigInt(userId) },
+    include: {
+      insurance_company: {
+        select: {
+          id: true,
+          name: true,
+          contact_email: true,
+          contact_number: true,
+        },
+      },
+      policy_nominees: {
+        include: {
+          nominee: {
+            select: {
+              id: true,
+              name: true,
+              relationship: true,
+            },
+          },
+        },
+      },
+      documents: {
+        select: {
+          id: true,
+          document_type: true,
+          document_name: true,
+          document_url: true,
+          is_verified: true,
+          uploaded_at: true,
+        },
+      },
+    },
+    orderBy: { uploaded_at: 'desc' },
+  });
+
+  return policies.map((policy) => ({
+    id: policy.id.toString(),
+    insuranceCompany: {
+      id: policy.insurance_company.id.toString(),
+      name: policy.insurance_company.name,
+      contactEmail: policy.insurance_company.contact_email,
+      contactNumber: policy.insurance_company.contact_number,
+    },
+    policyNumber: policy.policy_number,
+    sumAssured: policy.sum_assured.toString(),
+    status: policy.status,
+    uploadedAt: policy.uploaded_at,
+    nominees: policy.policy_nominees.map((pn) => ({
+      id: pn.id.toString(),
+      nominee: {
+        id: pn.nominee.id.toString(),
+        name: pn.nominee.name,
+        relationship: pn.nominee.relationship,
+      },
+      sharePercentage: pn.share_percentage.toString(),
+    })),
+    documents: policy.documents.map((doc) => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      documentUrl: doc.document_url,
+      isVerified: doc.is_verified,
+      uploadedAt: doc.uploaded_at,
+    })),
+  }));
+};
+
+export const getPolicyById = async (userId: string, policyId: string) => {
+  const policy = await prisma.policy.findFirst({
+    where: {
+      id: BigInt(policyId),
+      user_id: BigInt(userId),
+    },
+    include: {
+      insurance_company: {
+        select: {
+          id: true,
+          name: true,
+          contact_email: true,
+          contact_number: true,
+          website_url: true,
+          address: true,
+        },
+      },
+      policy_nominees: {
+        include: {
+          nominee: {
+            select: {
+              id: true,
+              name: true,
+              relationship: true,
+              mobile_number: true,
+              email: true,
+              address: true,
+            },
+          },
+        },
+      },
+      documents: true,
+    },
+  });
+
+  if (!policy) {
+    throw new NotFoundError('Policy not found');
+  }
+
+  return {
+    id: policy.id.toString(),
+    insuranceCompany: {
+      id: policy.insurance_company.id.toString(),
+      name: policy.insurance_company.name,
+      contactEmail: policy.insurance_company.contact_email,
+      contactNumber: policy.insurance_company.contact_number,
+      websiteUrl: policy.insurance_company.website_url,
+      address: policy.insurance_company.address,
+    },
+    policyNumber: policy.policy_number,
+    sumAssured: policy.sum_assured.toString(),
+    status: policy.status,
+    uploadedAt: policy.uploaded_at,
+    nominees: policy.policy_nominees.map((pn) => ({
+      id: pn.id.toString(),
+      nominee: {
+        id: pn.nominee.id.toString(),
+        name: pn.nominee.name,
+        relationship: pn.nominee.relationship,
+        mobileNumber: pn.nominee.mobile_number,
+        email: pn.nominee.email,
+        address: pn.nominee.address,
+      },
+      sharePercentage: pn.share_percentage.toString(),
+      createdAt: pn.created_at,
+    })),
+    documents: policy.documents.map((doc) => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      documentUrl: doc.document_url,
+      isVerified: doc.is_verified,
+      uploadedAt: doc.uploaded_at,
+      verifiedAt: doc.verified_at,
+    })),
+  };
+};
+
+export const updatePolicy = async (userId: string, policyId: string, data: UpdatePolicyData) => {
+  // Verify policy exists and belongs to user
+  const existingPolicy = await prisma.policy.findFirst({
+    where: {
+      id: BigInt(policyId),
+      user_id: BigInt(userId),
+    },
+  });
+
+  if (!existingPolicy) {
+    throw new NotFoundError('Policy not found');
+  }
+
+  // Check if policy number is being changed and if it's already taken
+  if (data.policyNumber && data.policyNumber !== existingPolicy.policy_number) {
+    const policyWithNumber = await prisma.policy.findUnique({
+      where: { policy_number: data.policyNumber },
+    });
+
+    if (policyWithNumber) {
+      throw new ConflictError('Policy number already exists');
+    }
+  }
+
+  // Verify insurance company if being updated
+  if (data.insuranceCompanyId) {
+    const insuranceCompany = await prisma.insuranceCompany.findUnique({
+      where: { id: BigInt(data.insuranceCompanyId) },
+    });
+
+    if (!insuranceCompany) {
+      throw new NotFoundError('Insurance company not found');
+    }
+  }
+
+  // Validate sum assured if being updated
+  if (data.sumAssured) {
+    const sumAssured = parseFloat(data.sumAssured);
+    if (isNaN(sumAssured) || sumAssured <= 0) {
+      throw new ValidationError('Sum assured must be a positive number');
+    }
+  }
+
+  const updateData: any = {};
+  if (data.insuranceCompanyId) updateData.insurance_company_id = BigInt(data.insuranceCompanyId);
+  if (data.policyNumber) updateData.policy_number = data.policyNumber;
+  if (data.sumAssured) updateData.sum_assured = parseFloat(data.sumAssured);
+  if (data.status) updateData.status = data.status;
+
+  const updatedPolicy = await prisma.policy.update({
+    where: { id: BigInt(policyId) },
+    data: updateData,
+    include: {
+      insurance_company: {
+        select: {
+          id: true,
+          name: true,
+          contact_email: true,
+          contact_number: true,
+        },
+      },
+    },
+  });
+
+  return {
+    id: updatedPolicy.id.toString(),
+    insuranceCompany: {
+      id: updatedPolicy.insurance_company.id.toString(),
+      name: updatedPolicy.insurance_company.name,
+      contactEmail: updatedPolicy.insurance_company.contact_email,
+      contactNumber: updatedPolicy.insurance_company.contact_number,
+    },
+    policyNumber: updatedPolicy.policy_number,
+    sumAssured: updatedPolicy.sum_assured.toString(),
+    status: updatedPolicy.status,
+    uploadedAt: updatedPolicy.uploaded_at,
+  };
+};
+
+export const deletePolicy = async (userId: string, policyId: string) => {
+  const policy = await prisma.policy.findFirst({
+    where: {
+      id: BigInt(policyId),
+      user_id: BigInt(userId),
+    },
+  });
+
+  if (!policy) {
+    throw new NotFoundError('Policy not found');
+  }
+
+  await prisma.policy.delete({
+    where: { id: BigInt(policyId) },
+  });
+
+  return { message: 'Policy deleted successfully' };
+};
+
