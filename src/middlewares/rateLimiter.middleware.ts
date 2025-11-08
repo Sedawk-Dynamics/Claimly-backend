@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import crypto from 'crypto';
 
 // General API rate limiter
@@ -17,7 +17,7 @@ export const apiLimiter = rateLimit({
     if (authHeader?.startsWith('Bearer ')) {
       return crypto.createHash('sha256').update(authHeader.slice(7)).digest('hex');
     }
-    return req.ip || req.socket.remoteAddress || 'anonymous';
+    return ipKeyGenerator(req as any);
   },
 });
 
