@@ -1,14 +1,17 @@
 import { exec } from 'child_process';
+import fs from 'fs/promises';
+import path from 'path';
 import logger from './logger';
 
+const PRISMA_GENERATE_COMMAND = 'npx prisma generate --schema=./src/prisma/schema.prisma';
 const MIGRATE_COMMAND = 'npx prisma migrate deploy --schema=./src/prisma/schema.prisma';
 
-export const runDatabaseMigrations = async (): Promise<void> => {
-  logger.info('Checking for pending database migrations');
+const runCommand = async (command: string, description: string) => {
+  logger.info(description);
 
   await new Promise<void>((resolve, reject) => {
-    const migrateProcess = exec(
-      MIGRATE_COMMAND,
+    const childProcess = exec(
+      command,
       {
         env: process.env,
       },
@@ -22,7 +25,7 @@ export const runDatabaseMigrations = async (): Promise<void> => {
         }
 
         if (error) {
-          logger.error('Database migration failed', {
+          logger.error(`${description} failed`, {
             error: error.message,
           });
           reject(error);
@@ -33,14 +36,32 @@ export const runDatabaseMigrations = async (): Promise<void> => {
       }
     );
 
-    migrateProcess.on('error', (error) => {
-      logger.error('Failed to spawn migration process', {
+    childProcess.on('error', (error: NodeJS.ErrnoException) => {
+      logger.error(`Failed to start ${description.toLowerCase()}`, {
         error: error.message,
       });
       reject(error);
     });
   });
+};
 
+export const ensurePrismaClientGenerated = async (): Promise<void> => {
+  const prismaClientPath = path.join(process.cwd(), 'node_modules', '.prisma', 'client');
+
+  try {
+    await fs.access(prismaClientPath);
+    logger.info('Prisma client artifacts already present');
+    return;
+  } catch {
+    logger.warn('Prisma client artifacts missing. Generating...');
+  }
+
+  await runCommand(PRISMA_GENERATE_COMMAND, 'Generating Prisma client');
+  logger.info('Prisma client generated successfully');
+};
+
+export const runDatabaseMigrations = async (): Promise<void> => {
+  await runCommand(MIGRATE_COMMAND, 'Checking for pending database migrations');
   logger.info('Database migrations completed successfully');
 };
 

@@ -27,7 +27,7 @@ import { apiLimiter, authLimiter, adminLimiter, uploadLimiter } from './middlewa
 import { requestLogger } from './middlewares/requestLogger.middleware';
 import { testDatabaseConnection } from './config/prismaClient';
 import { ensureDefaultAdmin } from './config/bootstrap';
-import { runDatabaseMigrations } from './config/migrate';
+import { ensurePrismaClientGenerated, runDatabaseMigrations } from './config/migrate';
 
 dotenv.config();
 
@@ -167,6 +167,15 @@ app.listen(PORT, async () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   
   // Test database connection
+  try {
+    await ensurePrismaClientGenerated();
+  } catch (generateError) {
+    logger.error('Server startup halted due to Prisma client generation failure', {
+      error: generateError instanceof Error ? generateError.message : 'Unknown error',
+    });
+    return;
+  }
+
   const connected = await testDatabaseConnection();
 
   if (connected) {
