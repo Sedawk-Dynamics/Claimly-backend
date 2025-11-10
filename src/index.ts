@@ -27,6 +27,7 @@ import { apiLimiter, authLimiter, adminLimiter, uploadLimiter } from './middlewa
 import { requestLogger } from './middlewares/requestLogger.middleware';
 import { testDatabaseConnection } from './config/prismaClient';
 import { ensureDefaultAdmin } from './config/bootstrap';
+import { runDatabaseMigrations } from './config/migrate';
 
 dotenv.config();
 
@@ -169,6 +170,15 @@ app.listen(PORT, async () => {
   const connected = await testDatabaseConnection();
 
   if (connected) {
+    try {
+      await runDatabaseMigrations();
+    } catch (migrationError) {
+      logger.error('Server startup halted due to migration failure', {
+        error: migrationError instanceof Error ? migrationError.message : 'Unknown error',
+      });
+      return;
+    }
+
     await ensureDefaultAdmin();
   } else {
     logger.warn('Skipping default admin bootstrap because database connection failed');
