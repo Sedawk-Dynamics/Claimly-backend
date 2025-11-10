@@ -4,6 +4,9 @@ import {
   verifyUserDocument,
   verifyPolicyDocument,
   verifyNomineeDocument,
+  rejectUserDocument,
+  rejectPolicyDocument,
+  rejectNomineeDocument,
   getKycDocuments,
 } from '../services/adminDocument.service';
 
@@ -44,6 +47,49 @@ export const verifyDocumentController = async (
     res.status(200).json({
       success: true,
       data: verifiedDocument,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const rejectDocumentController = async (
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.admin) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const { documentType } = req.body; // 'user', 'policy', or 'nominee'
+
+    let rejectedDocument;
+
+    switch (documentType) {
+      case 'user':
+        rejectedDocument = await rejectUserDocument(id, req.admin.adminId);
+        break;
+      case 'policy':
+        rejectedDocument = await rejectPolicyDocument(id, req.admin.adminId);
+        break;
+      case 'nominee':
+        rejectedDocument = await rejectNomineeDocument(id, req.admin.adminId);
+        break;
+      default:
+        res.status(400).json({
+          success: false,
+          error: 'Invalid documentType. Must be one of: user, policy, nominee',
+        });
+        return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: rejectedDocument,
     });
   } catch (error) {
     next(error);

@@ -111,6 +111,114 @@ export const verifyNomineeDocument = async (documentId: string, adminId: string)
   };
 };
 
+export const rejectUserDocument = async (documentId: string, adminId: string) => {
+  const document = await prisma.userDocument.findUnique({
+    where: { id: BigInt(documentId) },
+    include: { user: true },
+  });
+
+  if (!document) {
+    throw new NotFoundError('User document not found');
+  }
+
+  const updatedDocument = await prisma.userDocument.update({
+    where: { id: BigInt(documentId) },
+    data: {
+      is_verified: false,
+      verified_at: null,
+    },
+  });
+
+  logger.info('User document rejected/unverified', {
+    documentId,
+    adminId,
+    userId: document.user_id.toString(),
+  });
+
+  return {
+    id: updatedDocument.id.toString(),
+    userId: updatedDocument.user_id.toString(),
+    documentType: updatedDocument.document_type,
+    documentName: updatedDocument.document_name,
+    documentUrl: updatedDocument.document_url,
+    isVerified: updatedDocument.is_verified,
+    uploadedAt: updatedDocument.uploaded_at,
+    verifiedAt: updatedDocument.verified_at,
+  };
+};
+
+export const rejectPolicyDocument = async (documentId: string, adminId: string) => {
+  const document = await prisma.policyDocument.findUnique({
+    where: { id: BigInt(documentId) },
+    include: { policy: true },
+  });
+
+  if (!document) {
+    throw new NotFoundError('Policy document not found');
+  }
+
+  const updatedDocument = await prisma.policyDocument.update({
+    where: { id: BigInt(documentId) },
+    data: {
+      is_verified: false,
+      verified_at: null,
+    },
+  });
+
+  logger.info('Policy document rejected/unverified', {
+    documentId,
+    adminId,
+    policyId: document.policy_id.toString(),
+  });
+
+  return {
+    id: updatedDocument.id.toString(),
+    policyId: updatedDocument.policy_id.toString(),
+    documentType: updatedDocument.document_type,
+    documentName: updatedDocument.document_name,
+    documentUrl: updatedDocument.document_url,
+    isVerified: updatedDocument.is_verified,
+    uploadedAt: updatedDocument.uploaded_at,
+    verifiedAt: updatedDocument.verified_at,
+  };
+};
+
+export const rejectNomineeDocument = async (documentId: string, adminId: string) => {
+  const document = await prisma.nomineeDocument.findUnique({
+    where: { id: BigInt(documentId) },
+    include: { nominee: true },
+  });
+
+  if (!document) {
+    throw new NotFoundError('Nominee document not found');
+  }
+
+  const updatedDocument = await prisma.nomineeDocument.update({
+    where: { id: BigInt(documentId) },
+    data: {
+      is_verified: false,
+      verified_at: null,
+    },
+  });
+
+  logger.info('Nominee document rejected/unverified', {
+    documentId,
+    adminId,
+    nomineeId: document.nominee_id.toString(),
+  });
+
+  return {
+    id: updatedDocument.id.toString(),
+    nomineeId: updatedDocument.nominee_id.toString(),
+    documentType: updatedDocument.document_type,
+    documentName: updatedDocument.document_name,
+    documentUrl: updatedDocument.document_url,
+    isVerified: updatedDocument.is_verified,
+    uploadedAt: updatedDocument.uploaded_at,
+    verifiedAt: updatedDocument.verified_at,
+  };
+};
+
 export const getKycDocuments = async (
   page: number,
   limit: number,
@@ -118,33 +226,68 @@ export const getKycDocuments = async (
 ) => {
   const offset = (page - 1) * limit;
   const documentTypes: UserDocumentType[] = ['AADHAAR', 'PAN'];
-  const hasAllVerified = status === 'verified';
+
+  // For pending: users who have at least one unverified document or are missing a document
+  // For verified: users who have all documents and all are verified
+  let whereClause: any;
+
+  if (status === 'verified') {
+    // Users who have all required document types and all are verified
+    // This means: user has AADHAAR verified AND has PAN verified
+    whereClause = {
+      AND: documentTypes.map((docType) => ({
+        documents: {
+          some: {
+            document_type: docType,
+            is_verified: true,
+          },
+        },
+      })),
+    };
+  } else {
+    // Users who have at least one unverified document or are missing a document
+    // This includes:
+    // 1. Users with at least one unverified AADHAAR or PAN document
+    // 2. Users missing AADHAAR document
+    // 3. Users missing PAN document
+    whereClause = {
+      OR: [
+        {
+          documents: {
+            some: {
+              document_type: { in: documentTypes },
+              is_verified: false,
+            },
+          },
+        },
+        {
+          documents: {
+            none: {
+              document_type: 'AADHAAR',
+            },
+          },
+        },
+        {
+          documents: {
+            none: {
+              document_type: 'PAN',
+            },
+          },
+        },
+      ],
+    };
+  }
 
   const totalUsers = await prisma.user.count({
-    where: {
-      documents: {
-        some: {
-          document_type: { in: documentTypes },
-          ...(hasAllVerified ? { is_verified: true } : {}),
-        },
-      },
-    },
+    where: whereClause,
   });
 
   const users = await prisma.user.findMany({
-    where: {
-      documents: {
-        some: {
-          document_type: { in: documentTypes },
-          ...(hasAllVerified ? { is_verified: true } : {}),
-        },
-      },
-    },
+    where: whereClause,
     include: {
       documents: {
         where: {
           document_type: { in: documentTypes },
-          ...(hasAllVerified ? { is_verified: true } : {}),
         },
         orderBy: { uploaded_at: 'desc' },
       },

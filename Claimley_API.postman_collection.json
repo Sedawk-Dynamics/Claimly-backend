@@ -1516,7 +1516,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"email\": \"admin@claimley.com\",\n  \"password\": \"admin123\"\n}",
+									"raw": "{\n  \"email\": \"admin@claimley.com\",\n  \"password\": \"Claimly@123\"\n}",
 									"options": {
 										"raw": {
 											"language": "json"

@@ -188,6 +188,16 @@ export const verifyDocumentSchema = z.object({
   }),
 });
 
+// Admin document rejection schema (same as verification schema)
+export const rejectDocumentSchema = z.object({
+  body: z.object({
+    documentType: z.enum(['user', 'policy', 'nominee']),
+  }),
+  params: z.object({
+    id: z.string().min(1, 'Document ID is required'),
+  }),
+});
+
 // Validation middleware
 import { Request, Response, NextFunction } from 'express';
 import { ZodError, ZodSchema } from 'zod';
