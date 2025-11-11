@@ -75,12 +75,23 @@ export const createCompany = async (data: CreateCompanyData) => {
   };
 };
 
-export const getAllCompanies = async (page: number = 1, limit: number = 20, status?: 'ACTIVE' | 'INACTIVE') => {
+export const getAllCompanies = async (page: number = 1, limit: number = 20, status?: 'ACTIVE' | 'INACTIVE', search?: string) => {
   const skip = (page - 1) * limit;
   const where: any = {};
 
   if (status) {
     where.status = status;
+  }
+
+  if (search && search.trim()) {
+    const searchTerm = search.trim();
+    where.OR = [
+      { name: { contains: searchTerm } },
+      { contact_email: { contains: searchTerm } },
+      { contact_number: { contains: searchTerm } },
+      { website_url: { contains: searchTerm } },
+      { address: { contains: searchTerm } },
+    ];
   }
 
   const [companies, total] = await Promise.all([

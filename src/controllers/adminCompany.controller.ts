@@ -44,8 +44,9 @@ export const getAllCompaniesController = async (
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const status = req.query.status as 'ACTIVE' | 'INACTIVE' | undefined;
+    const search = req.query.search as string | undefined;
 
-    const result = await getAllCompanies(page, limit, status);
+    const result = await getAllCompanies(page, limit, status, search);
     res.status(200).json({
       success: true,
       data: result,
