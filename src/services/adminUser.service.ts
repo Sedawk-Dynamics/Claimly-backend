@@ -5,12 +5,13 @@ export const getAllUsers = async (page: number = 1, limit: number = 20, search?:
   const skip = (page - 1) * limit;
   const where: any = {};
 
-  if (search) {
+  if (search && search.trim()) {
+    const searchTerm = search.trim();
     where.OR = [
-      { name: { contains: search } },
-      { email: { contains: search } },
-      { mobile_number: { contains: search } },
-      { firebase_id: { contains: search } },
+      { name: { contains: searchTerm } },
+      { email: { contains: searchTerm } },
+      { mobile_number: { contains: searchTerm } },
+      { firebase_id: { contains: searchTerm } },
     ];
   }
 

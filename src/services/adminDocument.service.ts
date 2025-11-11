@@ -235,20 +235,23 @@ export const getKycDocuments = async (
   
   // Base search filter for user name, email, or mobile number
   // MySQL's default collation (utf8mb4_unicode_ci) is case-insensitive, so contains works without mode
-  const searchFilter = search
+  // Handle email as nullable field - only search if email is not null
+  const searchFilter = search && search.trim()
     ? {
         OR: [
-          { name: { contains: search } },
-          { email: { contains: search } },
-          { mobile_number: { contains: search } },
+          { name: { contains: search.trim() } },
+          { email: { contains: search.trim() } },
+          { mobile_number: { contains: search.trim() } },
         ],
       }
-    : {};
+    : null;
 
+  // Build base status conditions
+  let statusConditions: any;
+  
   if (status === 'verified') {
     // Users who have all required document types verified AND have NO unverified documents
-    // This means: user has AADHAAR verified AND has PAN verified AND has no unverified AADHAAR/PAN documents
-    whereClause = {
+    statusConditions = {
       AND: [
         // User has all required document types verified
         ...documentTypes.map((docType) => ({
@@ -268,14 +271,11 @@ export const getKycDocuments = async (
             },
           },
         },
-        // Apply search filter if provided
-        ...(Object.keys(searchFilter).length > 0 ? [searchFilter] : []),
       ],
     };
   } else if (status === 're-verification') {
     // Users who have all required document types verified BUT have at least one unverified document
-    // This covers: verified users who uploaded new documents
-    whereClause = {
+    statusConditions = {
       AND: [
         // User has all required document types verified
         ...documentTypes.map((docType) => ({
@@ -295,17 +295,11 @@ export const getKycDocuments = async (
             },
           },
         },
-        // Apply search filter if provided
-        ...(Object.keys(searchFilter).length > 0 ? [searchFilter] : []),
       ],
     };
   } else {
     // Pending: Users who DON'T have all required documents verified (first-time verification)
-    // This includes:
-    // 1. Users with no documents of required types (need to upload)
-    // 2. Users with documents but NOT all required types verified
-    // Excludes: Users who have all required documents verified (those go to re-verification if they have new docs)
-    const pendingConditions = {
+    statusConditions = {
       OR: [
         // User has no documents of required types
         {
@@ -343,15 +337,27 @@ export const getKycDocuments = async (
         },
       ],
     };
-    
-    whereClause = Object.keys(searchFilter).length > 0
-      ? {
-          AND: [
-            pendingConditions,
-            searchFilter,
-          ],
-        }
-      : pendingConditions;
+  }
+
+  // Combine status conditions with search filter if provided
+  if (searchFilter) {
+    whereClause = {
+      AND: [
+        statusConditions,
+        searchFilter,
+      ],
+    };
+  } else {
+    whereClause = statusConditions;
+  }
+
+  // Log the search query for debugging
+  if (search) {
+    logger.debug('KYC Documents search', {
+      search,
+      status,
+      whereClause: JSON.stringify(whereClause).substring(0, 500), // Log first 500 chars
+    });
   }
 
   const totalUsers = await prisma.user.count({
