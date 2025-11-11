@@ -119,6 +119,7 @@ model PolicyDocument {
   is_verified     Boolean    @default(false)
   uploaded_at     DateTime   @default(now())
   verified_at     DateTime?
+  rejected_at     DateTime?
 
   policy          Policy     @relation(fields: [policy_id], references: [id], onDelete: Cascade)
 }

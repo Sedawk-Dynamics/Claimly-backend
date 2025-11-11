@@ -154,6 +154,7 @@ export const getUserPolicies = async (userId: string) => {
           is_verified: true,
           uploaded_at: true,
           verified_at: true,
+          rejected_at: true,
         },
         orderBy: {
           uploaded_at: 'desc',
@@ -192,6 +193,7 @@ export const getUserPolicies = async (userId: string) => {
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
       verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     })),
   }));
 };
@@ -227,7 +229,21 @@ export const getPolicyById = async (userId: string, policyId: string) => {
           },
         },
       },
-      documents: true,
+      documents: {
+        select: {
+          id: true,
+          document_type: true,
+          document_name: true,
+          document_url: true,
+          is_verified: true,
+          uploaded_at: true,
+          verified_at: true,
+          rejected_at: true,
+        },
+        orderBy: {
+          uploaded_at: 'desc',
+        },
+      },
     },
   });
 
@@ -270,6 +286,7 @@ export const getPolicyById = async (userId: string, policyId: string) => {
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
       verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     })),
   };
 };

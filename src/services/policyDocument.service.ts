@@ -179,6 +179,7 @@ export const updatePolicyDocument = async (
       is_verified: false,
       // Keep verified_at if it exists (was previously verified, now needs re-verification)
       // Only set to null if it was never verified
+      rejected_at: null, // Clear rejection when document is updated/replaced
       uploaded_at: new Date(),
     },
   });

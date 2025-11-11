@@ -54,6 +54,7 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
     data: {
       is_verified: true,
       verified_at: new Date(),
+      rejected_at: null, // Clear rejection when verifying
     },
   });
 
@@ -72,6 +73,7 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
     isVerified: updatedDocument.is_verified,
     uploadedAt: updatedDocument.uploaded_at,
     verifiedAt: updatedDocument.verified_at,
+    rejectedAt: updatedDocument.rejected_at,
   };
 };
 
@@ -162,10 +164,11 @@ export const rejectPolicyDocument = async (documentId: string, adminId: string) 
     data: {
       is_verified: false,
       verified_at: null,
+      rejected_at: new Date(), // Mark as explicitly rejected
     },
   });
 
-  logger.info('Policy document rejected/unverified', {
+  logger.info('Policy document rejected', {
     documentId,
     adminId,
     policyId: document.policy_id.toString(),
@@ -180,6 +183,7 @@ export const rejectPolicyDocument = async (documentId: string, adminId: string) 
     isVerified: updatedDocument.is_verified,
     uploadedAt: updatedDocument.uploaded_at,
     verifiedAt: updatedDocument.verified_at,
+    rejectedAt: updatedDocument.rejected_at,
   };
 };
 
@@ -588,6 +592,241 @@ export const getReVerificationDocuments = async (page: number, limit: number) =>
       limit,
       total,
       totalPages: Math.ceil(total / limit) || 1,
+    },
+  };
+};
+
+export const getPolicyDocuments = async (
+  page: number,
+  limit: number,
+  status: 'pending' | 'verified' | 're-verification' | 'rejected',
+  search?: string
+) => {
+  const offset = (page - 1) * limit;
+
+  // Base search filter for user name, email, mobile number, or policy number
+  const searchFilter = search && search.trim()
+    ? {
+        OR: [
+          { user: { name: { contains: search.trim() } } },
+          { user: { email: { contains: search.trim() } } },
+          { user: { mobile_number: { contains: search.trim() } } },
+          { policy_number: { contains: search.trim() } },
+        ],
+      }
+    : null;
+
+  // Build status conditions
+  let statusConditions: any;
+
+  if (status === 'verified') {
+    // Policies that have all documents verified AND have NO unverified documents
+    statusConditions = {
+      AND: [
+        // Policy has at least one document
+        {
+          documents: {
+            some: {},
+          },
+        },
+        // Policy has NO unverified documents
+        {
+          documents: {
+            none: {
+              is_verified: false,
+            },
+          },
+        },
+      ],
+    };
+  } else if (status === 're-verification') {
+    // Re-verification: Policies that have verified documents AND have NEW unverified documents
+    // NEW means: unverified documents uploaded AFTER the latest verification date
+    // Note: When verification is removed (verified_at becomes null), it goes to pending, not re-verification
+    // We'll fetch policies with both verified and unverified docs, then filter in application logic
+    statusConditions = {
+      AND: [
+        // Policy has at least one verified document
+        {
+          documents: {
+            some: {
+              is_verified: true,
+              verified_at: { not: null },
+            },
+          },
+        },
+        // Policy has at least one unverified document
+        {
+          documents: {
+            some: {
+              is_verified: false,
+            },
+          },
+        },
+      ],
+    };
+  } else if (status === 'rejected') {
+    // Rejected: Policies that have documents with rejected_at set (explicitly rejected by admin)
+    statusConditions = {
+      // Policy must have at least one document that was rejected
+      documents: {
+        some: {
+          rejected_at: { not: null },
+        },
+      },
+    };
+  } else {
+    // Pending: Policies that have NO verified documents AND NO rejected documents
+    // This includes:
+    // 1. Policies with no documents
+    // 2. Policies with documents but none are verified or rejected (first-time or after verification removal)
+    statusConditions = {
+      OR: [
+        // Policy has no documents
+        {
+          documents: {
+            none: {},
+          },
+        },
+        // Policy has documents but none are verified or rejected
+        // This covers both first-time verification and cases where verification was removed
+        {
+          AND: [
+            {
+              documents: {
+                some: {},
+              },
+            },
+            {
+              documents: {
+                none: {
+                  is_verified: true,
+                },
+              },
+            },
+            {
+              documents: {
+                none: {
+                  rejected_at: { not: null },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  // Combine status conditions with search filter if provided
+  let whereClause: any;
+  if (searchFilter) {
+    whereClause = {
+      AND: [
+        statusConditions,
+        searchFilter,
+      ],
+    };
+  } else {
+    whereClause = statusConditions;
+  }
+
+  // Fetch all policies matching the base criteria
+  let policies = await prisma.policy.findMany({
+    where: whereClause,
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          mobile_number: true,
+        },
+      },
+      insurance_company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      documents: {
+        orderBy: { uploaded_at: 'desc' },
+      },
+    },
+    orderBy: { uploaded_at: 'desc' },
+  });
+
+  // For re-verification status, filter to only include policies where unverified documents
+  // were uploaded AFTER the latest verification date (indicating new documents, not removed verification)
+  // When verification is removed (verified_at becomes null), it goes to pending, not re-verification
+  if (status === 're-verification') {
+    policies = policies.filter((policy) => {
+      const verifiedDocs = policy.documents.filter((doc) => doc.is_verified && doc.verified_at);
+      const unverifiedDocs = policy.documents.filter((doc) => !doc.is_verified);
+
+      if (verifiedDocs.length === 0 || unverifiedDocs.length === 0) {
+        return false;
+      }
+
+      // Find the latest verification date
+      const latestVerificationDate = verifiedDocs
+        .map((doc) => doc.verified_at!)
+        .sort((a, b) => b.getTime() - a.getTime())[0];
+
+      // Check if any unverified document was uploaded AFTER the latest verification
+      // This indicates a new document was uploaded, not that verification was removed
+      const hasNewUnverifiedDocs = unverifiedDocs.some(
+        (doc) => doc.uploaded_at > latestVerificationDate
+      );
+
+      return hasNewUnverifiedDocs;
+    });
+  }
+
+  // For rejected status, we already filtered at the database level using rejected_at
+  // No additional filtering needed since we're using the rejected_at field directly
+
+  // Count total after filtering (for re-verification and rejected) or use database count (for others)
+  const totalPolicies = (status === 're-verification' || status === 'rejected')
+    ? policies.length 
+    : await prisma.policy.count({ where: whereClause });
+
+  // Apply pagination after filtering
+  const paginatedPolicies = policies.slice(offset, offset + limit);
+
+  return {
+    policies: paginatedPolicies.map((policy) => ({
+      id: policy.id.toString(),
+      policyNumber: policy.policy_number,
+      sumAssured: policy.sum_assured.toString(),
+      status: policy.status,
+      uploadedAt: policy.uploaded_at,
+      user: {
+        id: policy.user.id.toString(),
+        name: policy.user.name,
+        email: policy.user.email,
+        mobileNumber: policy.user.mobile_number,
+      },
+      insuranceCompany: {
+        id: policy.insurance_company.id.toString(),
+        name: policy.insurance_company.name,
+      },
+      documents: policy.documents.map((doc) => ({
+        id: doc.id.toString(),
+        documentType: doc.document_type,
+        documentName: doc.document_name,
+        documentUrl: doc.document_url,
+        isVerified: doc.is_verified,
+        uploadedAt: doc.uploaded_at,
+        verifiedAt: doc.verified_at,
+        rejectedAt: doc.rejected_at,
+      })),
+      verifiedDocuments: policy.documents.filter((doc) => doc.is_verified).map((doc) => doc.id.toString()),
+    })),
+    pagination: {
+      page,
+      limit,
+      total: totalPolicies,
+      totalPages: Math.ceil(totalPolicies / limit) || 1,
     },
   };
 };
