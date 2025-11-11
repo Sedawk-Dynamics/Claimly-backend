@@ -4,6 +4,7 @@ import {
   uploadUserDocument,
   getUserDocuments,
   getUserDocumentById,
+  updateUserDocument,
   deleteUserDocument,
 } from '../services/userDocument.service';
 
@@ -76,6 +77,42 @@ export const getDocumentByIdController = async (
 
     const { id } = req.params;
     const document = await getUserDocumentById(req.user.userId, id);
+    res.status(200).json({
+      success: true,
+      data: document,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateDocumentController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({
+        success: false,
+        error: 'No file uploaded',
+      });
+      return;
+    }
+
+    const { id } = req.params;
+    const { documentType, documentName } = req.body;
+    const document = await updateUserDocument(req.user.userId, id, {
+      documentType,
+      documentName: documentName || req.file.originalname,
+      filename: req.file.filename,
+    });
+
     res.status(200).json({
       success: true,
       data: document,

@@ -124,6 +124,77 @@ export const getPolicyDocumentById = async (
   };
 };
 
+export const updatePolicyDocument = async (
+  userId: string,
+  policyId: string,
+  documentId: string,
+  data: UploadPolicyDocumentData
+) => {
+  // Verify policy exists and belongs to user
+  const policy = await prisma.policy.findFirst({
+    where: {
+      id: BigInt(policyId),
+      user_id: BigInt(userId),
+    },
+  });
+
+  if (!policy) {
+    throw new NotFoundError('Policy not found');
+  }
+
+  // Verify document exists and belongs to policy
+  const existingDocument = await prisma.policyDocument.findFirst({
+    where: {
+      id: BigInt(documentId),
+      policy_id: BigInt(policyId),
+    },
+  });
+
+  if (!existingDocument) {
+    throw new NotFoundError('Document not found');
+  }
+
+  // Validate document name
+  if (!data.documentName || data.documentName.trim().length === 0) {
+    throw new ValidationError('Document name is required');
+  }
+
+  // Delete old file from filesystem
+  const urlParts = existingDocument.document_url.split('/');
+  const oldFilename = urlParts[urlParts.length - 1];
+  const { deleteFile } = await import('../utils/fileUpload');
+  deleteFile(oldFilename, 'policies');
+
+  // Generate new file URL
+  const documentUrl = getFileUrl(data.filename, 'policies');
+
+  // Update document with new file and reset verification
+  // Preserve verified_at if it exists (indicates re-verification needed)
+  const updatedDocument = await prisma.policyDocument.update({
+    where: { id: BigInt(documentId) },
+    data: {
+      document_type: data.documentType,
+      document_name: data.documentName,
+      document_url: documentUrl,
+      is_verified: false,
+      // Keep verified_at if it exists (was previously verified, now needs re-verification)
+      // Only set to null if it was never verified
+      uploaded_at: new Date(),
+    },
+  });
+
+  return {
+    id: updatedDocument.id.toString(),
+    policyId: updatedDocument.policy_id.toString(),
+    documentType: updatedDocument.document_type,
+    documentName: updatedDocument.document_name,
+    documentUrl: updatedDocument.document_url,
+    isVerified: updatedDocument.is_verified,
+    uploadedAt: updatedDocument.uploaded_at,
+    verifiedAt: updatedDocument.verified_at,
+  };
+};
+
 export const deletePolicyDocument = async (
   userId: string,
   policyId: string,

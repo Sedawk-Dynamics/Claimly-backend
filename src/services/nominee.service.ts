@@ -112,7 +112,13 @@ export const getUserNominees = async (userId: string) => {
           id: true,
           document_type: true,
           document_name: true,
+          document_url: true,
           is_verified: true,
+          uploaded_at: true,
+          verified_at: true,
+        },
+        orderBy: {
+          uploaded_at: 'desc',
         },
       },
     },
@@ -134,8 +140,18 @@ export const getUserNominees = async (userId: string) => {
       sumAssured: link.policy.sum_assured.toString(),
       sharePercentage: link.share_percentage.toString(),
     })),
+    documents: nominee.documents.map((doc) => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      documentUrl: doc.document_url,
+      isVerified: doc.is_verified,
+      uploadedAt: doc.uploaded_at,
+      verifiedAt: doc.verified_at,
+    })),
     documentsCount: nominee.documents.length,
     verifiedDocumentsCount: nominee.documents.filter((d) => d.is_verified).length,
+    isVerified: nominee.documents.length > 0 && nominee.documents.every((d) => d.is_verified),
   }));
 };
 

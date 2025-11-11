@@ -8,6 +8,7 @@ import {
   rejectPolicyDocument,
   rejectNomineeDocument,
   getKycDocuments,
+  getReVerificationDocuments,
 } from '../services/adminDocument.service';
 
 export const verifyDocumentController = async (
@@ -108,11 +109,37 @@ export const getKycDocumentsController = async (
     }
 
     const page = Math.max(parseInt((req.query.page as string) || '1', 10), 1);
-    const limit = Math.min(Math.max(parseInt((req.query.limit as string) || '20', 10), 1), 100);
+    const limit = Math.min(Math.max(parseInt((req.query.limit as string) || '25', 10), 1), 100);
     const statusQuery = ((req.query.status as string) || 'pending').toLowerCase();
-    const status = statusQuery === 'verified' ? 'verified' : 'pending';
+    const status = statusQuery === 'verified' ? 'verified' : statusQuery === 're-verification' ? 're-verification' : 'pending';
+    const search = (req.query.search as string)?.trim() || undefined;
 
-    const result = await getKycDocuments(page, limit, status);
+    const result = await getKycDocuments(page, limit, status, search);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getReVerificationDocumentsController = async (
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.admin) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const page = Math.max(parseInt((req.query.page as string) || '1', 10), 1);
+    const limit = Math.min(Math.max(parseInt((req.query.limit as string) || '20', 10), 1), 100);
+
+    const result = await getReVerificationDocuments(page, limit);
 
     res.status(200).json({
       success: true,

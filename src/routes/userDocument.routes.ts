@@ -5,6 +5,7 @@ import {
   uploadDocumentController,
   getDocumentsController,
   getDocumentByIdController,
+  updateDocumentController,
   deleteDocumentController,
 } from '../controllers/userDocument.controller';
 
@@ -16,6 +17,7 @@ router.use(authenticate);
 router.post('/', singleUserFileUpload, uploadDocumentController);
 router.get('/', getDocumentsController);
 router.get('/:id', getDocumentByIdController);
+router.put('/:id', singleUserFileUpload, updateDocumentController);
 router.delete('/:id', deleteDocumentController);
 
 export default router;

@@ -78,6 +78,11 @@ export const getUserById = async (userId: string) => {
               name: true,
             },
           },
+          documents: {
+            orderBy: {
+              uploaded_at: 'desc',
+            },
+          },
         },
         orderBy: {
           uploaded_at: 'desc',
@@ -195,6 +200,15 @@ export const getUserById = async (userId: string) => {
         id: policy.insurance_company.id.toString(),
         name: policy.insurance_company.name,
       },
+      documents: policy.documents.map((document) => ({
+        id: document.id.toString(),
+        documentType: document.document_type,
+        documentName: document.document_name,
+        documentUrl: document.document_url,
+        isVerified: document.is_verified,
+        uploadedAt: document.uploaded_at,
+        verifiedAt: document.verified_at,
+      })),
     })),
     recentSubscriptions: user.subscriptions.map((sub) => ({
       id: sub.id.toString(),

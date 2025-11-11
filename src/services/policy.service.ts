@@ -153,6 +153,10 @@ export const getUserPolicies = async (userId: string) => {
           document_url: true,
           is_verified: true,
           uploaded_at: true,
+          verified_at: true,
+        },
+        orderBy: {
+          uploaded_at: 'desc',
         },
       },
     },
@@ -187,6 +191,7 @@ export const getUserPolicies = async (userId: string) => {
       documentUrl: doc.document_url,
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
+      verifiedAt: doc.verified_at,
     })),
   }));
 };

@@ -4,6 +4,7 @@ import {
   uploadPolicyDocument,
   getPolicyDocuments,
   getPolicyDocumentById,
+  updatePolicyDocument,
   deletePolicyDocument,
 } from '../services/policyDocument.service';
 
@@ -78,6 +79,42 @@ export const getDocumentByIdController = async (
 
     const { policyId, documentId } = req.params;
     const document = await getPolicyDocumentById(req.user.userId, policyId, documentId);
+    res.status(200).json({
+      success: true,
+      data: document,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateDocumentController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({
+        success: false,
+        error: 'No file uploaded',
+      });
+      return;
+    }
+
+    const { policyId, documentId } = req.params;
+    const { documentType, documentName } = req.body;
+    const document = await updatePolicyDocument(req.user.userId, policyId, documentId, {
+      documentType,
+      documentName: documentName || req.file.originalname,
+      filename: req.file.filename,
+    });
+
     res.status(200).json({
       success: true,
       data: document,

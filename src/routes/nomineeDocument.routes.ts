@@ -5,6 +5,7 @@ import {
   uploadDocumentController,
   getDocumentsController,
   getDocumentByIdController,
+  updateDocumentController,
   deleteDocumentController,
 } from '../controllers/nomineeDocument.controller';
 import { requireActiveSubscription } from '../middlewares/subscription.middleware';
@@ -18,6 +19,7 @@ router.use(requireActiveSubscription);
 router.post('/:nomineeId/document', singleNomineeFileUpload, uploadDocumentController);
 router.get('/:nomineeId/document', getDocumentsController);
 router.get('/:nomineeId/document/:documentId', getDocumentByIdController);
+router.put('/:nomineeId/document/:documentId', singleNomineeFileUpload, updateDocumentController);
 router.delete('/:nomineeId/document/:documentId', deleteDocumentController);
 
 export default router;
