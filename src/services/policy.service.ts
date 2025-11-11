@@ -2,6 +2,7 @@ import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError, ConflictError } from '../utils/errors';
 import logger from '../config/logger';
 import { getUserKycStatus } from './user.service';
+import { createActivityLog } from './userActivityLog.service';
 
 export interface CreatePolicyData {
   insuranceCompanyId: string;
@@ -119,6 +120,23 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
   };
   
   logger.info('Policy created successfully', { policyId: policy.id.toString(), userId });
+
+  // Log activity
+  await createActivityLog({
+    userId,
+    activityType: 'POLICY_ADDED',
+    description: `Added policy: ${policy.policy_number} (${policy.insurance_company.name})`,
+    metadata: {
+      policyId: policy.id.toString(),
+      policyNumber: policy.policy_number,
+      insuranceCompany: policy.insurance_company.name,
+      sumAssured: policy.sum_assured.toString(),
+    },
+  }).catch((err) => {
+    // Don't fail the request if logging fails
+    console.error('Failed to log activity:', err);
+  });
+
   return result;
 };
 

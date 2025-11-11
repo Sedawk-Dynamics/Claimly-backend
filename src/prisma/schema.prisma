@@ -27,6 +27,7 @@ model User {
   documents           UserDocument[]
   deceased_alerts     DeceasedAlert[]
   admin_actions       AdminAction[]
+  activity_logs       UserActivityLog[]
 }
 
 model Subscription {
@@ -174,6 +175,17 @@ model Admin {
 
   admin_actions AdminAction[]
   verified_alerts DeceasedAlert[]
+}
+
+model UserActivityLog {
+  id          BigInt     @id @default(autoincrement())
+  user_id     BigInt
+  activity_type String
+  description String?
+  metadata    String?    @db.Text
+  created_at  DateTime   @default(now())
+
+  user        User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 // ===== ENUMS =====

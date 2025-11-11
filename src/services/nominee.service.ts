@@ -1,5 +1,6 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
+import { createActivityLog } from './userActivityLog.service';
 
 export interface CreateNomineeData {
   name: string;
@@ -64,6 +65,22 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
         },
       },
     },
+  });
+
+  // Log activity
+  await createActivityLog({
+    userId,
+    activityType: 'NOMINEE_ADDED',
+    description: `Added nominee: ${data.name} (${data.relationship})`,
+    metadata: {
+      nomineeId: nominee.id.toString(),
+      nomineeName: data.name,
+      relationship: data.relationship,
+      mobileNumber: data.mobileNumber,
+    },
+  }).catch((err) => {
+    // Don't fail the request if logging fails
+    console.error('Failed to log activity:', err);
   });
 
   return {
@@ -251,6 +268,21 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
   const updatedNominee = await prisma.nominee.update({
     where: { id: BigInt(nomineeId) },
     data: updateData,
+  });
+
+  // Log activity
+  await createActivityLog({
+    userId,
+    activityType: 'NOMINEE_UPDATED',
+    description: `Updated nominee: ${updatedNominee.name}`,
+    metadata: {
+      nomineeId: updatedNominee.id.toString(),
+      nomineeName: updatedNominee.name,
+      updatedFields: Object.keys(updateData),
+    },
+  }).catch((err) => {
+    // Don't fail the request if logging fails
+    console.error('Failed to log activity:', err);
   });
 
   return {

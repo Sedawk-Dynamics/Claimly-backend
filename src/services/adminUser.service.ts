@@ -1,5 +1,6 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError } from '../utils/errors';
+import { createActivityLog } from './userActivityLog.service';
 
 export const getAllUsers = async (page: number = 1, limit: number = 20, search?: string) => {
   const skip = (page - 1) * limit;
@@ -237,6 +238,8 @@ export const updateUserStatus = async (userId: string, subscriptionStatus: 'ACTI
     throw new NotFoundError('User not found');
   }
 
+  const previousStatus = user.subscription_status;
+
   const updatedUser = await prisma.user.update({
     where: { id: BigInt(userId) },
     data: { subscription_status: subscriptionStatus },
@@ -248,6 +251,22 @@ export const updateUserStatus = async (userId: string, subscriptionStatus: 'ACTI
       updated_at: true,
     },
   });
+
+  // Log activity if subscription expired
+  if (subscriptionStatus === 'EXPIRED' && previousStatus !== 'EXPIRED') {
+    await createActivityLog({
+      userId,
+      activityType: 'SUBSCRIPTION_EXPIRED',
+      description: 'Subscription expired',
+      metadata: {
+        previousStatus,
+        newStatus: subscriptionStatus,
+      },
+    }).catch((err) => {
+      // Don't fail the request if logging fails
+      console.error('Failed to log activity:', err);
+    });
+  }
 
   return {
     id: updatedUser.id.toString(),

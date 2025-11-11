@@ -1,6 +1,7 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { getFileUrl } from '../utils/fileUpload';
+import { createActivityLog } from './userActivityLog.service';
 
 export interface UploadUserDocumentData {
   documentType: 'AADHAAR' | 'PAN' | 'OTHER';
@@ -35,6 +36,21 @@ export const uploadUserDocument = async (userId: string, data: UploadUserDocumen
       document_url: documentUrl,
       is_verified: false,
     },
+  });
+
+  // Log activity
+  await createActivityLog({
+    userId,
+    activityType: 'DOCUMENT_UPLOADED',
+    description: `Uploaded ${data.documentType} document: ${data.documentName}`,
+    metadata: {
+      documentId: document.id.toString(),
+      documentType: data.documentType,
+      documentName: data.documentName,
+    },
+  }).catch((err) => {
+    // Don't fail the request if logging fails
+    console.error('Failed to log activity:', err);
   });
 
   return {
@@ -144,6 +160,21 @@ export const updateUserDocument = async (
       // Only set to null if it was never verified
       uploaded_at: new Date(),
     },
+  });
+
+  // Log activity
+  await createActivityLog({
+    userId,
+    activityType: 'DOCUMENT_UPDATED',
+    description: `Updated ${data.documentType} document: ${data.documentName}`,
+    metadata: {
+      documentId: updatedDocument.id.toString(),
+      documentType: data.documentType,
+      documentName: data.documentName,
+    },
+  }).catch((err) => {
+    // Don't fail the request if logging fails
+    console.error('Failed to log activity:', err);
   });
 
   return {

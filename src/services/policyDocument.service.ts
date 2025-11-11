@@ -1,6 +1,7 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { getFileUrl } from '../utils/fileUpload';
+import { createActivityLog } from './userActivityLog.service';
 
 export interface UploadPolicyDocumentData {
   documentType: 'POLICY_COPY' | 'RECEIPT' | 'OTHER';
@@ -41,6 +42,23 @@ export const uploadPolicyDocument = async (
       document_url: documentUrl,
       is_verified: false,
     },
+  });
+
+  // Log activity
+  await createActivityLog({
+    userId,
+    activityType: 'POLICY_DOCUMENT_UPLOADED',
+    description: `Uploaded ${data.documentType} document for policy: ${data.documentName}`,
+    metadata: {
+      documentId: document.id.toString(),
+      policyId,
+      documentType: data.documentType,
+      documentName: data.documentName,
+      policyNumber: policy.policy_number,
+    },
+  }).catch((err) => {
+    // Don't fail the request if logging fails
+    console.error('Failed to log activity:', err);
   });
 
   return {

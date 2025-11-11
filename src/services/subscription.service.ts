@@ -1,6 +1,7 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import logger from '../config/logger';
+import { createActivityLog } from './userActivityLog.service';
 
 export interface CreateSubscriptionData {
   userId: string;
@@ -60,6 +61,24 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
   }
 
   logger.info('Subscription created successfully', { subscriptionId: subscription.id.toString() });
+
+  // Log activity
+  await createActivityLog({
+    userId: data.userId,
+    activityType: 'SUBSCRIPTION_CREATED',
+    description: `New subscription: ${data.planName} - ${data.paymentStatus}`,
+    metadata: {
+      subscriptionId: subscription.id.toString(),
+      planName: data.planName,
+      amount: data.amount,
+      paymentId: data.paymentId,
+      paymentStatus: data.paymentStatus,
+      transactionDate: subscription.transaction_date.toISOString(),
+    },
+  }).catch((err) => {
+    // Don't fail the request if logging fails
+    console.error('Failed to log activity:', err);
+  });
 
   return {
     id: subscription.id.toString(),
