@@ -2,6 +2,7 @@ import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import logger from '../config/logger';
 import { createActivityLog } from './userActivityLog.service';
+import { createAlert } from './alert.service';
 
 export interface CreateSubscriptionData {
   userId: string;
@@ -58,6 +59,16 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
       data: { subscription_status: 'ACTIVE' },
     });
     logger.info('User subscription status updated to ACTIVE', { userId: data.userId });
+
+    // Create alert for admin panel when subscription is successfully purchased
+    await createAlert({
+      userId: data.userId,
+      detectedVia: 'MANUAL',
+      remarks: `Subscription purchased: ${data.planName} - ₹${data.amount} (Payment ID: ${data.paymentId})`,
+    }).catch((err) => {
+      // Don't fail the request if alert creation fails
+      logger.error('Failed to create alert for subscription purchase', { error: err, userId: data.userId });
+    });
   }
 
   logger.info('Subscription created successfully', { subscriptionId: subscription.id.toString() });

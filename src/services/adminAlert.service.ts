@@ -6,16 +6,88 @@ export interface VerifyAlertData {
   remarks?: string;
 }
 
+// Helper function to determine alert type from remarks
+const getAlertType = (remarks: string): string => {
+  if (!remarks) return 'OTHER';
+  const lowerRemarks = remarks.toLowerCase();
+  if (lowerRemarks.includes('new user registered') || lowerRemarks.includes('new user')) {
+    return 'NEW_USER';
+  }
+  if (lowerRemarks.includes('new policy added') || lowerRemarks.includes('policy')) {
+    return 'NEW_POLICY';
+  }
+  if (lowerRemarks.includes('new nominee added') || lowerRemarks.includes('nominee')) {
+    return 'NEW_NOMINEE';
+  }
+  if (lowerRemarks.includes('subscription purchased') || lowerRemarks.includes('subscription')) {
+    return 'SUBSCRIPTION';
+  }
+  return 'OTHER';
+};
+
 export const getAllAlerts = async (
   page: number = 1,
   limit: number = 20,
-  status?: 'PENDING' | 'VERIFIED' | 'FALSE_ALERT'
+  status?: 'PENDING' | 'VERIFIED' | 'FALSE_ALERT',
+  search?: string,
+  detectedVia?: 'SMS' | 'MANUAL',
+  startDate?: string,
+  endDate?: string
 ) => {
   const skip = (page - 1) * limit;
   const where: any = {};
 
   if (status) {
     where.verification_status = status;
+  }
+
+  if (detectedVia) {
+    where.detected_via = detectedVia;
+  }
+
+  if (startDate || endDate) {
+    where.created_at = {};
+    if (startDate) {
+      where.created_at.gte = new Date(startDate);
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.created_at.lte = end;
+    }
+  }
+
+  // Search functionality - search in user name, email, mobile number, or remarks
+  if (search && search.trim()) {
+    const searchTerm = search.trim();
+    where.OR = [
+      {
+        user: {
+          name: {
+            contains: searchTerm,
+          },
+        },
+      },
+      {
+        user: {
+          email: {
+            contains: searchTerm,
+          },
+        },
+      },
+      {
+        user: {
+          mobile_number: {
+            contains: searchTerm,
+          },
+        },
+      },
+      {
+        remarks: {
+          contains: searchTerm,
+        },
+      },
+    ];
   }
 
   const [alerts, total] = await Promise.all([
@@ -66,6 +138,7 @@ export const getAllAlerts = async (
         : null,
       remarks: alert.remarks,
       createdAt: alert.created_at,
+      alertType: getAlertType(alert.remarks || ''),
     })),
     pagination: {
       page,
@@ -179,14 +252,12 @@ export const verifyAlert = async (adminId: string, alertId: string, data: Verify
     throw new NotFoundError('Alert not found');
   }
 
-  if (alert.verification_status !== 'PENDING') {
-    throw new ValidationError('Alert has already been verified');
-  }
-
   const validStatuses = ['VERIFIED', 'FALSE_ALERT'];
   if (!validStatuses.includes(data.verificationStatus)) {
     throw new ValidationError(`verificationStatus must be one of: ${validStatuses.join(', ')}`);
   }
+
+  // Allow updating verification status even if already verified (to allow changing from VERIFIED to FALSE_ALERT or vice versa)
 
   const updatedAlert = await prisma.deceasedAlert.update({
     where: { id: BigInt(alertId) },
@@ -234,18 +305,78 @@ export const verifyAlert = async (adminId: string, alertId: string, data: Verify
 };
 
 export const getAlertStats = async () => {
-  const [total, pending, verified, falseAlerts] = await Promise.all([
+  const [total, pending, verified, falseAlerts, smsAlerts, manualAlerts] = await Promise.all([
     prisma.deceasedAlert.count(),
     prisma.deceasedAlert.count({ where: { verification_status: 'PENDING' } }),
     prisma.deceasedAlert.count({ where: { verification_status: 'VERIFIED' } }),
     prisma.deceasedAlert.count({ where: { verification_status: 'FALSE_ALERT' } }),
+    prisma.deceasedAlert.count({ where: { detected_via: 'SMS' } }),
+    prisma.deceasedAlert.count({ where: { detected_via: 'MANUAL' } }),
   ]);
+
+  // Get alerts by type from last 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const recentAlerts = await prisma.deceasedAlert.findMany({
+    where: {
+      created_at: {
+        gte: thirtyDaysAgo,
+      },
+    },
+    select: {
+      remarks: true,
+    },
+  });
+
+  const typeStats = {
+    NEW_USER: 0,
+    NEW_POLICY: 0,
+    NEW_NOMINEE: 0,
+    SUBSCRIPTION: 0,
+    OTHER: 0,
+  };
+
+  recentAlerts.forEach((alert) => {
+    const type = getAlertType(alert.remarks || '');
+    if (type in typeStats) {
+      typeStats[type as keyof typeof typeStats]++;
+    }
+  });
 
   return {
     total,
     pending,
     verified,
     falseAlerts,
+    smsAlerts,
+    manualAlerts,
+    typeStats,
+  };
+};
+
+export const bulkVerifyAlerts = async (
+  adminId: string,
+  alertIds: string[],
+  data: VerifyAlertData
+) => {
+  const results = [];
+  const errors = [];
+
+  for (const alertId of alertIds) {
+    try {
+      const result = await verifyAlert(adminId, alertId, data);
+      results.push(result);
+    } catch (error) {
+      errors.push({ alertId, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  }
+
+  return {
+    success: results.length,
+    failed: errors.length,
+    results,
+    errors,
   };
 };
 

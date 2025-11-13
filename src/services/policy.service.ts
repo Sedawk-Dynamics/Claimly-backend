@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError, ConflictError } from '../utils/errors';
 import logger from '../config/logger';
 import { getUserKycStatus } from './user.service';
 import { createActivityLog } from './userActivityLog.service';
+import { createAlert } from './alert.service';
 
 export interface CreatePolicyData {
   insuranceCompanyId: string;
@@ -135,6 +136,16 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
   }).catch((err) => {
     // Don't fail the request if logging fails
     console.error('Failed to log activity:', err);
+  });
+
+  // Create alert for admin panel
+  await createAlert({
+    userId,
+    detectedVia: 'MANUAL',
+    remarks: `New policy added: ${policy.policy_number} from ${policy.insurance_company.name} with sum assured ₹${policy.sum_assured.toString()}`,
+  }).catch((err) => {
+    // Don't fail the request if alert creation fails
+    logger.error('Failed to create alert for new policy', { error: err, userId, policyId: policy.id.toString() });
   });
 
   return result;

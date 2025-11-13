@@ -5,6 +5,7 @@ import {
   getAlertByIdController,
   verifyAlertController,
   getAlertStatsController,
+  bulkVerifyAlertsController,
 } from '../controllers/adminAlert.controller';
 
 const router = Router();
@@ -16,6 +17,7 @@ router.get('/stats', getAlertStatsController);
 router.get('/', getAllAlertsController);
 router.get('/:id', getAlertByIdController);
 router.put('/:id/verify', verifyAlertController);
+router.post('/bulk-verify', bulkVerifyAlertsController);
 
 export default router;
 

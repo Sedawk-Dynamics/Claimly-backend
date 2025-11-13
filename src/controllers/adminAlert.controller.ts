@@ -5,6 +5,7 @@ import {
   getAlertById,
   verifyAlert,
   getAlertStats,
+  bulkVerifyAlerts,
 } from '../services/adminAlert.service';
 
 export const getAllAlertsController = async (
@@ -21,8 +22,12 @@ export const getAllAlertsController = async (
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const status = req.query.status as 'PENDING' | 'VERIFIED' | 'FALSE_ALERT' | undefined;
+    const search = req.query.search as string | undefined;
+    const detectedVia = req.query.detectedVia as 'SMS' | 'MANUAL' | undefined;
+    const startDate = req.query.startDate as string | undefined;
+    const endDate = req.query.endDate as string | undefined;
 
-    const result = await getAllAlerts(page, limit, status);
+    const result = await getAllAlerts(page, limit, status, search, detectedVia, startDate, endDate);
     res.status(200).json({
       success: true,
       data: result,
@@ -92,6 +97,38 @@ export const getAlertStatsController = async (
     res.status(200).json({
       success: true,
       data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const bulkVerifyAlertsController = async (
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.admin) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { alertIds, verificationStatus, remarks } = req.body;
+    
+    if (!Array.isArray(alertIds) || alertIds.length === 0) {
+      res.status(400).json({ error: 'alertIds must be a non-empty array' });
+      return;
+    }
+
+    const result = await bulkVerifyAlerts(req.admin.adminId, alertIds, {
+      verificationStatus,
+      remarks,
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: result,
     });
   } catch (error) {
     next(error);

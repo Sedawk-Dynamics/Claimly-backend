@@ -1,6 +1,7 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { createActivityLog } from './userActivityLog.service';
+import { createAlert } from './alert.service';
 
 export interface CreateNomineeData {
   name: string;
@@ -81,6 +82,16 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
   }).catch((err) => {
     // Don't fail the request if logging fails
     console.error('Failed to log activity:', err);
+  });
+
+  // Create alert for admin panel
+  await createAlert({
+    userId,
+    detectedVia: 'MANUAL',
+    remarks: `New nominee added: ${data.name} (${data.relationship})`,
+  }).catch((err) => {
+    // Don't fail the request if alert creation fails
+    console.error('Failed to create alert for new nominee:', err);
   });
 
   return {

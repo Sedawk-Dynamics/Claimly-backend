@@ -3,6 +3,7 @@ import prisma from '../config/prismaClient';
 import { generateToken } from '../utils/jwt';
 import { ValidationError, ConflictError, AppError } from '../utils/errors';
 import logger from '../config/logger';
+import { createAlert } from './alert.service';
 
 export interface VerifyOTPRequest {
   idToken: string; // Firebase ID token from client
@@ -65,7 +66,18 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           subscription_status: 'INACTIVE',
         },
       });
-      logger.info('New user created', { userId: user.id.toString(), mobileNumber: data.mobileNumber });
+      const newUserId = user.id.toString();
+      logger.info('New user created', { userId: newUserId, mobileNumber: data.mobileNumber });
+
+      // Create alert for admin panel
+      await createAlert({
+        userId: newUserId,
+        detectedVia: 'MANUAL',
+        remarks: `New user registered: ${data.name} (${data.mobileNumber})`,
+      }).catch((err) => {
+        // Don't fail the request if alert creation fails
+        logger.error('Failed to create alert for new user', { error: err, userId: newUserId });
+      });
     } else {
       // Update device ID if provided
       if (data.deviceId) {
