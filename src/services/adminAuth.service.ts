@@ -20,11 +20,14 @@ export interface AdminLoginResponse {
 }
 
 export const adminLogin = async (data: AdminLoginRequest): Promise<AdminLoginResponse> => {
-  logger.info('Admin login attempt', { email: data.email });
+  // Normalize email to lowercase for case-insensitive matching
+  const normalizedEmail = data.email.toLowerCase().trim();
   
-  // Find admin by email
+  logger.info('Admin login attempt', { email: normalizedEmail });
+  
+  // Find admin by email (case-insensitive)
   const admin = await prisma.admin.findUnique({
-    where: { email: data.email },
+    where: { email: normalizedEmail },
   });
 
   if (!admin) {

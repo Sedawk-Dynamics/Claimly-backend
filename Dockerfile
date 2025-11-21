@@ -25,6 +25,12 @@ COPY --from=deps /app/package.json /app/package-lock.json ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/dist ./dist
 COPY --from=deps /app/src/prisma ./src/prisma
+# Copy scripts for admin management (needed for production troubleshooting)
+COPY scripts ./scripts
+COPY tsconfig.json ./
+# Install ts-node globally for running scripts in production
+RUN npm install -g ts-node typescript
+
 COPY uploads ./uploads
 
 EXPOSE 3000

@@ -18,8 +18,8 @@
     "test:coverage": "jest --coverage",
     "test:token": "node scripts/get-token-without-frontend.js",
     "test:token-direct": "ts-node scripts/get-token-direct.ts",
-    "create:admin": "ts-node scripts/create-admin.ts",
-    "reset:admin": "ts-node scripts/reset-admin.ts"
+    "admin": "ts-node scripts/reset-admin.ts",
+    "check:admin": "ts-node scripts/check-admin.ts"
   },
   "keywords": [],
   "author": "",

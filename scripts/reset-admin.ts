@@ -1,19 +1,26 @@
 /**
- * Reset Admin User Script
+ * Admin Management Script
  * 
- * This script deletes all existing admin users and creates a single admin
- * with the specified credentials.
+ * This script creates or resets admin users in the database.
+ * 
+ * Modes:
+ * 1. CREATE MODE (default): Creates admin if it doesn't exist, fails if exists
+ * 2. RESET MODE: Deletes all admins and creates a new one (requires FORCE_RESET=true in production)
  * 
  * Usage:
- *   npm run reset:admin
+ *   # Create admin (fails if exists)
+ *   npm run admin
  *   OR
  *   npx ts-node scripts/reset-admin.ts
  * 
- * With environment variables:
- *   ADMIN_EMAIL=admin@claimly.com ADMIN_PASSWORD=admin123 npm run reset:admin
+ *   # Reset all admins and create one
+ *   FORCE_RESET=true npm run admin
  * 
- * For production (requires FORCE_RESET=true):
- *   FORCE_RESET=true ADMIN_EMAIL=admin@claimly.com ADMIN_PASSWORD=secure_password npm run reset:admin
+ * With environment variables:
+ *   ADMIN_EMAIL=admin@claimly.com ADMIN_PASSWORD=admin123 npm run admin
+ * 
+ * For production reset (requires FORCE_RESET=true):
+ *   FORCE_RESET=true ADMIN_EMAIL=admin@claimly.com ADMIN_PASSWORD=secure_password npm run admin
  * 
  * Default credentials (if not set via env):
  *   Email: admin@claimly.com
@@ -34,17 +41,8 @@ const ADMIN_ROLE = (process.env.ADMIN_ROLE as 'SUPER_ADMIN' | 'STAFF') || 'SUPER
 const FORCE_RESET = process.env.FORCE_RESET === 'true';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-async function resetAdmin() {
+async function manageAdmin() {
   try {
-    // Safety check for production
-    if (NODE_ENV === 'production' && !FORCE_RESET) {
-      console.error('❌ ERROR: Cannot reset admin in production without FORCE_RESET=true');
-      console.error('   This is a safety measure to prevent accidental data loss.');
-      console.error('   If you really want to proceed, run:');
-      console.error('   FORCE_RESET=true npx ts-node scripts/reset-admin.ts');
-      process.exit(1);
-    }
-
     // Warn if using default password in production
     if (NODE_ENV === 'production' && ADMIN_PASSWORD === 'admin123') {
       console.error('❌ ERROR: Cannot use default password "admin123" in production!');
@@ -52,29 +50,50 @@ async function resetAdmin() {
       process.exit(1);
     }
 
-    logger.info('Starting admin reset...', {
-      environment: NODE_ENV,
-      email: ADMIN_EMAIL,
-      forceReset: FORCE_RESET,
-    });
+    const isResetMode = FORCE_RESET;
 
-    if (NODE_ENV === 'production') {
-      console.log('⚠️  WARNING: Running in PRODUCTION mode!');
+    // Safety check for production reset
+    if (NODE_ENV === 'production' && isResetMode) {
+      console.log('⚠️  WARNING: Running in PRODUCTION RESET mode!');
       console.log('   This will delete ALL existing admin users and admin actions.');
     }
 
-    // First, delete all AdminAction records that reference Admin
-    // This is necessary because AdminAction has a foreign key constraint with ON DELETE RESTRICT
-    const deletedActions = await prisma.adminAction.deleteMany({});
-    logger.info(`Deleted ${deletedActions.count} admin action records`);
+    logger.info(`Starting admin ${isResetMode ? 'reset' : 'creation'}...`, {
+      environment: NODE_ENV,
+      email: ADMIN_EMAIL,
+      mode: isResetMode ? 'reset' : 'create',
+    });
 
-    // Delete all existing admins
-    const deletedAdmins = await prisma.admin.deleteMany({});
-    logger.info(`Deleted ${deletedAdmins.count} admin users`);
+    // RESET MODE: Delete all admins first
+    if (isResetMode) {
+      // First, delete all AdminAction records that reference Admin
+      // This is necessary because AdminAction has a foreign key constraint with ON DELETE RESTRICT
+      const deletedActions = await prisma.adminAction.deleteMany({});
+      logger.info(`Deleted ${deletedActions.count} admin action records`);
 
-    console.log(`\n🗑️  Deleted ${deletedAdmins.count} admin user(s)`);
-    if (deletedActions.count > 0) {
-      console.log(`   Also deleted ${deletedActions.count} admin action record(s)`);
+      // Delete all existing admins
+      const deletedAdmins = await prisma.admin.deleteMany({});
+      logger.info(`Deleted ${deletedAdmins.count} admin users`);
+
+      console.log(`\n🗑️  Deleted ${deletedAdmins.count} admin user(s)`);
+      if (deletedActions.count > 0) {
+        console.log(`   Also deleted ${deletedActions.count} admin action record(s)`);
+      }
+    } else {
+      // CREATE MODE: Check if admin already exists
+      const existingAdmin = await prisma.admin.findUnique({
+        where: { email: ADMIN_EMAIL },
+      });
+
+      if (existingAdmin) {
+        logger.warn('Admin user already exists', { email: ADMIN_EMAIL, adminId: existingAdmin.id.toString() });
+        console.log(`❌ Admin with email ${ADMIN_EMAIL} already exists!`);
+        console.log(`   Admin ID: ${existingAdmin.id.toString()}`);
+        console.log(`   Role: ${existingAdmin.role}`);
+        console.log(`\n   To reset all admins and create a new one, run:`);
+        console.log(`   FORCE_RESET=true npm run admin`);
+        process.exit(1);
+      }
     }
 
     // Hash the password
@@ -98,7 +117,8 @@ async function resetAdmin() {
       role: admin.role,
     });
 
-    console.log('\n✅ Admin reset completed successfully!');
+    const action = isResetMode ? 'reset' : 'created';
+    console.log(`\n✅ Admin ${action} successfully!`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`   Email:    ${admin.email}`);
     console.log(`   Password: ${ADMIN_PASSWORD}${NODE_ENV === 'production' ? ' (set via ADMIN_PASSWORD env)' : ''}`);
@@ -106,6 +126,7 @@ async function resetAdmin() {
     console.log(`   Role:     ${admin.role}`);
     console.log(`   Admin ID: ${admin.id.toString()}`);
     console.log(`   Environment: ${NODE_ENV}`);
+    console.log(`   Mode: ${isResetMode ? 'Reset (deleted all admins)' : 'Create (only if not exists)'}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     
     if (NODE_ENV === 'production') {
@@ -113,11 +134,11 @@ async function resetAdmin() {
       console.log('   The password will not be shown again.\n');
     }
   } catch (error) {
-    logger.error('Failed to reset admin user', {
+    logger.error(`Failed to ${FORCE_RESET ? 'reset' : 'create'} admin user`, {
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
     });
-    console.error('❌ Failed to reset admin user:', error instanceof Error ? error.message : 'Unknown error');
+    console.error(`❌ Failed to ${FORCE_RESET ? 'reset' : 'create'} admin user:`, error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   } finally {
     await prisma.$disconnect();
@@ -125,5 +146,5 @@ async function resetAdmin() {
 }
 
 // Run the script
-resetAdmin();
+manageAdmin();
 
