@@ -7,12 +7,10 @@ import logger from '../config/logger';
 const router = Router();
 
 /**
- * TEST ENDPOINT ONLY - For development/testing without frontend
+ * TEST ENDPOINT - For authentication without frontend
  * 
  * This endpoint allows you to authenticate without Firebase client SDK.
  * It creates a Firebase user if needed and returns a JWT token directly.
- * 
- * ⚠️ WARNING: This should only be enabled in development/test environments!
  * 
  * Usage:
  * POST /test-auth/login
@@ -23,14 +21,6 @@ const router = Router();
  * }
  */
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
-  // Only allow in development/test
-  if (process.env.NODE_ENV === 'production') {
-    res.status(403).json({
-      success: false,
-      error: 'This endpoint is disabled in production',
-    });
-    return;
-  }
 
   try {
     const { mobileNumber, name, dob } = req.body;
@@ -173,13 +163,6 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
  * }
  */
 router.post('/exchange-token', async (req: Request, res: Response): Promise<void> => {
-  if (process.env.NODE_ENV === 'production') {
-    res.status(403).json({
-      success: false,
-      error: 'This endpoint is disabled in production',
-    });
-    return;
-  }
 
   try {
     const { customToken } = req.body;

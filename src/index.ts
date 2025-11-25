@@ -66,11 +66,9 @@ app.use('/policy', policyNomineeRoutes);
 app.use('/policy', policyDocumentRoutes);
 app.use('/subscription', subscriptionRoutes);
 
-// Test authentication routes (development only)
-if (process.env.NODE_ENV !== 'production') {
-  app.use('/test-auth', testAuthRoutes);
-  logger.info('Test authentication endpoints enabled (development mode)');
-}
+// Test authentication routes
+app.use('/test-auth', testAuthRoutes);
+logger.info('Test authentication endpoints enabled');
 
 // Admin Routes with admin rate limiting
 app.use('/admin/users', adminLimiter, adminUserRoutes);
