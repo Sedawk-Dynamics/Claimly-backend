@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticateAdmin } from '../middlewares/adminAuth.middleware';
 import { validate, verifyDocumentSchema, rejectDocumentSchema } from '../utils/validation';
-import { verifyDocumentController, rejectDocumentController, getKycDocumentsController, getReVerificationDocumentsController, getPolicyDocumentsController } from '../controllers/adminDocument.controller';
+import { verifyDocumentController, rejectDocumentController, getKycDocumentsController, getReVerificationDocumentsController, getPolicyDocumentsController, acceptEntityWithoutDocumentsController, rejectEntityWithoutDocumentsController } from '../controllers/adminDocument.controller';
 
 const router = Router();
 
@@ -14,6 +14,8 @@ router.get('/policy-documents', getPolicyDocumentsController);
 router.get('/re-verification', getReVerificationDocumentsController);
 router.patch('/verify-document/:id', validate(verifyDocumentSchema), verifyDocumentController);
 router.patch('/reject-document/:id', validate(rejectDocumentSchema), rejectDocumentController);
+router.post('/accept-entity/:id', acceptEntityWithoutDocumentsController);
+router.post('/reject-entity/:id', rejectEntityWithoutDocumentsController);
 
 export default router;
 

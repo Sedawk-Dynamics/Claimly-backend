@@ -18,6 +18,7 @@ export const verifyUserDocument = async (documentId: string, adminId: string) =>
     data: {
       is_verified: true,
       verified_at: new Date(),
+      rejected_at: null, // Clear rejection when verifying
     },
   });
 
@@ -36,6 +37,7 @@ export const verifyUserDocument = async (documentId: string, adminId: string) =>
     isVerified: updatedDocument.is_verified,
     uploadedAt: updatedDocument.uploaded_at,
     verifiedAt: updatedDocument.verified_at,
+    rejectedAt: updatedDocument.rejected_at,
   };
 };
 
@@ -128,10 +130,11 @@ export const rejectUserDocument = async (documentId: string, adminId: string) =>
     data: {
       is_verified: false,
       verified_at: null,
+      rejected_at: new Date(), // Mark as explicitly rejected
     },
   });
 
-  logger.info('User document rejected/unverified', {
+  logger.info('User document rejected', {
     documentId,
     adminId,
     userId: document.user_id.toString(),
@@ -146,6 +149,7 @@ export const rejectUserDocument = async (documentId: string, adminId: string) =>
     isVerified: updatedDocument.is_verified,
     uploadedAt: updatedDocument.uploaded_at,
     verifiedAt: updatedDocument.verified_at,
+    rejectedAt: updatedDocument.rejected_at,
   };
 };
 
@@ -223,10 +227,303 @@ export const rejectNomineeDocument = async (documentId: string, adminId: string)
   };
 };
 
+// Entity-level accept/reject functions (when no documents exist)
+export const acceptUserWithoutDocuments = async (userId: string, adminId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  // For KYC, we can't really accept without AADHAAR and PAN documents
+  // This function creates placeholder accepted documents
+  const existingDocs = await prisma.userDocument.findMany({
+    where: {
+      user_id: BigInt(userId),
+      document_type: { in: ['AADHAAR', 'PAN'] },
+    },
+  });
+
+  const hasAadhaar = existingDocs.some(doc => doc.document_type === 'AADHAAR');
+  const hasPan = existingDocs.some(doc => doc.document_type === 'PAN');
+
+  const results = [];
+
+  if (!hasAadhaar) {
+    const doc = await prisma.userDocument.create({
+      data: {
+        user_id: BigInt(userId),
+        document_type: 'AADHAAR',
+        document_name: 'Admin Accepted - No Document Uploaded',
+        document_url: '', // Empty URL for placeholder
+        is_verified: true,
+        verified_at: new Date(),
+      },
+    });
+    results.push(doc);
+  }
+
+  if (!hasPan) {
+    const doc = await prisma.userDocument.create({
+      data: {
+        user_id: BigInt(userId),
+        document_type: 'PAN',
+        document_name: 'Admin Accepted - No Document Uploaded',
+        document_url: '', // Empty URL for placeholder
+        is_verified: true,
+        verified_at: new Date(),
+      },
+    });
+    results.push(doc);
+  }
+
+  logger.info('User accepted without documents', {
+    userId,
+    adminId,
+    documentsCreated: results.length,
+  });
+
+  return {
+    userId,
+    documentsCreated: results.map(doc => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      isVerified: doc.is_verified,
+      verifiedAt: doc.verified_at,
+    })),
+  };
+};
+
+export const rejectUserWithoutDocuments = async (userId: string, adminId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  // Create placeholder rejected documents for missing required documents
+  const existingDocs = await prisma.userDocument.findMany({
+    where: {
+      user_id: BigInt(userId),
+      document_type: { in: ['AADHAAR', 'PAN'] },
+    },
+  });
+
+  const hasAadhaar = existingDocs.some(doc => doc.document_type === 'AADHAAR');
+  const hasPan = existingDocs.some(doc => doc.document_type === 'PAN');
+
+  const results = [];
+
+  if (!hasAadhaar) {
+    const doc = await prisma.userDocument.create({
+      data: {
+        user_id: BigInt(userId),
+        document_type: 'AADHAAR',
+        document_name: 'Admin Rejected - No Document Uploaded',
+        document_url: '', // Empty URL for placeholder
+        is_verified: false,
+        rejected_at: new Date(),
+      },
+    });
+    results.push(doc);
+  }
+
+  if (!hasPan) {
+    const doc = await prisma.userDocument.create({
+      data: {
+        user_id: BigInt(userId),
+        document_type: 'PAN',
+        document_name: 'Admin Rejected - No Document Uploaded',
+        document_url: '', // Empty URL for placeholder
+        is_verified: false,
+        rejected_at: new Date(),
+      },
+    });
+    results.push(doc);
+  }
+
+  logger.info('User rejected without documents', {
+    userId,
+    adminId,
+    documentsCreated: results.length,
+  });
+
+  return {
+    userId,
+    documentsCreated: results.map(doc => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      isVerified: doc.is_verified,
+      rejectedAt: doc.rejected_at,
+    })),
+  };
+};
+
+export const acceptPolicyWithoutDocuments = async (policyId: string, adminId: string) => {
+  const policy = await prisma.policy.findUnique({
+    where: { id: BigInt(policyId) },
+  });
+
+  if (!policy) {
+    throw new NotFoundError('Policy not found');
+  }
+
+  // Create placeholder accepted document
+  const doc = await prisma.policyDocument.create({
+    data: {
+      policy_id: BigInt(policyId),
+      document_type: 'OTHER',
+      document_name: 'Admin Accepted - No Document Uploaded',
+      document_url: '', // Empty URL for placeholder
+      is_verified: true,
+      verified_at: new Date(),
+    },
+  });
+
+  logger.info('Policy accepted without documents', {
+    policyId,
+    adminId,
+    documentId: doc.id.toString(),
+  });
+
+  return {
+    id: doc.id.toString(),
+    policyId: doc.policy_id.toString(),
+    documentType: doc.document_type,
+    documentName: doc.document_name,
+    documentUrl: doc.document_url,
+    isVerified: doc.is_verified,
+    uploadedAt: doc.uploaded_at,
+    verifiedAt: doc.verified_at,
+  };
+};
+
+export const rejectPolicyWithoutDocuments = async (policyId: string, adminId: string) => {
+  const policy = await prisma.policy.findUnique({
+    where: { id: BigInt(policyId) },
+  });
+
+  if (!policy) {
+    throw new NotFoundError('Policy not found');
+  }
+
+  // Create placeholder rejected document
+  const doc = await prisma.policyDocument.create({
+    data: {
+      policy_id: BigInt(policyId),
+      document_type: 'OTHER',
+      document_name: 'Admin Rejected - No Document Uploaded',
+      document_url: '', // Empty URL for placeholder
+      is_verified: false,
+      rejected_at: new Date(),
+    },
+  });
+
+  logger.info('Policy rejected without documents', {
+    policyId,
+    adminId,
+    documentId: doc.id.toString(),
+  });
+
+  return {
+    id: doc.id.toString(),
+    policyId: doc.policy_id.toString(),
+    documentType: doc.document_type,
+    documentName: doc.document_name,
+    documentUrl: doc.document_url,
+    isVerified: doc.is_verified,
+    uploadedAt: doc.uploaded_at,
+    rejectedAt: doc.rejected_at,
+  };
+};
+
+export const acceptNomineeWithoutDocuments = async (nomineeId: string, adminId: string) => {
+  const nominee = await prisma.nominee.findUnique({
+    where: { id: BigInt(nomineeId) },
+  });
+
+  if (!nominee) {
+    throw new NotFoundError('Nominee not found');
+  }
+
+  // Create placeholder accepted document
+  const doc = await prisma.nomineeDocument.create({
+    data: {
+      nominee_id: BigInt(nomineeId),
+      document_type: 'OTHER',
+      document_name: 'Admin Accepted - No Document Uploaded',
+      document_url: '', // Empty URL for placeholder
+      is_verified: true,
+      verified_at: new Date(),
+    },
+  });
+
+  logger.info('Nominee accepted without documents', {
+    nomineeId,
+    adminId,
+    documentId: doc.id.toString(),
+  });
+
+  return {
+    id: doc.id.toString(),
+    nomineeId: doc.nominee_id.toString(),
+    documentType: doc.document_type,
+    documentName: doc.document_name,
+    documentUrl: doc.document_url,
+    isVerified: doc.is_verified,
+    uploadedAt: doc.uploaded_at,
+    verifiedAt: doc.verified_at,
+  };
+};
+
+export const rejectNomineeWithoutDocuments = async (nomineeId: string, adminId: string) => {
+  const nominee = await prisma.nominee.findUnique({
+    where: { id: BigInt(nomineeId) },
+  });
+
+  if (!nominee) {
+    throw new NotFoundError('Nominee not found');
+  }
+
+  // Create placeholder rejected document
+  const doc = await prisma.nomineeDocument.create({
+    data: {
+      nominee_id: BigInt(nomineeId),
+      document_type: 'OTHER',
+      document_name: 'Admin Rejected - No Document Uploaded',
+      document_url: '', // Empty URL for placeholder
+      is_verified: false,
+    },
+  });
+
+  logger.info('Nominee rejected without documents', {
+    nomineeId,
+    adminId,
+    documentId: doc.id.toString(),
+  });
+
+  return {
+    id: doc.id.toString(),
+    nomineeId: doc.nominee_id.toString(),
+    documentType: doc.document_type,
+    documentName: doc.document_name,
+    documentUrl: doc.document_url,
+    isVerified: doc.is_verified,
+    uploadedAt: doc.uploaded_at,
+    verifiedAt: doc.verified_at,
+  };
+};
+
 export const getKycDocuments = async (
   page: number,
   limit: number,
-  status: 'pending' | 'verified' | 're-verification',
+  status: 'pending' | 'verified' | 're-verification' | 'rejected',
   search?: string
 ) => {
   const offset = (page - 1) * limit;
@@ -235,6 +532,7 @@ export const getKycDocuments = async (
   // For pending: users who DON'T have all required documents verified (first-time verification)
   // For verified: users who have all required documents verified AND have NO unverified documents
   // For re-verification: users who have all required documents verified BUT have new unverified documents
+  // For rejected: users who have documents with rejected_at set (explicitly rejected by admin)
   let whereClause: any;
   
   // Base search filter for user name, email, or mobile number
@@ -253,7 +551,18 @@ export const getKycDocuments = async (
   // Build base status conditions
   let statusConditions: any;
   
-  if (status === 'verified') {
+  if (status === 'rejected') {
+    // Rejected: Users who have documents with rejected_at set (explicitly rejected by admin)
+    statusConditions = {
+      // User must have at least one document that was rejected
+      documents: {
+        some: {
+          document_type: { in: documentTypes },
+          rejected_at: { not: null },
+        },
+      },
+    };
+  } else if (status === 'verified') {
     // Users who have all required document types verified AND have NO unverified documents
     statusConditions = {
       AND: [
@@ -303,39 +612,53 @@ export const getKycDocuments = async (
     };
   } else {
     // Pending: Users who DON'T have all required documents verified (first-time verification)
+    // AND have NO rejected documents (rejected documents should be in rejected filter)
     statusConditions = {
-      OR: [
-        // User has no documents of required types
+      AND: [
+        // User has NO rejected documents of required types
         {
           documents: {
             none: {
               document_type: { in: documentTypes },
+              rejected_at: { not: null },
             },
           },
         },
-        // User has documents but does NOT have all required documents verified
         {
-          AND: [
-            // User has at least one document of required types
+          OR: [
+            // User has no documents of required types
             {
               documents: {
-                some: {
+                none: {
                   document_type: { in: documentTypes },
                 },
               },
             },
-            // User does NOT have all required documents verified
+            // User has documents but does NOT have all required documents verified
             {
-              NOT: {
-                AND: documentTypes.map((docType) => ({
+              AND: [
+                // User has at least one document of required types
+                {
                   documents: {
                     some: {
-                      document_type: docType,
-                      is_verified: true,
+                      document_type: { in: documentTypes },
                     },
                   },
-                })),
-              },
+                },
+                // User does NOT have all required documents verified
+                {
+                  NOT: {
+                    AND: documentTypes.map((docType) => ({
+                      documents: {
+                        some: {
+                          document_type: docType,
+                          is_verified: true,
+                        },
+                      },
+                    })),
+                  },
+                },
+              ],
             },
           ],
         },
@@ -375,6 +698,8 @@ export const getKycDocuments = async (
         where: {
           // Show all documents of required types for all statuses
           document_type: { in: documentTypes },
+          // For pending status, exclude rejected documents
+          ...(status === 'pending' ? { rejected_at: null } : {}),
         },
         orderBy: { uploaded_at: 'desc' },
       },
@@ -398,6 +723,7 @@ export const getKycDocuments = async (
         isVerified: doc.is_verified,
         uploadedAt: doc.uploaded_at,
         verifiedAt: doc.verified_at,
+        rejectedAt: doc.rejected_at,
       })),
       pendingDocuments: documentTypes.filter(
         (type) => !user.documents.some((doc) => doc.document_type === type)

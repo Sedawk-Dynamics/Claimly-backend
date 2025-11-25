@@ -278,6 +278,7 @@ export const getUserKycStatus = async (userId: string): Promise<KycStatus> => {
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
       verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     })),
   };
 };

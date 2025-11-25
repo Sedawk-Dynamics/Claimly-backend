@@ -107,6 +107,7 @@ model UserDocument {
   is_verified     Boolean    @default(false)
   uploaded_at     DateTime   @default(now())
   verified_at     DateTime?
+  rejected_at     DateTime?
 
   user            User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }

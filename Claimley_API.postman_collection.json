@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "claimley-api-collection",
 		"name": "Claimley API",
-		"description": "Complete API collection for Claimley - Insurance Policy Management System",
+		"description": "Complete API collection for Claimley - Insurance Policy Management System\n\n**For Mobile App Developers:**\nThis collection contains all backend API endpoints. The frontend React Router routes (like /login, /profile, etc.) are client-side routes and are not API endpoints. Use this collection to understand:\n\n1. **Authentication Flow:** POST /auth/verify-otp (after Firebase OTP verification)\n2. **User Management:** GET/PUT /user/profile, GET /user/subscription, GET /user/kyc-status\n3. **Documents:** POST/GET/PUT/DELETE /user/document, /policy/:id/document, /nominee/:id/document\n4. **Policies:** CRUD operations on /policies\n5. **Nominees:** CRUD operations on /nominees\n6. **Policy-Nominee Linking:** /policy/:policyId/nominee endpoints\n7. **Subscriptions:** POST /subscription\n\n**Frontend Routes (for reference only - not API endpoints):**\n- /login - Login page (uses POST /auth/verify-otp)\n- / - Homepage (requires auth)\n- /profile - User profile (uses GET/PUT /user/profile)\n- /nominees - Nominees list (uses GET /nominees)\n- /nominees/add - Add nominee (uses POST /nominees)\n- /nominees/:id/edit - Edit nominee (uses GET/PUT /nominees/:id)\n- /policies - Policies list (uses GET /policies)\n- /policies/add - Add policy (uses POST /policies)\n- /policies/:id/edit - Edit policy (uses GET/PUT /policies/:id)\n- /subscription - Subscription status (uses GET /user/subscription)\n- /kyc - KYC completion (uses GET /user/kyc-status, POST /user/document)",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "claimley-api"
 	},
@@ -127,7 +127,7 @@
 								"verify-otp"
 							]
 						},
-						"description": "Verify Firebase OTP and authenticate user. Returns JWT token for subsequent requests.\n\n**IMPORTANT: How to get Firebase idToken:**\n1. The `idToken` is obtained from Firebase Authentication after phone authentication\n2. Use your mobile/web app to authenticate with phone number + OTP\n3. After successful authentication, get the token:\n   - React Native: `user.getIdToken()`\n   - Web: `firebase.auth().currentUser.getIdToken()`\n   - Flutter: `FirebaseAuth.instance.currentUser?.getIdToken()`\n4. Copy the token and paste it in the request body\n5. For new users: `name` and `dob` are required\n6. For existing users: `name` and `dob` are optional\n\nSee POSTMAN_COLLECTION_GUIDE.md for detailed instructions."
+						"description": "**OTP Authentication & Signup Endpoint**\n\nThis single endpoint handles both **login** (existing users) and **signup** (new users).\n\n## 📱 For Mobile App Developers:\n\n### **Step 1: OTP Flow (Firebase SDK)**\n1. **Send OTP:** Use Firebase Authentication SDK to send OTP to phone number\n   - React Native: `signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier)`\n   - Flutter: `FirebaseAuth.instance.verifyPhoneNumber(...)`\n   - Native iOS/Android: Use Firebase SDK phone authentication\n\n2. **Verify OTP:** User enters OTP, verify with Firebase\n   - React Native: `confirmationResult.confirm(code)`\n   - Flutter: `PhoneAuthCredential` verification\n   - Native: Complete Firebase phone auth flow\n\n3. **Get Firebase idToken:** After successful Firebase verification\n   - React Native: `user.getIdToken()`\n   - Flutter: `FirebaseAuth.instance.currentUser?.getIdToken()`\n   - Native: Get token from Firebase user object\n\n### **Step 2: Backend Authentication**\n\n**For Existing Users (Login):**\n```json\nPOST /auth/verify-otp\n{\n  \"idToken\": \"firebase-id-token-here\",\n  \"mobileNumber\": \"9876543210\",\n  \"deviceId\": \"optional-device-id\"\n}\n```\n- ✅ Returns JWT token if user exists\n- ❌ Returns 404/400 if user doesn't exist → Go to Step 3\n\n**For New Users (Signup):**\n```json\nPOST /auth/verify-otp\n{\n  \"idToken\": \"firebase-id-token-here\",\n  \"mobileNumber\": \"9876543210\",\n  \"name\": \"John Doe\",        // REQUIRED for new users\n  \"dob\": \"1990-01-15\",        // REQUIRED for new users (YYYY-MM-DD)\n  \"deviceId\": \"optional-device-id\"\n}\n```\n- ✅ Creates new user and returns JWT token\n\n### **Implementation Flow:**\n```\n1. User enters phone number\n2. Firebase sends OTP → User receives SMS\n3. User enters OTP → Firebase verifies\n4. Get Firebase idToken from authenticated user\n5. Call POST /auth/verify-otp with idToken + mobileNumber\n6. If 404/400: User doesn't exist → Show signup form\n7. Collect name & dob → Call POST /auth/verify-otp again with all fields\n8. Save JWT token from response for subsequent API calls\n```\n\n### **Response:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"token\": \"jwt-token-here\",\n    \"user\": {\n      \"id\": \"user-id\",\n      \"name\": \"John Doe\",\n      \"mobileNumber\": \"9876543210\",\n      \"subscriptionStatus\": \"INACTIVE\"\n    }\n  }\n}\n```\n\n**Important Notes:**\n- Use the same Firebase idToken for both login and signup attempts\n- `name` and `dob` are REQUIRED only for new users\n- `deviceId` is optional but recommended for push notifications\n- Store the JWT token and use it in `Authorization: Bearer {token}` header for all authenticated requests"
 					},
 					"response": []
 				},
@@ -981,6 +981,58 @@
 							"response": []
 						},
 						{
+							"name": "Update User Document",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "documentType",
+											"value": "AADHAAR",
+											"type": "text",
+											"description": "AADHAAR, PAN, or OTHER"
+										},
+										{
+											"key": "documentName",
+											"value": "Aadhaar Card",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{baseUrl}}/user/document/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"user",
+										"document",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "document-id-here"
+										}
+									]
+								},
+								"description": "Update a user document by ID. Document types: AADHAAR, PAN, OTHER. Max file size: 10MB"
+							},
+							"response": []
+						},
+						{
 							"name": "Delete User Document",
 							"request": {
 								"method": "DELETE",
@@ -1132,6 +1184,63 @@
 							]
 						},
 								"description": "Get a specific policy document by ID"
+							},
+							"response": []
+						},
+						{
+							"name": "Update Policy Document",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "documentType",
+											"value": "POLICY_COPY",
+											"type": "text",
+											"description": "POLICY_COPY, RECEIPT, or OTHER"
+										},
+										{
+											"key": "documentName",
+											"value": "Policy Document",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{baseUrl}}/policy/:policyId/document/:documentId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"policy",
+										":policyId",
+										"document",
+										":documentId"
+									],
+									"variable": [
+										{
+											"key": "policyId",
+											"value": "policy-id-here"
+										},
+										{
+											"key": "documentId",
+											"value": "document-id-here"
+										}
+									]
+								},
+								"description": "Update a policy document by ID. Document types: POLICY_COPY, RECEIPT, OTHER. Max file size: 10MB"
 							},
 							"response": []
 						},
@@ -1292,6 +1401,63 @@
 									]
 								},
 								"description": "Get a specific nominee document by ID"
+							},
+							"response": []
+						},
+						{
+							"name": "Update Nominee Document",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{authToken}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "documentType",
+											"value": "NOMINEE_ID",
+											"type": "text",
+											"description": "NOMINEE_ID, ADDRESS_PROOF, DEATH_CERTIFICATE, or OTHER"
+										},
+										{
+											"key": "documentName",
+											"value": "Nominee ID Proof",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{baseUrl}}/nominee/:nomineeId/document/:documentId",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"nominee",
+										":nomineeId",
+										"document",
+										":documentId"
+									],
+									"variable": [
+										{
+											"key": "nomineeId",
+											"value": "nominee-id-here"
+										},
+										{
+											"key": "documentId",
+											"value": "document-id-here"
+										}
+									]
+								},
+								"description": "Update a nominee document by ID. Document types: NOMINEE_ID, ADDRESS_PROOF, DEATH_CERTIFICATE, OTHER. Max file size: 10MB"
 							},
 							"response": []
 						},
@@ -1516,7 +1682,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n  \"email\": \"admin@claimley.com\",\n  \"password\": \"Claimly@123\"\n}",
+									"raw": "{\n  \"email\": \"admin@claimly.com\",\n  \"password\": \"Claimly@123\"\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -2208,10 +2374,6 @@
 							{
 								"key": "Authorization",
 								"value": "Bearer {{adminToken}}"
-							},
-							{
-								"key": "Content-Length",
-								"value": "36"
 							},
 							{
 								"key": "Content-Type",
