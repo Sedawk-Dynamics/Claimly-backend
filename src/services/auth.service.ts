@@ -9,7 +9,7 @@ export interface VerifyOTPRequest {
   idToken: string; // Firebase ID token from client
   mobileNumber: string;
   name?: string;
-  dob?: string;
+  email?: string;
   deviceId?: string;
 }
 
@@ -41,8 +41,8 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
     // If user doesn't exist, create a new user
     if (!user) {
       // Validate required fields for new user
-      if (!data.name || !data.dob) {
-        throw new ValidationError('Name and date of birth are required for new users');
+      if (!data.name || !data.email) {
+        throw new ValidationError('Name and email are required for new users');
       }
 
       // Check if mobile number already exists
@@ -54,12 +54,20 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         throw new ConflictError('Mobile number already registered');
       }
 
+      // Check if email already exists
+      const existingEmailUser = await prisma.user.findFirst({
+        where: { email: data.email },
+      });
+
+      if (existingEmailUser) {
+        throw new ConflictError('Email already registered');
+      }
+
       // Create new user
       user = await prisma.user.create({
         data: {
           name: data.name,
-          dob: new Date(data.dob),
-          email: decodedToken.email || null,
+          email: data.email,
           mobile_number: data.mobileNumber,
           firebase_id: firebaseUid,
           device_id: data.deviceId || null,

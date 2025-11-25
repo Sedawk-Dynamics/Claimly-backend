@@ -6,7 +6,7 @@ export const verifyOTPSchema = z.object({
     idToken: z.string().min(1, 'idToken is required'),
     mobileNumber: z.string().regex(/^[0-9]{10}$/, 'Invalid mobile number format'),
     name: z.string().optional(),
-    dob: z.string().optional(),
+    email: z.string().email('Invalid email format').optional(),
     deviceId: z.string().optional(),
   }),
 });

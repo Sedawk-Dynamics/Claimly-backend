@@ -12,7 +12,7 @@ datasource db {
 model User {
   id                  BigInt     @id @default(autoincrement())
   name                String
-  dob                 DateTime
+  dob                 DateTime?
   email               String?    @unique
   mobile_number       String     @unique
   firebase_id         String     @unique
