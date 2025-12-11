@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `insurancecompany` MODIFY `status` ENUM('ACTIVE', 'INACTIVE', 'DRAFT', 'REJECTED') NOT NULL DEFAULT 'ACTIVE';
+
+-- AlterTable
+ALTER TABLE `policy` MODIFY `status` ENUM('ACTIVE', 'INACTIVE', 'DRAFT', 'REJECTED') NOT NULL DEFAULT 'DRAFT';

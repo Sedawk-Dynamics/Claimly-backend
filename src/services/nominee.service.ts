@@ -2,6 +2,7 @@ import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { createActivityLog } from './userActivityLog.service';
 import { createAlert } from './alert.service';
+import { getFileUrl } from '../utils/fileUpload';
 
 export interface CreateNomineeData {
   name: string;
@@ -11,12 +12,28 @@ export interface CreateNomineeData {
   address?: string;
 }
 
+export interface DocumentToAdd {
+  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'DEATH_CERTIFICATE' | 'OTHER';
+  documentName: string;
+  filename: string;
+}
+
+export interface DocumentToUpdate {
+  documentId: string;
+  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'DEATH_CERTIFICATE' | 'OTHER';
+  documentName: string;
+  filename: string;
+}
+
 export interface UpdateNomineeData {
   name?: string;
   relationship?: 'SPOUSE' | 'CHILD' | 'PARENT' | 'SIBLING' | 'FRIEND' | 'OTHER';
   mobileNumber?: string;
   email?: string;
   address?: string;
+  documentsToAdd?: DocumentToAdd[];
+  documentsToUpdate?: DocumentToUpdate[];
+  documentsToDelete?: string[];
 }
 
 export const createNominee = async (userId: string, data: CreateNomineeData) => {
@@ -247,6 +264,9 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
       id: BigInt(nomineeId),
       user_id: BigInt(userId),
     },
+    include: {
+      documents: true,
+    },
   });
 
   if (!existingNominee) {
@@ -269,6 +289,26 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     }
   }
 
+  // Validate document types
+  const validDocumentTypes = ['NOMINEE_ID', 'ADDRESS_PROOF', 'DEATH_CERTIFICATE', 'OTHER'];
+  
+  if (data.documentsToAdd) {
+    for (const doc of data.documentsToAdd) {
+      if (!validDocumentTypes.includes(doc.documentType)) {
+        throw new ValidationError(`Invalid document type: ${doc.documentType}`);
+      }
+    }
+  }
+
+  if (data.documentsToUpdate) {
+    for (const doc of data.documentsToUpdate) {
+      if (!validDocumentTypes.includes(doc.documentType)) {
+        throw new ValidationError(`Invalid document type: ${doc.documentType}`);
+      }
+    }
+  }
+
+  // Update nominee basic fields
   const updateData: any = {};
   if (data.name) updateData.name = data.name;
   if (data.relationship) updateData.relationship = data.relationship;
@@ -281,7 +321,101 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     data: updateData,
   });
 
+  // Handle document deletions
+  if (data.documentsToDelete && data.documentsToDelete.length > 0) {
+    for (const documentId of data.documentsToDelete) {
+      const document = await prisma.nomineeDocument.findFirst({
+        where: {
+          id: BigInt(documentId),
+          nominee_id: BigInt(nomineeId),
+        },
+      });
+
+      if (document) {
+        // Delete file from filesystem
+        const { deleteFile } = await import('../utils/fileUpload');
+        const urlParts = document.document_url.split('/');
+        const filename = urlParts[urlParts.length - 1];
+        deleteFile(filename, 'nominees');
+
+        // Delete from database
+        await prisma.nomineeDocument.delete({
+          where: { id: BigInt(documentId) },
+        });
+      }
+    }
+  }
+
+  // Handle document updates
+  if (data.documentsToUpdate && data.documentsToUpdate.length > 0) {
+    for (const docUpdate of data.documentsToUpdate) {
+      const existingDocument = await prisma.nomineeDocument.findFirst({
+        where: {
+          id: BigInt(docUpdate.documentId),
+          nominee_id: BigInt(nomineeId),
+        },
+      });
+
+      if (!existingDocument) {
+        throw new NotFoundError(`Document not found: ${docUpdate.documentId}`);
+      }
+
+      // Delete old file from filesystem
+      const { deleteFile } = await import('../utils/fileUpload');
+      const urlParts = existingDocument.document_url.split('/');
+      const oldFilename = urlParts[urlParts.length - 1];
+      deleteFile(oldFilename, 'nominees');
+
+      // Generate new file URL
+      const documentUrl = getFileUrl(docUpdate.filename, 'nominees');
+
+      // Update document
+      await prisma.nomineeDocument.update({
+        where: { id: BigInt(docUpdate.documentId) },
+        data: {
+          document_type: docUpdate.documentType,
+          document_name: docUpdate.documentName,
+          document_url: documentUrl,
+          is_verified: false,
+          uploaded_at: new Date(),
+        },
+      });
+    }
+  }
+
+  // Handle document additions
+  if (data.documentsToAdd && data.documentsToAdd.length > 0) {
+    for (const docAdd of data.documentsToAdd) {
+      const documentUrl = getFileUrl(docAdd.filename, 'nominees');
+
+      await prisma.nomineeDocument.create({
+        data: {
+          nominee_id: BigInt(nomineeId),
+          document_type: docAdd.documentType,
+          document_name: docAdd.documentName,
+          document_url: documentUrl,
+          is_verified: false,
+        },
+      });
+    }
+  }
+
+  // Fetch updated nominee with documents
+  const nomineeWithDocs = await prisma.nominee.findUnique({
+    where: { id: BigInt(nomineeId) },
+    include: {
+      documents: {
+        orderBy: { uploaded_at: 'desc' },
+      },
+    },
+  });
+
   // Log activity
+  const activityFields = Object.keys(updateData);
+  if (data.documentsToAdd?.length) activityFields.push(`added ${data.documentsToAdd.length} document(s)`);
+  if (data.documentsToUpdate?.length) activityFields.push(`updated ${data.documentsToUpdate.length} document(s)`);
+  if (data.documentsToDelete?.length) activityFields.push(`deleted ${data.documentsToDelete.length} document(s)`);
+
   await createActivityLog({
     userId,
     activityType: 'NOMINEE_UPDATED',
@@ -289,7 +423,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     metadata: {
       nomineeId: updatedNominee.id.toString(),
       nomineeName: updatedNominee.name,
-      updatedFields: Object.keys(updateData),
+      updatedFields: activityFields,
     },
   }).catch((err) => {
     // Don't fail the request if logging fails
@@ -305,6 +439,15 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     address: updatedNominee.address,
     createdAt: updatedNominee.created_at,
     updatedAt: updatedNominee.updated_at,
+    documents: nomineeWithDocs?.documents.map((doc) => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      documentUrl: doc.document_url,
+      isVerified: doc.is_verified,
+      uploadedAt: doc.uploaded_at,
+      verifiedAt: doc.verified_at,
+    })) || [],
   };
 };
 

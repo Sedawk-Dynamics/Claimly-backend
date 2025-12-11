@@ -62,7 +62,7 @@ model Policy {
   insurance_company_id  BigInt
   policy_number         String     @unique
   sum_assured           Decimal    @db.Decimal(13,2)
-  status                RecordStatus @default(ACTIVE)
+  status                RecordStatus @default(DRAFT)
   uploaded_at           DateTime   @default(now())
 
   user                  User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -135,6 +135,7 @@ model NomineeDocument {
   is_verified     Boolean    @default(false)
   uploaded_at     DateTime   @default(now())
   verified_at     DateTime?
+  rejected_at     DateTime?
 
   nominee         Nominee    @relation(fields: [nominee_id], references: [id], onDelete: Cascade)
 }
@@ -206,6 +207,8 @@ enum PaymentStatus {
 enum RecordStatus {
   ACTIVE
   INACTIVE
+  DRAFT
+  REJECTED
 }
 
 enum Relationship {

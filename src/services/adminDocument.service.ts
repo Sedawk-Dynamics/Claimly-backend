@@ -44,7 +44,13 @@ export const verifyUserDocument = async (documentId: string, adminId: string) =>
 export const verifyPolicyDocument = async (documentId: string, adminId: string) => {
   const document = await prisma.policyDocument.findUnique({
     where: { id: BigInt(documentId) },
-    include: { policy: true },
+    include: { 
+      policy: {
+        include: {
+          documents: true,
+        },
+      },
+    },
   });
 
   if (!document) {
@@ -59,6 +65,36 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
       rejected_at: null, // Clear rejection when verifying
     },
   });
+
+  // Check if all policy documents are now verified
+  const policy = await prisma.policy.findUnique({
+    where: { id: document.policy_id },
+    include: {
+      documents: true,
+    },
+  });
+
+  if (policy) {
+    const totalDocuments = policy.documents.length;
+    const verifiedDocuments = policy.documents.filter((doc) => doc.is_verified).length;
+
+    // If all documents are verified and policy is in DRAFT status, update to ACTIVE
+    if (totalDocuments > 0 && verifiedDocuments === totalDocuments && policy.status === 'DRAFT') {
+      await prisma.policy.update({
+        where: { id: document.policy_id },
+        data: {
+          status: 'ACTIVE',
+        },
+      });
+
+      logger.info('Policy status updated to ACTIVE after all documents verified', {
+        policyId: document.policy_id.toString(),
+        adminId,
+        totalDocuments,
+        verifiedDocuments,
+      });
+    }
+  }
 
   logger.info('Policy document verified', {
     documentId,
@@ -523,15 +559,14 @@ export const rejectNomineeWithoutDocuments = async (nomineeId: string, adminId: 
 export const getKycDocuments = async (
   page: number,
   limit: number,
-  status: 'pending' | 'verified' | 're-verification' | 'rejected',
+  status: 'pending' | 'verified' | 'rejected',
   search?: string
 ) => {
   const offset = (page - 1) * limit;
   const documentTypes: UserDocumentType[] = ['AADHAAR', 'PAN'];
 
-  // For pending: users who DON'T have all required documents verified (first-time verification)
-  // For verified: users who have all required documents verified AND have NO unverified documents
-  // For re-verification: users who have all required documents verified BUT have new unverified documents
+  // For pending: users who DON'T have all required documents verified (includes partially verified)
+  // For verified: users who have all required document types verified AND have NO unverified documents
   // For rejected: users who have documents with rejected_at set (explicitly rejected by admin)
   let whereClause: any;
   
@@ -552,15 +587,27 @@ export const getKycDocuments = async (
   let statusConditions: any;
   
   if (status === 'rejected') {
-    // Rejected: Users who have documents with rejected_at set (explicitly rejected by admin)
+    // Rejected: Users who have ALL documents rejected
     statusConditions = {
-      // User must have at least one document that was rejected
-      documents: {
-        some: {
-          document_type: { in: documentTypes },
-          rejected_at: { not: null },
+      AND: [
+        // User has at least one document of required types
+        {
+          documents: {
+            some: {
+              document_type: { in: documentTypes },
+            },
+          },
         },
-      },
+        // User has NO documents that are not rejected (all documents are rejected)
+        {
+          documents: {
+            none: {
+              document_type: { in: documentTypes },
+              rejected_at: null,
+            },
+          },
+        },
+      ],
     };
   } else if (status === 'verified') {
     // Users who have all required document types verified AND have NO unverified documents
@@ -586,76 +633,60 @@ export const getKycDocuments = async (
         },
       ],
     };
-  } else if (status === 're-verification') {
-    // Users who have all required document types verified BUT have at least one unverified document
-    statusConditions = {
-      AND: [
-        // User has all required document types verified
-        ...documentTypes.map((docType) => ({
-          documents: {
-            some: {
-              document_type: docType,
-              is_verified: true,
-            },
-          },
-        })),
-        // User also has at least one unverified document of required types
-        {
-          documents: {
-            some: {
-              document_type: { in: documentTypes },
-              is_verified: false,
-            },
-          },
-        },
-      ],
-    };
   } else {
-    // Pending: Users who DON'T have all required documents verified (first-time verification)
-    // AND have NO rejected documents (rejected documents should be in rejected filter)
+    // Pending: Users who DON'T have all required documents verified OR have some (but not all) rejected documents
     statusConditions = {
-      AND: [
-        // User has NO rejected documents of required types
+      OR: [
+        // User has no documents of required types
         {
           documents: {
             none: {
               document_type: { in: documentTypes },
-              rejected_at: { not: null },
             },
           },
         },
+        // User has documents but does NOT have all required documents verified AND not all rejected
         {
-          OR: [
-            // User has no documents of required types
+          AND: [
+            // User has at least one document of required types
             {
               documents: {
-                none: {
+                some: {
                   document_type: { in: documentTypes },
                 },
               },
             },
-            // User has documents but does NOT have all required documents verified
+            // User does NOT have all required documents verified
             {
-              AND: [
-                // User has at least one document of required types
+              NOT: {
+                AND: documentTypes.map((docType) => ({
+                  documents: {
+                    some: {
+                      document_type: docType,
+                      is_verified: true,
+                    },
+                  },
+                })),
+              },
+            },
+            // User does NOT have all documents rejected (if all rejected, it's in rejected filter)
+            {
+              OR: [
+                // User has at least one document that is not rejected
                 {
                   documents: {
                     some: {
                       document_type: { in: documentTypes },
+                      rejected_at: null,
                     },
                   },
                 },
-                // User does NOT have all required documents verified
+                // User has no documents (already covered above, but keeping for clarity)
                 {
-                  NOT: {
-                    AND: documentTypes.map((docType) => ({
-                      documents: {
-                        some: {
-                          document_type: docType,
-                          is_verified: true,
-                        },
-                      },
-                    })),
+                  documents: {
+                    none: {
+                      document_type: { in: documentTypes },
+                    },
                   },
                 },
               ],
@@ -666,17 +697,19 @@ export const getKycDocuments = async (
     };
   }
 
-  // Combine status conditions with search filter if provided
+  // Combine status conditions with search filter and exclude inactive users
+  const baseConditions = [
+    statusConditions,
+    { subscription_status: { not: 'INACTIVE' } }, // Exclude inactive users
+  ];
+  
   if (searchFilter) {
-    whereClause = {
-      AND: [
-        statusConditions,
-        searchFilter,
-      ],
-    };
-  } else {
-    whereClause = statusConditions;
+    baseConditions.push(searchFilter);
   }
+  
+  whereClause = {
+    AND: baseConditions,
+  };
 
   // Log the search query for debugging
   if (search) {
@@ -739,193 +772,10 @@ export const getKycDocuments = async (
   };
 };
 
-export const getReVerificationDocuments = async (page: number, limit: number) => {
-  // Get user documents that need re-verification (is_verified: false AND verified_at IS NOT NULL)
-  const [userDocuments, policyDocuments, nomineeDocuments, totalUserDocs, totalPolicyDocs, totalNomineeDocs] = await Promise.all([
-    prisma.userDocument.findMany({
-      where: {
-        is_verified: false,
-        verified_at: {
-          not: null,
-        },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            mobile_number: true,
-          },
-        },
-      },
-      orderBy: { uploaded_at: 'desc' },
-    }),
-    prisma.policyDocument.findMany({
-      where: {
-        is_verified: false,
-        verified_at: {
-          not: null,
-        },
-      },
-      include: {
-        policy: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                mobile_number: true,
-              },
-            },
-            insurance_company: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { uploaded_at: 'desc' },
-    }),
-    prisma.nomineeDocument.findMany({
-      where: {
-        is_verified: false,
-        verified_at: {
-          not: null,
-        },
-      },
-      include: {
-        nominee: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                mobile_number: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { uploaded_at: 'desc' },
-    }),
-    prisma.userDocument.count({
-      where: {
-        is_verified: false,
-        verified_at: {
-          not: null,
-        },
-      },
-    }),
-    prisma.policyDocument.count({
-      where: {
-        is_verified: false,
-        verified_at: {
-          not: null,
-        },
-      },
-    }),
-    prisma.nomineeDocument.count({
-      where: {
-        is_verified: false,
-        verified_at: {
-          not: null,
-        },
-      },
-    }),
-  ]);
-
-  const total = totalUserDocs + totalPolicyDocs + totalNomineeDocs;
-
-  // Combine and format all documents
-  const documents = [
-    ...userDocuments.map((doc) => ({
-      id: doc.id.toString(),
-      documentType: 'USER' as const,
-      documentName: doc.document_name,
-      documentUrl: doc.document_url,
-      documentTypeDetail: doc.document_type,
-      isVerified: doc.is_verified,
-      uploadedAt: doc.uploaded_at,
-      verifiedAt: doc.verified_at,
-      user: {
-        id: doc.user.id.toString(),
-        name: doc.user.name,
-        email: doc.user.email,
-        mobileNumber: doc.user.mobile_number,
-      },
-      policy: null,
-      nominee: null,
-    })),
-    ...policyDocuments.map((doc) => ({
-      id: doc.id.toString(),
-      documentType: 'POLICY' as const,
-      documentName: doc.document_name,
-      documentUrl: doc.document_url,
-      documentTypeDetail: doc.document_type,
-      isVerified: doc.is_verified,
-      uploadedAt: doc.uploaded_at,
-      verifiedAt: doc.verified_at,
-      user: {
-        id: doc.policy.user.id.toString(),
-        name: doc.policy.user.name,
-        email: doc.policy.user.email,
-        mobileNumber: doc.policy.user.mobile_number,
-      },
-      policy: {
-        id: doc.policy.id.toString(),
-        policyNumber: doc.policy.policy_number,
-        insuranceCompany: doc.policy.insurance_company.name,
-      },
-      nominee: null,
-    })),
-    ...nomineeDocuments.map((doc) => ({
-      id: doc.id.toString(),
-      documentType: 'NOMINEE' as const,
-      documentName: doc.document_name,
-      documentUrl: doc.document_url,
-      documentTypeDetail: doc.document_type,
-      isVerified: doc.is_verified,
-      uploadedAt: doc.uploaded_at,
-      verifiedAt: doc.verified_at,
-      user: {
-        id: doc.nominee.user.id.toString(),
-        name: doc.nominee.user.name,
-        email: doc.nominee.user.email,
-        mobileNumber: doc.nominee.user.mobile_number,
-      },
-      policy: null,
-      nominee: {
-        id: doc.nominee.id.toString(),
-        name: doc.nominee.name,
-        relationship: doc.nominee.relationship,
-      },
-    })),
-  ].sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
-
-  // Apply pagination to combined results
-  const offset = (page - 1) * limit;
-  const paginatedDocuments = documents.slice(offset, offset + limit);
-
-  return {
-    documents: paginatedDocuments,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit) || 1,
-    },
-  };
-};
-
 export const getPolicyDocuments = async (
   page: number,
   limit: number,
-  status: 'pending' | 'verified' | 're-verification' | 'rejected',
+  status: 'pending' | 'verified' | 'rejected',
   search?: string
 ) => {
   const offset = (page - 1) * limit;
@@ -965,47 +815,28 @@ export const getPolicyDocuments = async (
         },
       ],
     };
-  } else if (status === 're-verification') {
-    // Re-verification: Policies that have verified documents AND have NEW unverified documents
-    // NEW means: unverified documents uploaded AFTER the latest verification date
-    // Note: When verification is removed (verified_at becomes null), it goes to pending, not re-verification
-    // We'll fetch policies with both verified and unverified docs, then filter in application logic
+  } else if (status === 'rejected') {
+    // Rejected: Policies that have ALL documents rejected
     statusConditions = {
       AND: [
-        // Policy has at least one verified document
+        // Policy has at least one document
         {
           documents: {
-            some: {
-              is_verified: true,
-              verified_at: { not: null },
-            },
+            some: {},
           },
         },
-        // Policy has at least one unverified document
+        // Policy has NO documents that are not rejected (all documents are rejected)
         {
           documents: {
-            some: {
-              is_verified: false,
+            none: {
+              rejected_at: null,
             },
           },
         },
       ],
     };
-  } else if (status === 'rejected') {
-    // Rejected: Policies that have documents with rejected_at set (explicitly rejected by admin)
-    statusConditions = {
-      // Policy must have at least one document that was rejected
-      documents: {
-        some: {
-          rejected_at: { not: null },
-        },
-      },
-    };
   } else {
-    // Pending: Policies that have NO verified documents AND NO rejected documents
-    // This includes:
-    // 1. Policies with no documents
-    // 2. Policies with documents but none are verified or rejected (first-time or after verification removal)
+    // Pending: Policies that have NO verified documents OR have some (but not all) rejected documents
     statusConditions = {
       OR: [
         // Policy has no documents
@@ -1014,8 +845,7 @@ export const getPolicyDocuments = async (
             none: {},
           },
         },
-        // Policy has documents but none are verified or rejected
-        // This covers both first-time verification and cases where verification was removed
+        // Policy has documents but none are verified AND not all rejected
         {
           AND: [
             {
@@ -1030,10 +860,11 @@ export const getPolicyDocuments = async (
                 },
               },
             },
+            // Policy has at least one document that is not rejected (if all rejected, it's in rejected filter)
             {
               documents: {
-                none: {
-                  rejected_at: { not: null },
+                some: {
+                  rejected_at: null,
                 },
               },
             },
@@ -1043,21 +874,25 @@ export const getPolicyDocuments = async (
     };
   }
 
-  // Combine status conditions with search filter if provided
-  let whereClause: any;
+  // Combine status conditions with search filter and exclude inactive users
+  const baseConditions = [
+    statusConditions,
+    { user: { subscription_status: { not: 'INACTIVE' } } }, // Exclude policies from inactive users
+  ];
+  
   if (searchFilter) {
-    whereClause = {
-      AND: [
-        statusConditions,
-        searchFilter,
-      ],
-    };
-  } else {
-    whereClause = statusConditions;
+    baseConditions.push(searchFilter);
   }
+  
+  let whereClause: any = {
+    AND: baseConditions,
+  };
 
-  // Fetch all policies matching the base criteria
-  let policies = await prisma.policy.findMany({
+  // Count total before fetching
+  const totalPolicies = await prisma.policy.count({ where: whereClause });
+
+  // Fetch policies with pagination
+  const policies = await prisma.policy.findMany({
     where: whereClause,
     include: {
       user: {
@@ -1079,48 +914,12 @@ export const getPolicyDocuments = async (
       },
     },
     orderBy: { uploaded_at: 'desc' },
+    skip: offset,
+    take: limit,
   });
 
-  // For re-verification status, filter to only include policies where unverified documents
-  // were uploaded AFTER the latest verification date (indicating new documents, not removed verification)
-  // When verification is removed (verified_at becomes null), it goes to pending, not re-verification
-  if (status === 're-verification') {
-    policies = policies.filter((policy) => {
-      const verifiedDocs = policy.documents.filter((doc) => doc.is_verified && doc.verified_at);
-      const unverifiedDocs = policy.documents.filter((doc) => !doc.is_verified);
-
-      if (verifiedDocs.length === 0 || unverifiedDocs.length === 0) {
-        return false;
-      }
-
-      // Find the latest verification date
-      const latestVerificationDate = verifiedDocs
-        .map((doc) => doc.verified_at!)
-        .sort((a, b) => b.getTime() - a.getTime())[0];
-
-      // Check if any unverified document was uploaded AFTER the latest verification
-      // This indicates a new document was uploaded, not that verification was removed
-      const hasNewUnverifiedDocs = unverifiedDocs.some(
-        (doc) => doc.uploaded_at > latestVerificationDate
-      );
-
-      return hasNewUnverifiedDocs;
-    });
-  }
-
-  // For rejected status, we already filtered at the database level using rejected_at
-  // No additional filtering needed since we're using the rejected_at field directly
-
-  // Count total after filtering (for re-verification and rejected) or use database count (for others)
-  const totalPolicies = (status === 're-verification' || status === 'rejected')
-    ? policies.length 
-    : await prisma.policy.count({ where: whereClause });
-
-  // Apply pagination after filtering
-  const paginatedPolicies = policies.slice(offset, offset + limit);
-
   return {
-    policies: paginatedPolicies.map((policy) => ({
+    policies: policies.map((policy) => ({
       id: policy.id.toString(),
       policyNumber: policy.policy_number,
       sumAssured: policy.sum_assured.toString(),
@@ -1153,6 +952,184 @@ export const getPolicyDocuments = async (
       limit,
       total: totalPolicies,
       totalPages: Math.ceil(totalPolicies / limit) || 1,
+    },
+  };
+};
+
+export const getNomineeDocuments = async (
+  page: number,
+  limit: number,
+  status: 'pending' | 'verified' | 'rejected',
+  search?: string
+) => {
+  const offset = (page - 1) * limit;
+
+  // Base search filter for user name, email, mobile number, or nominee name
+  const searchFilter = search && search.trim()
+    ? {
+        OR: [
+          { user: { name: { contains: search.trim() } } },
+          { user: { email: { contains: search.trim() } } },
+          { user: { mobile_number: { contains: search.trim() } } },
+          { name: { contains: search.trim() } },
+        ],
+      }
+    : null;
+
+  // Build status conditions
+  let statusConditions: any;
+
+  if (status === 'verified') {
+    // Nominees that have all documents verified AND have NO unverified documents
+    statusConditions = {
+      AND: [
+        // Nominee has at least one document
+        {
+          documents: {
+            some: {},
+          },
+        },
+        // Nominee has NO unverified documents
+        {
+          documents: {
+            none: {
+              is_verified: false,
+            },
+          },
+        },
+      ],
+    };
+  } else if (status === 'rejected') {
+    // Rejected: Nominees that have ALL documents rejected
+    statusConditions = {
+      AND: [
+        // Nominee has at least one document
+        {
+          documents: {
+            some: {},
+          },
+        },
+        // Nominee has NO documents that are not rejected (all documents are rejected)
+        {
+          documents: {
+            none: {
+              rejected_at: null,
+            },
+          },
+        },
+      ],
+    };
+  } else {
+    // Pending: Nominees that don't have all documents verified AND don't have all documents rejected
+    statusConditions = {
+      OR: [
+        // Nominee has no documents
+        {
+          documents: {
+            none: {},
+          },
+        },
+        // Nominee has documents but not all verified AND not all rejected
+        {
+          AND: [
+            {
+              documents: {
+                some: {},
+              },
+            },
+            // Not all documents are verified (has at least one unverified document)
+            {
+              documents: {
+                some: {
+                  is_verified: false,
+                },
+              },
+            },
+            // Not all documents are rejected (has at least one document that is not rejected)
+            {
+              documents: {
+                some: {
+                  rejected_at: null,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  // Combine status conditions with search filter and exclude inactive users
+  const baseConditions = [
+    statusConditions,
+    { user: { subscription_status: { not: 'INACTIVE' } } }, // Exclude nominees from inactive users
+  ];
+  
+  if (searchFilter) {
+    baseConditions.push(searchFilter);
+  }
+  
+  let whereClause: any = {
+    AND: baseConditions,
+  };
+
+  // Count total before fetching
+  const totalNominees = await prisma.nominee.count({ where: whereClause });
+
+  // Fetch nominees with pagination
+  const nominees = await prisma.nominee.findMany({
+    where: whereClause,
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          mobile_number: true,
+        },
+      },
+      documents: {
+        orderBy: { uploaded_at: 'desc' },
+      },
+    },
+    orderBy: { created_at: 'desc' },
+    skip: offset,
+    take: limit,
+  });
+
+  return {
+    nominees: nominees.map((nominee) => ({
+      id: nominee.id.toString(),
+      name: nominee.name,
+      relationship: nominee.relationship,
+      mobileNumber: nominee.mobile_number,
+      email: nominee.email,
+      address: nominee.address,
+      createdAt: nominee.created_at,
+      updatedAt: nominee.updated_at,
+      user: {
+        id: nominee.user.id.toString(),
+        name: nominee.user.name,
+        email: nominee.user.email,
+        mobileNumber: nominee.user.mobile_number,
+      },
+      documents: nominee.documents.map((doc) => ({
+        id: doc.id.toString(),
+        documentType: doc.document_type,
+        documentName: doc.document_name,
+        documentUrl: doc.document_url,
+        isVerified: doc.is_verified,
+        uploadedAt: doc.uploaded_at,
+        verifiedAt: doc.verified_at,
+        rejectedAt: doc.rejected_at,
+      })),
+      verifiedDocuments: nominee.documents.filter((doc) => doc.is_verified).map((doc) => doc.id.toString()),
+    })),
+    pagination: {
+      page,
+      limit,
+      total: totalNominees,
+      totalPages: Math.ceil(totalNominees / limit) || 1,
     },
   };
 };

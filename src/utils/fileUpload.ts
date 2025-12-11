@@ -75,8 +75,8 @@ export const uploadNominees = multer({
   storage: createStorage('nominees'),
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 1,
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    files: 10, // Allow up to 10 files for update operations
   },
 });
 
@@ -151,4 +151,7 @@ const createFlexibleSingleFileUpload = (uploadInstance: multer.Multer) => {
 export const singleUserFileUpload = createFlexibleSingleFileUpload(uploadUsers);
 export const singlePolicyFileUpload = createFlexibleSingleFileUpload(uploadPolicies);
 export const singleNomineeFileUpload = createFlexibleSingleFileUpload(uploadNominees);
+
+// Multiple file upload middleware for nominees (used in update operations)
+export const multipleNomineeFileUpload = uploadNominees.any();
 

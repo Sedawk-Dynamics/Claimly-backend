@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateAdmin } from '../middlewares/adminAuth.middleware';
-import { getAllPoliciesController } from '../controllers/adminPolicy.controller';
+import { getAllPoliciesController, acceptPolicyController, rejectPolicyController } from '../controllers/adminPolicy.controller';
 
 const router = Router();
 
@@ -8,6 +8,8 @@ const router = Router();
 router.use(authenticateAdmin);
 
 router.get('/', getAllPoliciesController);
+router.post('/:id/accept', acceptPolicyController);
+router.post('/:id/reject', rejectPolicyController);
 
 export default router;
 

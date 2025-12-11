@@ -15,7 +15,7 @@ export interface UpdatePolicyData {
   insuranceCompanyId?: string;
   policyNumber?: string;
   sumAssured?: string;
-  status?: 'ACTIVE' | 'INACTIVE';
+  status?: 'ACTIVE' | 'INACTIVE' | 'DRAFT' | 'REJECTED';
 }
 
 export const createPolicy = async (userId: string, data: CreatePolicyData) => {
@@ -62,7 +62,7 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
       insurance_company_id: BigInt(data.insuranceCompanyId),
       policy_number: data.policyNumber,
       sum_assured: sumAssured,
-      status: 'ACTIVE',
+      status: 'DRAFT',
     },
     include: {
       insurance_company: {

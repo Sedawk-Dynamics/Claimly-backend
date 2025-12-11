@@ -33,59 +33,70 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
     const firebaseUid = decodedToken.uid;
     logger.debug('Firebase token verified', { firebaseUid });
 
-    // Check if user exists in database
+    // Check if user exists in database by firebase_id
     let user = await prisma.user.findUnique({
       where: { firebase_id: firebaseUid },
     });
 
-    // If user doesn't exist, create a new user
+    // If user doesn't exist by firebase_id, check by mobile number
     if (!user) {
-      // Validate required fields for new user
-      if (!data.name || !data.email) {
-        throw new ValidationError('Name and email are required for new users');
-      }
-
       // Check if mobile number already exists
       const existingUser = await prisma.user.findUnique({
         where: { mobile_number: data.mobileNumber },
       });
 
+      // If user exists by mobile number, link the firebase_id to existing user
       if (existingUser) {
-        throw new ConflictError('Mobile number already registered');
+        user = await prisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            firebase_id: firebaseUid,
+            device_id: data.deviceId || existingUser.device_id,
+          },
+        });
+        logger.info('Linked Firebase ID to existing user', { 
+          userId: user.id.toString(), 
+          mobileNumber: data.mobileNumber 
+        });
+      } else {
+        // User doesn't exist at all - require name and email for new user
+        if (!data.name || !data.email) {
+          throw new ValidationError('Name and email are required for new users');
+        }
+
+        // Check if email already exists
+        const existingEmailUser = await prisma.user.findFirst({
+          where: { email: data.email },
+        });
+
+        if (existingEmailUser) {
+          throw new ConflictError('Email already registered');
+        }
+
+        // Create new user
+        user = await prisma.user.create({
+          data: {
+            name: data.name,
+            email: data.email,
+            mobile_number: data.mobileNumber,
+            firebase_id: firebaseUid,
+            device_id: data.deviceId || null,
+            subscription_status: 'INACTIVE',
+          },
+        });
+        const newUserId = user.id.toString();
+        logger.info('New user created', { userId: newUserId, mobileNumber: data.mobileNumber });
+
+        // Create alert for admin panel
+        await createAlert({
+          userId: newUserId,
+          detectedVia: 'MANUAL',
+          remarks: `New user registered: ${data.name} (${data.mobileNumber})`,
+        }).catch((err) => {
+          // Don't fail the request if alert creation fails
+          logger.error('Failed to create alert for new user', { error: err, userId: newUserId });
+        });
       }
-
-      // Check if email already exists
-      const existingEmailUser = await prisma.user.findFirst({
-        where: { email: data.email },
-      });
-
-      if (existingEmailUser) {
-        throw new ConflictError('Email already registered');
-      }
-
-      // Create new user
-      user = await prisma.user.create({
-        data: {
-          name: data.name,
-          email: data.email,
-          mobile_number: data.mobileNumber,
-          firebase_id: firebaseUid,
-          device_id: data.deviceId || null,
-          subscription_status: 'INACTIVE',
-        },
-      });
-      const newUserId = user.id.toString();
-      logger.info('New user created', { userId: newUserId, mobileNumber: data.mobileNumber });
-
-      // Create alert for admin panel
-      await createAlert({
-        userId: newUserId,
-        detectedVia: 'MANUAL',
-        remarks: `New user registered: ${data.name} (${data.mobileNumber})`,
-      }).catch((err) => {
-        // Don't fail the request if alert creation fails
-        logger.error('Failed to create alert for new user', { error: err, userId: newUserId });
-      });
     } else {
       // Update device ID if provided
       if (data.deviceId) {

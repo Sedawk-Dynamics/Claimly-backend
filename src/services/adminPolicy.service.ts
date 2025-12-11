@@ -1,4 +1,142 @@
 import prisma from '../config/prismaClient';
+import { NotFoundError, ValidationError } from '../utils/errors';
+import logger from '../config/logger';
+
+export const acceptPolicy = async (policyId: string, adminId: string) => {
+  const policy = await prisma.policy.findUnique({
+    where: { id: BigInt(policyId) },
+    include: { user: true },
+  });
+
+  if (!policy) {
+    throw new NotFoundError('Policy not found');
+  }
+
+  if (policy.status === 'ACTIVE') {
+    throw new ValidationError('Policy is already active');
+  }
+
+  const updatedPolicy = await prisma.policy.update({
+    where: { id: BigInt(policyId) },
+    data: {
+      status: 'ACTIVE',
+    },
+    include: {
+      insurance_company: {
+        select: {
+          id: true,
+          name: true,
+          contact_email: true,
+          contact_number: true,
+        },
+      },
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          mobile_number: true,
+        },
+      },
+    },
+  });
+
+  logger.info('Policy accepted', {
+    policyId,
+    adminId,
+    userId: policy.user_id.toString(),
+    policyNumber: policy.policy_number,
+  });
+
+  return {
+    id: updatedPolicy.id.toString(),
+    userId: updatedPolicy.user_id.toString(),
+    user: {
+      id: updatedPolicy.user.id.toString(),
+      name: updatedPolicy.user.name,
+      email: updatedPolicy.user.email,
+      mobileNumber: updatedPolicy.user.mobile_number,
+    },
+    insuranceCompany: {
+      id: updatedPolicy.insurance_company.id.toString(),
+      name: updatedPolicy.insurance_company.name,
+      contactEmail: updatedPolicy.insurance_company.contact_email,
+      contactNumber: updatedPolicy.insurance_company.contact_number,
+    },
+    policyNumber: updatedPolicy.policy_number,
+    sumAssured: updatedPolicy.sum_assured.toString(),
+    status: updatedPolicy.status,
+    uploadedAt: updatedPolicy.uploaded_at,
+  };
+};
+
+export const rejectPolicy = async (policyId: string, adminId: string) => {
+  const policy = await prisma.policy.findUnique({
+    where: { id: BigInt(policyId) },
+    include: { user: true },
+  });
+
+  if (!policy) {
+    throw new NotFoundError('Policy not found');
+  }
+
+  if (policy.status === 'REJECTED') {
+    throw new ValidationError('Policy is already rejected');
+  }
+
+  const updatedPolicy = await prisma.policy.update({
+    where: { id: BigInt(policyId) },
+    data: {
+      status: 'REJECTED',
+    },
+    include: {
+      insurance_company: {
+        select: {
+          id: true,
+          name: true,
+          contact_email: true,
+          contact_number: true,
+        },
+      },
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          mobile_number: true,
+        },
+      },
+    },
+  });
+
+  logger.info('Policy rejected', {
+    policyId,
+    adminId,
+    userId: policy.user_id.toString(),
+    policyNumber: policy.policy_number,
+  });
+
+  return {
+    id: updatedPolicy.id.toString(),
+    userId: updatedPolicy.user_id.toString(),
+    user: {
+      id: updatedPolicy.user.id.toString(),
+      name: updatedPolicy.user.name,
+      email: updatedPolicy.user.email,
+      mobileNumber: updatedPolicy.user.mobile_number,
+    },
+    insuranceCompany: {
+      id: updatedPolicy.insurance_company.id.toString(),
+      name: updatedPolicy.insurance_company.name,
+      contactEmail: updatedPolicy.insurance_company.contact_email,
+      contactNumber: updatedPolicy.insurance_company.contact_number,
+    },
+    policyNumber: updatedPolicy.policy_number,
+    sumAssured: updatedPolicy.sum_assured.toString(),
+    status: updatedPolicy.status,
+    uploadedAt: updatedPolicy.uploaded_at,
+  };
+};
 
 export const getAllPolicies = async (page: number = 1, limit: number = 20, search?: string) => {
   const skip = (page - 1) * limit;

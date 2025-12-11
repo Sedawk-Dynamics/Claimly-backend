@@ -62,7 +62,7 @@ export const updatePolicySchema = z.object({
     insuranceCompanyId: z.string().optional(),
     policyNumber: z.string().optional(),
     sumAssured: z.string().optional(),
-    status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+    status: z.enum(['ACTIVE', 'INACTIVE', 'DRAFT', 'REJECTED']).optional(),
   }),
   params: z.object({
     id: z.string().min(1, 'Policy ID is required'),

@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware';
-import { validate, createNomineeSchema, updateNomineeSchema } from '../utils/validation';
+import { validate, createNomineeSchema } from '../utils/validation';
 import { requireActiveSubscription } from '../middlewares/subscription.middleware';
+import { multipleNomineeFileUpload } from '../utils/fileUpload';
 import {
   createNomineeController,
   getNomineesController,
@@ -19,7 +20,7 @@ router.use(requireActiveSubscription);
 router.post('/', validate(createNomineeSchema), createNomineeController);
 router.get('/', getNomineesController);
 router.get('/:id', getNomineeByIdController);
-router.put('/:id', validate(updateNomineeSchema), updateNomineeController);
+router.put('/:id', multipleNomineeFileUpload, updateNomineeController);
 router.delete('/:id', deleteNomineeController);
 
 export default router;
