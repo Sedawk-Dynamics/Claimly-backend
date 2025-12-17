@@ -1,5 +1,7 @@
 import prisma from '../config/prismaClient';
-import { NotFoundError, ConflictError } from '../utils/errors';
+import { NotFoundError, ConflictError, AppError } from '../utils/errors';
+import { generateReferralCode } from '../utils/referral';
+import logger from '../config/logger';
 
 export interface UpdateProfileData {
   name?: string;
@@ -37,6 +39,9 @@ export const getUserProfile = async (userId: string) => {
       mobile_number: true,
       device_id: true,
       subscription_status: true,
+      referral_code: true,
+      referral_code_expires_at: true,
+      wallet_balance: true,
       created_at: true,
       updated_at: true,
     },
@@ -54,6 +59,9 @@ export const getUserProfile = async (userId: string) => {
     mobileNumber: user.mobile_number,
     deviceId: user.device_id,
     subscriptionStatus: user.subscription_status,
+    referralCode: user.referral_code,
+    referralCodeExpiresAt: user.referral_code_expires_at ? user.referral_code_expires_at.toISOString() : null,
+    walletBalance: Number(user.wallet_balance),
     createdAt: user.created_at,
     updatedAt: user.updated_at,
   };
@@ -93,6 +101,9 @@ export const updateUserProfile = async (userId: string, data: UpdateProfileData)
       mobile_number: true,
       device_id: true,
       subscription_status: true,
+      referral_code: true,
+      referral_code_expires_at: true,
+      wallet_balance: true,
       created_at: true,
       updated_at: true,
     },
@@ -106,6 +117,9 @@ export const updateUserProfile = async (userId: string, data: UpdateProfileData)
     mobileNumber: updatedUser.mobile_number,
     deviceId: updatedUser.device_id,
     subscriptionStatus: updatedUser.subscription_status,
+    referralCode: updatedUser.referral_code,
+    referralCodeExpiresAt: updatedUser.referral_code_expires_at ? updatedUser.referral_code_expires_at.toISOString() : null,
+    walletBalance: Number(updatedUser.wallet_balance),
     createdAt: updatedUser.created_at,
     updatedAt: updatedUser.updated_at,
   };
@@ -124,6 +138,7 @@ export const getUserSubscriptions = async (userId: string) => {
     paymentId: sub.payment_id,
     paymentStatus: sub.payment_status,
     transactionDate: sub.transaction_date,
+    expiresAt: sub.expires_at ? sub.expires_at.toISOString() : null,
   }));
 };
 
@@ -135,6 +150,15 @@ export const getCurrentSubscription = async (userId: string) => {
       subscriptions: {
         where: {
           payment_status: 'SUCCESS',
+        },
+        select: {
+          id: true,
+          plan_name: true,
+          amount: true,
+          payment_id: true,
+          payment_status: true,
+          transaction_date: true,
+          expires_at: true,
         },
         orderBy: {
           transaction_date: 'desc',
@@ -150,6 +174,27 @@ export const getCurrentSubscription = async (userId: string) => {
 
   const latestSubscription = user.subscriptions[0] || null;
 
+  // Calculate expires_at if it's null (for old subscriptions)
+  let expiresAt: string | null = null;
+  if (latestSubscription) {
+    if (latestSubscription.expires_at) {
+      expiresAt = latestSubscription.expires_at.toISOString();
+    } else {
+      // Backfill: Calculate expiry date from transaction_date (30 days)
+      const calculatedExpiry = new Date(latestSubscription.transaction_date);
+      calculatedExpiry.setDate(calculatedExpiry.getDate() + 30);
+      expiresAt = calculatedExpiry.toISOString();
+
+      // Optionally update the database (async, don't wait)
+      prisma.subscription.update({
+        where: { id: latestSubscription.id },
+        data: { expires_at: calculatedExpiry },
+      }).catch(err => {
+        console.error('Failed to update subscription expiry:', err);
+      });
+    }
+  }
+
   return {
     status: user.subscription_status,
     subscription: latestSubscription
@@ -159,6 +204,8 @@ export const getCurrentSubscription = async (userId: string) => {
           amount: latestSubscription.amount.toString(),
           paymentId: latestSubscription.payment_id,
           transactionDate: latestSubscription.transaction_date,
+          expiresAt: expiresAt,
+          paymentStatus: latestSubscription.payment_status,
         }
       : null,
   };
@@ -175,6 +222,9 @@ export const getUserById = async (userId: string) => {
       mobile_number: true,
       device_id: true,
       subscription_status: true,
+      referral_code: true,
+      referral_code_expires_at: true,
+      wallet_balance: true,
       created_at: true,
       updated_at: true,
     },
@@ -192,6 +242,9 @@ export const getUserById = async (userId: string) => {
     mobileNumber: user.mobile_number,
     deviceId: user.device_id,
     subscriptionStatus: user.subscription_status,
+    referralCode: user.referral_code,
+    referralCodeExpiresAt: user.referral_code_expires_at ? user.referral_code_expires_at.toISOString() : null,
+    walletBalance: Number(user.wallet_balance),
     createdAt: user.created_at,
     updatedAt: user.updated_at,
   };
@@ -231,6 +284,9 @@ export const updateUserById = async (userId: string, data: UpdateProfileData) =>
       mobile_number: true,
       device_id: true,
       subscription_status: true,
+      referral_code: true,
+      referral_code_expires_at: true,
+      wallet_balance: true,
       created_at: true,
       updated_at: true,
     },
@@ -244,6 +300,9 @@ export const updateUserById = async (userId: string, data: UpdateProfileData) =>
     mobileNumber: updatedUser.mobile_number,
     deviceId: updatedUser.device_id,
     subscriptionStatus: updatedUser.subscription_status,
+    referralCode: updatedUser.referral_code,
+    referralCodeExpiresAt: updatedUser.referral_code_expires_at ? updatedUser.referral_code_expires_at.toISOString() : null,
+    walletBalance: Number(updatedUser.wallet_balance),
     createdAt: updatedUser.created_at,
     updatedAt: updatedUser.updated_at,
   };
@@ -280,6 +339,76 @@ export const getUserKycStatus = async (userId: string): Promise<KycStatus> => {
       verifiedAt: doc.verified_at,
       rejectedAt: doc.rejected_at,
     })),
+  };
+};
+
+export const generateUserReferralCode = async (userId: string, regenerate: boolean = false): Promise<{ referralCode: string; expiresAt: Date }> => {
+  // Check if user exists
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+    select: { id: true, referral_code: true, referral_code_expires_at: true },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  // If user already has a valid (non-expired) referral code and not regenerating, return it
+  if (!regenerate && user.referral_code && user.referral_code_expires_at) {
+    const now = new Date();
+    const expiresAt = new Date(user.referral_code_expires_at);
+    
+    // If code is still valid, return existing code
+    if (expiresAt > now) {
+      return {
+        referralCode: user.referral_code,
+        expiresAt: expiresAt,
+      };
+    }
+    // If expired, allow regeneration (fall through)
+  }
+
+  // Generate unique referral code
+  let referralCode: string | undefined;
+  let isUnique = false;
+  let attempts = 0;
+  const maxAttempts = 10;
+
+  while (!isUnique && attempts < maxAttempts) {
+    referralCode = generateReferralCode();
+    const existingCode = await prisma.user.findUnique({
+      where: { referral_code: referralCode },
+    });
+
+    if (!existingCode) {
+      isUnique = true;
+    } else {
+      attempts++;
+    }
+  }
+
+  if (!isUnique || !referralCode) {
+    throw new AppError('Failed to generate unique referral code', 500);
+  }
+
+  // Set expiration to 30 days from now
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 30);
+
+  // Update user with referral code and expiration
+  await prisma.user.update({
+    where: { id: BigInt(userId) },
+    data: { 
+      referral_code: referralCode,
+      referral_code_expires_at: expiresAt,
+    },
+  });
+
+  logger.info('Referral code generated for user', { userId, referralCode, expiresAt });
+
+  return {
+    referralCode,
+    expiresAt,
   };
 };
 

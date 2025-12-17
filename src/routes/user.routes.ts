@@ -9,6 +9,7 @@ import {
   getUserByIdController,
   updateUserByIdController,
   getKycStatusController,
+  generateReferralCodeController,
 } from '../controllers/user.controller';
 
 const router = Router();
@@ -20,6 +21,7 @@ router.get('/profile', getProfileController);
 router.put('/profile', validateUpdateProfile, updateProfileController);
 router.get('/subscription', getSubscriptionController);
 router.get('/kyc-status', getKycStatusController);
+router.post('/referral-code', generateReferralCodeController);
 router.get('/:id', validate(getUserByIdSchema), getUserByIdController);
 router.put('/:id', validate(updateUserByIdSchema), updateUserByIdController);
 

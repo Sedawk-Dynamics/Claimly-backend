@@ -19,7 +19,10 @@
     "test:token": "node scripts/get-token-without-frontend.js",
     "test:token-direct": "ts-node scripts/get-token-direct.ts",
     "admin": "ts-node scripts/reset-admin.ts",
-    "check:admin": "ts-node scripts/check-admin.ts"
+    "check:admin": "ts-node scripts/check-admin.ts",
+    "backfill:referral-codes": "ts-node scripts/backfill-referral-codes.ts",
+    "update:referral-codes": "ts-node scripts/update-referral-codes-to-new-format.ts",
+    "backfill:subscription-expiry": "ts-node scripts/backfill-subscription-expiry.ts"
   },
   "keywords": [],
   "author": "",

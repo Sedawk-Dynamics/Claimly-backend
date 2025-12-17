@@ -4,6 +4,7 @@ import { generateToken } from '../utils/jwt';
 import { ValidationError, ConflictError, AppError } from '../utils/errors';
 import logger from '../config/logger';
 import { createAlert } from './alert.service';
+import { generateReferralCode, isValidReferralCodeFormat } from '../utils/referral';
 
 export interface VerifyOTPRequest {
   idToken: string; // Firebase ID token from client
@@ -11,6 +12,7 @@ export interface VerifyOTPRequest {
   name?: string;
   email?: string;
   deviceId?: string;
+  referralCode?: string;
 }
 
 export interface AuthResponse {
@@ -73,7 +75,66 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           throw new ConflictError('Email already registered');
         }
 
-        // Create new user
+        // Validate and find referrer if referral code is provided
+        let referredById: bigint | null = null;
+        if (data.referralCode) {
+          if (!isValidReferralCodeFormat(data.referralCode)) {
+            throw new ValidationError('Invalid referral code');
+          }
+
+          const referrer = await prisma.user.findUnique({
+            where: { referral_code: data.referralCode.toUpperCase() },
+            select: { id: true, referral_code_expires_at: true },
+          });
+
+          if (!referrer) {
+            throw new ValidationError('Invalid referral code');
+          }
+
+          // Check if referral code has expired
+          if (referrer.referral_code_expires_at) {
+            const now = new Date();
+            const expiresAt = new Date(referrer.referral_code_expires_at);
+            if (expiresAt <= now) {
+              throw new ValidationError('This referral code has expired');
+            }
+          }
+
+          referredById = referrer.id;
+          logger.info('Referral code validated', { 
+            referralCode: data.referralCode, 
+            referrerId: referrer.id.toString() 
+          });
+        }
+
+        // Generate unique referral code for new user
+        let referralCode: string | undefined;
+        let isUnique = false;
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        while (!isUnique && attempts < maxAttempts) {
+          referralCode = generateReferralCode();
+          const existingCode = await prisma.user.findUnique({
+            where: { referral_code: referralCode },
+          });
+
+          if (!existingCode) {
+            isUnique = true;
+          } else {
+            attempts++;
+          }
+        }
+
+        if (!isUnique || !referralCode) {
+          throw new AppError('Failed to generate unique referral code', 500);
+        }
+
+        // Set expiration to 30 days from now
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+
+        // Create new user with referral code
         user = await prisma.user.create({
           data: {
             name: data.name,
@@ -82,10 +143,18 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
             firebase_id: firebaseUid,
             device_id: data.deviceId || null,
             subscription_status: 'INACTIVE',
+            referral_code: referralCode,
+            referral_code_expires_at: expiresAt,
+            referred_by: referredById || null,
           },
         });
         const newUserId = user.id.toString();
-        logger.info('New user created', { userId: newUserId, mobileNumber: data.mobileNumber });
+        logger.info('New user created', { 
+          userId: newUserId, 
+          mobileNumber: data.mobileNumber,
+          referralCode: referralCode,
+          referredBy: referredById?.toString() || null,
+        });
 
         // Create alert for admin panel
         await createAlert({

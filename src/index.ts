@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import policyRoutes from './routes/policy.routes';
@@ -21,25 +20,50 @@ import userDocumentRoutes from './routes/userDocument.routes';
 import nomineeDocumentRoutes from './routes/nomineeDocument.routes';
 import testAuthRoutes from './routes/testAuth.routes';
 import companyRoutes from './routes/company.routes';
+import walletRoutes from './routes/wallet.routes';
 import path from 'path';
 import logger from './config/logger';
+import { env } from './config/env';
 import { apiLimiter, authLimiter, adminLimiter, uploadLimiter } from './middlewares/rateLimiter.middleware';
 import { requestLogger } from './middlewares/requestLogger.middleware';
+import { securityHeaders } from './middlewares/securityHeaders.middleware';
 import { testDatabaseConnection } from './config/prismaClient';
 import { ensureDefaultAdmin } from './config/bootstrap';
 import { ensurePrismaClientGenerated, runDatabaseMigrations } from './config/migrate';
-
-dotenv.config();
+import prisma from './config/prismaClient';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = env.PORT;
 
 app.set('trust proxy', 1);
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Security headers (must be before other middleware)
+app.use(securityHeaders);
+
+// CORS configuration
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    const allowedOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin) || env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      logger.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Request logging
 app.use(requestLogger);
@@ -50,14 +74,42 @@ app.use(apiLimiter);
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+// Health check endpoint with database status
+app.get('/health', async (req, res) => {
+  try {
+    // Test database connection
+    await prisma.$queryRaw`SELECT 1`;
+    
+    res.json({
+      status: 'OK',
+      message: 'Server is running',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+      environment: env.NODE_ENV,
+    });
+  } catch (error) {
+    logger.error('Health check failed', { error: error instanceof Error ? error.message : 'Unknown error' });
+    res.status(503).json({
+      status: 'ERROR',
+      message: 'Server is running but database connection failed',
+      database: 'disconnected',
+      timestamp: new Date().toISOString(),
+      environment: env.NODE_ENV,
+    });
+  }
 });
 
 // Routes with specific rate limiting
 app.use('/auth', authLimiter, authRoutes);
 app.use('/admin', authLimiter, adminAuthRoutes);
+
+// Document Routes must come BEFORE parameterized routes to avoid route conflicts
+// (e.g., /user/document must come before /user/:id)
+app.use('/user/document', uploadLimiter, userDocumentRoutes);
+app.use('/nominee', uploadLimiter, nomineeDocumentRoutes);
+app.use('/policy', uploadLimiter, policyDocumentRoutes);
+
+// User routes (after specific document routes to avoid conflicts)
 app.use('/user', userRoutes);
 app.use('/policies', policyRoutes);
 app.use('/nominees', nomineeRoutes);
@@ -65,10 +117,16 @@ app.use('/companies', companyRoutes);
 app.use('/policy', policyNomineeRoutes);
 app.use('/policy', policyDocumentRoutes);
 app.use('/subscription', subscriptionRoutes);
+app.use('/wallet', walletRoutes);
 
 // Test authentication routes
-app.use('/test-auth', testAuthRoutes);
-logger.info('Test authentication endpoints enabled');
+// Enabled by default (set DISABLE_TEST_AUTH=true to disable)
+if (!env.DISABLE_TEST_AUTH) {
+  app.use('/test-auth', testAuthRoutes);
+  logger.info('Test authentication endpoints enabled');
+} else {
+  logger.info('Test authentication endpoints disabled (DISABLE_TEST_AUTH=true)');
+}
 
 // Admin Routes with admin rate limiting
 app.use('/admin/users', adminLimiter, adminUserRoutes);
@@ -81,11 +139,6 @@ app.use('/admin', adminLimiter, adminVerifyRoutes);
 
 // Alert Routes
 app.use('/alerts', alertRoutes);
-
-// Document Routes with upload rate limiting
-app.use('/user/document', uploadLimiter, userDocumentRoutes);
-app.use('/nominee', uploadLimiter, nomineeDocumentRoutes);
-app.use('/policy', uploadLimiter, policyDocumentRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -147,7 +200,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   res.status(500).json({
     success: false,
     error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    message: env.NODE_ENV === 'development' ? err.message : undefined,
   });
 });
 
@@ -161,8 +214,9 @@ app.use((req, res) => {
 
 // Start server and test database connection
 app.listen(PORT, async () => {
-  logger.info(`Server is running on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV });
+  logger.info(`Server is running on port ${PORT}`, { port: PORT, env: env.NODE_ENV });
   console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`📦 Environment: ${env.NODE_ENV}`);
   
   // Test database connection
   try {

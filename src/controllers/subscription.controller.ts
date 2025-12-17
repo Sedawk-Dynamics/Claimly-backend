@@ -13,7 +13,7 @@ export const createSubscriptionController = async (
       return;
     }
 
-    const { planName, amount, paymentId, paymentStatus, transactionDate } = req.body;
+    const { planName, amount, paymentId, paymentStatus, transactionDate, walletAmountUsed } = req.body;
 
     // Use authenticated user's ID
     const subscription = await createSubscription({
@@ -23,6 +23,7 @@ export const createSubscriptionController = async (
       paymentId,
       paymentStatus: paymentStatus || 'PENDING',
       transactionDate,
+      walletAmountUsed: walletAmountUsed ? walletAmountUsed.toString() : undefined,
     });
 
     res.status(201).json({

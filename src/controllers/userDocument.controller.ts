@@ -60,6 +60,13 @@ export const getDocumentsController = async (
       data: documents,
     });
   } catch (error) {
+    // Log the error for debugging
+    const logger = (await import('../config/logger')).default;
+    logger.error('Error in getDocumentsController', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.user?.userId,
+    });
     next(error);
   }
 };

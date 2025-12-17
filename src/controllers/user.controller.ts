@@ -8,6 +8,7 @@ import {
   getUserById,
   updateUserById,
   getUserKycStatus,
+  generateUserReferralCode,
 } from '../services/user.service';
 
 export const getProfileController = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -134,6 +135,27 @@ export const getKycStatusController = async (req: AuthRequest, res: Response, ne
     res.status(200).json({
       success: true,
       data: status,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const generateReferralCodeController = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { regenerate } = req.query;
+    const result = await generateUserReferralCode(req.user.userId, regenerate === 'true');
+    res.status(200).json({
+      success: true,
+      data: { 
+        referralCode: result.referralCode,
+        expiresAt: result.expiresAt.toISOString(),
+      },
     });
   } catch (error) {
     next(error);

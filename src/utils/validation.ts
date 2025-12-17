@@ -8,6 +8,7 @@ export const verifyOTPSchema = z.object({
     name: z.string().optional(),
     email: z.string().email('Invalid email format').optional(),
     deviceId: z.string().optional(),
+    referralCode: z.string().optional(),
   }),
 });
 

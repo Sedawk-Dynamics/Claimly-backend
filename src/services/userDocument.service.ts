@@ -66,29 +66,40 @@ export const uploadUserDocument = async (userId: string, data: UploadUserDocumen
 };
 
 export const getUserDocuments = async (userId: string) => {
-  // Verify user exists
-  const user = await prisma.user.findUnique({
-    where: { id: BigInt(userId) },
-  });
+  try {
+    // Verify user exists
+    const user = await prisma.user.findUnique({
+      where: { id: BigInt(userId) },
+    });
 
-  if (!user) {
-    throw new NotFoundError('User not found');
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    const documents = await prisma.userDocument.findMany({
+      where: { user_id: BigInt(userId) },
+      orderBy: { uploaded_at: 'desc' },
+    });
+
+    return documents.map((doc) => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      documentUrl: doc.document_url,
+      isVerified: doc.is_verified,
+      uploadedAt: doc.uploaded_at,
+      verifiedAt: doc.verified_at,
+    }));
+  } catch (error) {
+    // Log the error for debugging
+    const logger = (await import('../config/logger')).default;
+    logger.error('Error in getUserDocuments', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      userId,
+    });
+    throw error;
   }
-
-  const documents = await prisma.userDocument.findMany({
-    where: { user_id: BigInt(userId) },
-    orderBy: { uploaded_at: 'desc' },
-  });
-
-  return documents.map((doc) => ({
-    id: doc.id.toString(),
-    documentType: doc.document_type,
-    documentName: doc.document_name,
-    documentUrl: doc.document_url,
-    isVerified: doc.is_verified,
-    uploadedAt: doc.uploaded_at,
-    verifiedAt: doc.verified_at,
-  }));
 };
 
 export const getUserDocumentById = async (userId: string, documentId: string) => {

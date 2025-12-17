@@ -18,6 +18,10 @@ model User {
   firebase_id         String     @unique
   device_id           String?
   subscription_status SubscriptionStatus @default(INACTIVE)
+  referral_code       String?    @unique
+  referral_code_expires_at DateTime?
+  referred_by         BigInt?
+  wallet_balance      Decimal    @default(0) @db.Decimal(10,2)
   created_at          DateTime   @default(now())
   updated_at          DateTime   @updatedAt
 
@@ -28,6 +32,9 @@ model User {
   deceased_alerts     DeceasedAlert[]
   admin_actions       AdminAction[]
   activity_logs       UserActivityLog[]
+  wallet_transactions WalletTransaction[]
+  referrer            User?      @relation("UserReferrals", fields: [referred_by], references: [id])
+  referrals           User[]     @relation("UserReferrals")
 }
 
 model Subscription {
@@ -38,8 +45,11 @@ model Subscription {
   payment_id       String
   payment_status   PaymentStatus
   transaction_date DateTime
+  expires_at       DateTime?  // Subscription expiry date
+  wallet_amount_used Decimal?  @db.Decimal(10,2) // Amount paid from wallet
 
   user             User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  wallet_transactions WalletTransaction[]
 }
 
 model InsuranceCompany {
@@ -190,6 +200,20 @@ model UserActivityLog {
   user        User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
+model WalletTransaction {
+  id              BigInt     @id @default(autoincrement())
+  user_id         BigInt
+  transaction_type WalletTransactionType
+  amount          Decimal    @db.Decimal(10,2)
+  description     String
+  related_user_id BigInt?    // For referral rewards, this is the referred user who subscribed
+  related_subscription_id BigInt? // For referral rewards, link to the subscription
+  created_at      DateTime   @default(now())
+
+  user            User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  related_subscription Subscription? @relation(fields: [related_subscription_id], references: [id])
+}
+
 // ===== ENUMS =====
 
 enum SubscriptionStatus {
@@ -253,4 +277,10 @@ enum VerificationStatus {
 enum AdminRole {
   SUPER_ADMIN
   STAFF
+}
+
+enum WalletTransactionType {
+  REFERRAL_REWARD
+  REDEMPTION
+  REFUND
 }
