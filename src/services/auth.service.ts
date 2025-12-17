@@ -131,82 +131,136 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
 
         // Validate and find referrer if referral code is provided
         let referredById: bigint | null = null;
-        if (data.referralCode) {
+        let referralCode: string | undefined;
+        let referralCodeExpiresAt: Date | undefined;
+        
+        // Check if referral_code column exists by trying a simple query
+        let referralCodeColumnExists = false;
+        try {
+          // Try to query referral_code to see if column exists
+          await prisma.$queryRaw`SELECT referral_code FROM \`User\` LIMIT 1`;
+          referralCodeColumnExists = true;
+        } catch (error: any) {
+          // Column doesn't exist, skip referral code logic
+          if (error?.message?.includes('referral_code') || error?.message?.includes('does not exist')) {
+            logger.warn('referral_code column does not exist, skipping referral code logic');
+            referralCodeColumnExists = false;
+          } else {
+            // Some other error, re-throw
+            throw error;
+          }
+        }
+
+        if (referralCodeColumnExists && data.referralCode) {
           if (!isValidReferralCodeFormat(data.referralCode)) {
             throw new ValidationError('Invalid referral code');
           }
 
-          const referrer = await prisma.user.findUnique({
-            where: { referral_code: data.referralCode.toUpperCase() },
-            select: { id: true, referral_code_expires_at: true },
-          });
+          try {
+            const referrer = await prisma.user.findUnique({
+              where: { referral_code: data.referralCode.toUpperCase() },
+              select: { id: true, referral_code_expires_at: true },
+            });
 
-          if (!referrer) {
-            throw new ValidationError('Invalid referral code');
+            if (!referrer) {
+              throw new ValidationError('Invalid referral code');
+            }
+
+            // Check if referral code has expired
+            if (referrer.referral_code_expires_at) {
+              const now = new Date();
+              const expiresAt = new Date(referrer.referral_code_expires_at);
+              if (expiresAt <= now) {
+                throw new ValidationError('This referral code has expired');
+              }
+            }
+
+            referredById = referrer.id;
+            logger.info('Referral code validated', { 
+              referralCode: data.referralCode, 
+              referrerId: referrer.id.toString() 
+            });
+          } catch (error: any) {
+            // If error is about missing column, skip referral validation
+            if (error?.message?.includes('referral_code') && error?.message?.includes('does not exist')) {
+              logger.warn('referral_code column does not exist, skipping referral validation');
+            } else {
+              throw error;
+            }
           }
+        }
 
-          // Check if referral code has expired
-          if (referrer.referral_code_expires_at) {
-            const now = new Date();
-            const expiresAt = new Date(referrer.referral_code_expires_at);
-            if (expiresAt <= now) {
-              throw new ValidationError('This referral code has expired');
+        // Generate unique referral code for new user (only if column exists)
+        if (referralCodeColumnExists) {
+          let isUnique = false;
+          let attempts = 0;
+          const maxAttempts = 10;
+
+          while (!isUnique && attempts < maxAttempts) {
+            referralCode = generateReferralCode();
+            try {
+              const existingCode = await prisma.user.findUnique({
+                where: { referral_code: referralCode },
+              });
+
+              if (!existingCode) {
+                isUnique = true;
+              } else {
+                attempts++;
+              }
+            } catch (error: any) {
+              // If column doesn't exist, skip referral code generation
+              if (error?.message?.includes('referral_code') && error?.message?.includes('does not exist')) {
+                logger.warn('referral_code column does not exist, skipping referral code generation');
+                referralCode = undefined;
+                break;
+              }
+              throw error;
             }
           }
 
-          referredById = referrer.id;
-          logger.info('Referral code validated', { 
-            referralCode: data.referralCode, 
-            referrerId: referrer.id.toString() 
-          });
-        }
+          if (!isUnique && referralCode) {
+            throw new AppError('Failed to generate unique referral code', 500);
+          }
 
-        // Generate unique referral code for new user
-        let referralCode: string | undefined;
-        let isUnique = false;
-        let attempts = 0;
-        const maxAttempts = 10;
-
-        while (!isUnique && attempts < maxAttempts) {
-          referralCode = generateReferralCode();
-          const existingCode = await prisma.user.findUnique({
-            where: { referral_code: referralCode },
-          });
-
-          if (!existingCode) {
-            isUnique = true;
-          } else {
-            attempts++;
+          // Set expiration to 30 days from now
+          if (referralCode) {
+            referralCodeExpiresAt = new Date();
+            referralCodeExpiresAt.setDate(referralCodeExpiresAt.getDate() + 30);
           }
         }
 
-        if (!isUnique || !referralCode) {
-          throw new AppError('Failed to generate unique referral code', 500);
+        // Create new user (with or without referral code depending on column existence)
+        const userData: any = {
+          name: data.name,
+          email: data.email,
+          mobile_number: normalizedMobileNumber,
+          firebase_id: firebaseUid,
+          device_id: data.deviceId || null,
+          subscription_status: 'INACTIVE',
+        };
+
+        // Only add referral code fields if column exists
+        if (referralCodeColumnExists) {
+          if (referralCode) {
+            userData.referral_code = referralCode;
+          }
+          if (referralCodeExpiresAt) {
+            userData.referral_code_expires_at = referralCodeExpiresAt;
+          }
+          if (referredById) {
+            userData.referred_by = referredById;
+          }
         }
 
-        // Set expiration to 30 days from now
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 30);
-
-        // Create new user with referral code
         user = await prisma.user.create({
-          data: {
-            name: data.name,
-            email: data.email,
-            mobile_number: normalizedMobileNumber,
-            firebase_id: firebaseUid,
-            device_id: data.deviceId || null,
-            subscription_status: 'INACTIVE',
-            referral_code: referralCode,
-            referral_code_expires_at: expiresAt,
-            referred_by: referredById || null,
-          },
+          data: userData,
         });
         const newUserId = user.id.toString();
         logger.info('New user created', { 
           userId: newUserId, 
           mobileNumber: normalizedMobileNumber,
-          referralCode: referralCode,
+          referralCode: referralCode || 'N/A (column not available)',
           referredBy: referredById?.toString() || null,
         });
 

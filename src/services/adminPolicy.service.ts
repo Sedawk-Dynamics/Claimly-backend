@@ -160,6 +160,9 @@ export const getAllPolicies = async (page: number = 1, limit: number = 20, searc
     ];
   }
 
+  // Filter out policies with invalid user_id (orphaned policies)
+  where.user_id = { not: null };
+
   try {
     const [policies, total] = await Promise.all([
       prisma.policy.findMany({
@@ -215,15 +218,17 @@ export const getAllPolicies = async (page: number = 1, limit: number = 20, searc
     ]);
 
     return {
-      policies: policies.map((policy) => ({
-        id: policy.id.toString(),
-        userId: policy.user_id.toString(),
-        user: {
-          id: policy.user.id.toString(),
-          name: policy.user.name,
-          mobileNumber: policy.user.mobile_number,
-          email: policy.user.email,
-        },
+      policies: policies
+        .filter((policy) => policy.user !== null) // Filter out policies with null users
+        .map((policy) => ({
+          id: policy.id.toString(),
+          userId: policy.user_id.toString(),
+          user: policy.user ? {
+            id: policy.user.id.toString(),
+            name: policy.user.name,
+            mobileNumber: policy.user.mobile_number,
+            email: policy.user.email,
+          } : null,
         insuranceCompany: {
           id: policy.insurance_company.id.toString(),
           name: policy.insurance_company.name,

@@ -78,8 +78,25 @@ export const runDatabaseMigrations = async (): Promise<void> => {
     });
     console.warn('⚠️ Prisma migrate deploy failed. Falling back to `prisma db push`');
 
-    await runCommand(DB_PUSH_COMMAND, 'Synchronizing Prisma schema with database (db push)');
-    logger.info('Database schema synchronized via prisma db push');
+    try {
+      // First try without --accept-data-loss
+      await runCommand(DB_PUSH_COMMAND, 'Synchronizing Prisma schema with database (db push)');
+      logger.info('Database schema synchronized via prisma db push');
+    } catch (dbPushError) {
+      // If db push fails due to data loss warnings, try with --accept-data-loss flag
+      const errorMessage = dbPushError instanceof Error ? dbPushError.message : 'Unknown error';
+      if (errorMessage.includes('--accept-data-loss')) {
+        logger.warn('db push requires data loss acceptance, retrying with --accept-data-loss flag');
+        console.warn('⚠️ db push requires data loss acceptance, retrying with --accept-data-loss flag');
+        
+        const DB_PUSH_ACCEPT_LOSS_COMMAND = 'npx prisma db push --accept-data-loss --schema=./src/prisma/schema.prisma';
+        await runCommand(DB_PUSH_ACCEPT_LOSS_COMMAND, 'Synchronizing Prisma schema with database (db push --accept-data-loss)');
+        logger.info('Database schema synchronized via prisma db push with data loss accepted');
+      } else {
+        // Re-throw if it's a different error
+        throw dbPushError;
+      }
+    }
   }
 };
 
