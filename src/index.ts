@@ -73,12 +73,16 @@ const corsOptions = {
     if (allowedOrigins.includes(origin) || env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
-      logger.warn(`CORS blocked origin: ${origin}`);
+      logger.warn(`CORS blocked origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
   optionsSuccessStatus: 200,
+  preflightContinue: false,
 };
 
 app.use(cors(corsOptions));
@@ -235,9 +239,11 @@ app.use((req, res) => {
 
 // Start server and test database connection
 app.listen(PORT, async () => {
-  logger.info(`Server is running on port ${PORT}`, { port: PORT, env: env.NODE_ENV });
+  const allowedOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
+  logger.info(`Server is running on port ${PORT}`, { port: PORT, env: env.NODE_ENV, corsOrigins: allowedOrigins });
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📦 Environment: ${env.NODE_ENV}`);
+  console.log(`🌐 CORS Allowed Origins: ${allowedOrigins.join(', ') || 'None configured'}`);
   
   // Test database connection
   try {
