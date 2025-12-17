@@ -140,32 +140,32 @@ export const rejectPolicy = async (policyId: string, adminId: string) => {
 
 export const getAllPolicies = async (page: number = 1, limit: number = 20, search?: string) => {
   const skip = (page - 1) * limit;
-  const where: any = {};
+  
+  // Build where clause conditionally
+  const whereClause: any = {};
 
   if (search && search.trim()) {
     const searchTerm = search.trim();
-    where.OR = [
-      { policy_number: { contains: searchTerm } },
-      { user: { name: { contains: searchTerm } } },
+    whereClause.OR = [
+      { policy_number: { contains: searchTerm, mode: 'insensitive' } },
+      { user: { name: { contains: searchTerm, mode: 'insensitive' } } },
       { user: { mobile_number: { contains: searchTerm } } },
       { 
         user: {
           AND: [
             { email: { not: null } },
-            { email: { contains: searchTerm } }
+            { email: { contains: searchTerm, mode: 'insensitive' } }
           ]
         }
       },
-      { insurance_company: { name: { contains: searchTerm } } },
+      { insurance_company: { name: { contains: searchTerm, mode: 'insensitive' } } },
     ];
   }
-
-  // Note: user_id is required in schema (BigInt, non-nullable), so no need to filter null values
 
   try {
     const [policies, total] = await Promise.all([
       prisma.policy.findMany({
-        where,
+        where: whereClause,
         skip,
         take: limit,
         orderBy: { uploaded_at: 'desc' },
@@ -213,7 +213,7 @@ export const getAllPolicies = async (page: number = 1, limit: number = 20, searc
           },
         },
       }),
-      prisma.policy.count({ where }),
+      prisma.policy.count({ where: whereClause }),
     ]);
 
     return {
