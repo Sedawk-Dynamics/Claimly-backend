@@ -141,25 +141,40 @@ export const rejectPolicy = async (policyId: string, adminId: string) => {
 export const getAllPolicies = async (page: number = 1, limit: number = 20, search?: string) => {
   const skip = (page - 1) * limit;
   
-  // Build where clause conditionally
-  const whereClause: any = {};
+  // First, get all valid user IDs to filter out orphaned policies
+  const validUserIds = await prisma.user.findMany({
+    select: { id: true },
+  }).then(users => users.map(u => u.id));
+  
+  // Build where clause - always filter by valid user IDs to avoid orphaned policies
+  const whereClause: any = {
+    user_id: { in: validUserIds },
+  };
 
   if (search && search.trim()) {
     const searchTerm = search.trim();
-    whereClause.OR = [
-      { policy_number: { contains: searchTerm, mode: 'insensitive' } },
-      { user: { name: { contains: searchTerm, mode: 'insensitive' } } },
-      { user: { mobile_number: { contains: searchTerm } } },
-      { 
-        user: {
-          AND: [
-            { email: { not: null } },
-            { email: { contains: searchTerm, mode: 'insensitive' } }
-          ]
-        }
+    // Combine user_id filter with search conditions using AND
+    whereClause.AND = [
+      { user_id: { in: validUserIds } },
+      {
+        OR: [
+          { policy_number: { contains: searchTerm } },
+          { user: { name: { contains: searchTerm } } },
+          { user: { mobile_number: { contains: searchTerm } } },
+          { 
+            user: {
+              AND: [
+                { email: { not: null } },
+                { email: { contains: searchTerm } }
+              ]
+            }
+          },
+          { insurance_company: { name: { contains: searchTerm } } },
+        ],
       },
-      { insurance_company: { name: { contains: searchTerm, mode: 'insensitive' } } },
     ];
+    // Remove the standalone user_id since we're using it in AND
+    delete whereClause.user_id;
   }
 
   try {
