@@ -2,6 +2,7 @@ import prisma from '../config/prismaClient';
 import { NotFoundError } from '../utils/errors';
 import logger from '../config/logger';
 import type { UserDocumentType } from '@prisma/client';
+import { sendAdminActionNotification } from './notification.service';
 
 export const verifyUserDocument = async (documentId: string, adminId: string) => {
   const document = await prisma.userDocument.findUnique({
@@ -26,6 +27,12 @@ export const verifyUserDocument = async (documentId: string, adminId: string) =>
     documentId,
     adminId,
     userId: document.user_id.toString(),
+  });
+
+  // Send notification to user
+  await sendAdminActionNotification(adminId, document.user_id.toString(), 'DOCUMENT_VERIFIED', {
+    documentType: updatedDocument.document_type,
+    documentName: updatedDocument.document_name,
   });
 
   return {
@@ -93,6 +100,11 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
         totalDocuments,
         verifiedDocuments,
       });
+
+      // Send notification when policy is activated
+      await sendAdminActionNotification(adminId, policy.user_id.toString(), 'POLICY_ACTIVATED', {
+        policyNumber: policy.policy_number,
+      });
     }
   }
 
@@ -101,6 +113,19 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
     adminId,
     policyId: document.policy_id.toString(),
   });
+
+  // Send notification to user
+  const policyForNotification = await prisma.policy.findUnique({
+    where: { id: document.policy_id },
+    select: { user_id: true, policy_number: true },
+  });
+
+  if (policyForNotification) {
+    await sendAdminActionNotification(adminId, policyForNotification.user_id.toString(), 'POLICY_DOCUMENT_VERIFIED', {
+      documentName: updatedDocument.document_name,
+      policyNumber: policyForNotification.policy_number,
+    });
+  }
 
   return {
     id: updatedDocument.id.toString(),
@@ -139,6 +164,12 @@ export const verifyNomineeDocument = async (documentId: string, adminId: string)
     nomineeId: document.nominee_id.toString(),
   });
 
+  // Send notification to user
+  await sendAdminActionNotification(adminId, document.nominee.user_id.toString(), 'NOMINEE_DOCUMENT_VERIFIED', {
+    nomineeName: document.nominee.name,
+    documentName: updatedDocument.document_name,
+  });
+
   return {
     id: updatedDocument.id.toString(),
     nomineeId: updatedDocument.nominee_id.toString(),
@@ -174,6 +205,12 @@ export const rejectUserDocument = async (documentId: string, adminId: string) =>
     documentId,
     adminId,
     userId: document.user_id.toString(),
+  });
+
+  // Send notification to user
+  await sendAdminActionNotification(adminId, document.user_id.toString(), 'DOCUMENT_REJECTED', {
+    documentType: updatedDocument.document_type,
+    documentName: updatedDocument.document_name,
   });
 
   return {
@@ -214,6 +251,12 @@ export const rejectPolicyDocument = async (documentId: string, adminId: string) 
     policyId: document.policy_id.toString(),
   });
 
+  // Send notification to user
+  await sendAdminActionNotification(adminId, document.policy.user_id.toString(), 'POLICY_DOCUMENT_REJECTED', {
+    documentName: updatedDocument.document_name,
+    policyNumber: document.policy.policy_number,
+  });
+
   return {
     id: updatedDocument.id.toString(),
     policyId: updatedDocument.policy_id.toString(),
@@ -249,6 +292,12 @@ export const rejectNomineeDocument = async (documentId: string, adminId: string)
     documentId,
     adminId,
     nomineeId: document.nominee_id.toString(),
+  });
+
+  // Send notification to user
+  await sendAdminActionNotification(adminId, document.nominee.user_id.toString(), 'NOMINEE_DOCUMENT_REJECTED', {
+    nomineeName: document.nominee.name,
+    documentName: updatedDocument.document_name,
   });
 
   return {
@@ -321,6 +370,9 @@ export const acceptUserWithoutDocuments = async (userId: string, adminId: string
     documentsCreated: results.length,
   });
 
+  // Send notification to user
+  await sendAdminActionNotification(adminId, userId, 'KYC_ACCEPTED');
+
   return {
     userId,
     documentsCreated: results.map(doc => ({
@@ -389,6 +441,9 @@ export const rejectUserWithoutDocuments = async (userId: string, adminId: string
     documentsCreated: results.length,
   });
 
+  // Send notification to user
+  await sendAdminActionNotification(adminId, userId, 'KYC_REJECTED');
+
   return {
     userId,
     documentsCreated: results.map(doc => ({
@@ -426,6 +481,11 @@ export const acceptPolicyWithoutDocuments = async (policyId: string, adminId: st
     policyId,
     adminId,
     documentId: doc.id.toString(),
+  });
+
+  // Send notification to user
+  await sendAdminActionNotification(adminId, policy.user_id.toString(), 'POLICY_ACCEPTED', {
+    policyNumber: policy.policy_number,
   });
 
   return {
@@ -467,6 +527,11 @@ export const rejectPolicyWithoutDocuments = async (policyId: string, adminId: st
     documentId: doc.id.toString(),
   });
 
+  // Send notification to user
+  await sendAdminActionNotification(adminId, policy.user_id.toString(), 'POLICY_REJECTED', {
+    policyNumber: policy.policy_number,
+  });
+
   return {
     id: doc.id.toString(),
     policyId: doc.policy_id.toString(),
@@ -506,6 +571,11 @@ export const acceptNomineeWithoutDocuments = async (nomineeId: string, adminId: 
     documentId: doc.id.toString(),
   });
 
+  // Send notification to user
+  await sendAdminActionNotification(adminId, nominee.user_id.toString(), 'NOMINEE_ACCEPTED', {
+    nomineeName: nominee.name,
+  });
+
   return {
     id: doc.id.toString(),
     nomineeId: doc.nominee_id.toString(),
@@ -542,6 +612,11 @@ export const rejectNomineeWithoutDocuments = async (nomineeId: string, adminId: 
     nomineeId,
     adminId,
     documentId: doc.id.toString(),
+  });
+
+  // Send notification to user
+  await sendAdminActionNotification(adminId, nominee.user_id.toString(), 'NOMINEE_REJECTED', {
+    nomineeName: nominee.name,
   });
 
   return {

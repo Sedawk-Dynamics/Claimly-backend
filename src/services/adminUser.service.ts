@@ -1,6 +1,7 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError } from '../utils/errors';
 import { createActivityLog } from './userActivityLog.service';
+import { sendAdminActionNotification } from './notification.service';
 
 export const getAllUsers = async (page: number = 1, limit: number = 20, search?: string) => {
   const skip = (page - 1) * limit;
@@ -229,7 +230,7 @@ export const getUserById = async (userId: string) => {
   };
 };
 
-export const updateUserStatus = async (userId: string, subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED') => {
+export const updateUserStatus = async (adminId: string, userId: string, subscriptionStatus: 'ACTIVE' | 'INACTIVE' | 'EXPIRED') => {
   const user = await prisma.user.findUnique({
     where: { id: BigInt(userId) },
   });
@@ -265,6 +266,14 @@ export const updateUserStatus = async (userId: string, subscriptionStatus: 'ACTI
     }).catch((err) => {
       // Don't fail the request if logging fails
       console.error('Failed to log activity:', err);
+    });
+  }
+
+  // Send notification to user about status change
+  if (previousStatus !== subscriptionStatus) {
+    await sendAdminActionNotification(adminId, userId, 'SUBSCRIPTION_STATUS_CHANGED', {
+      previousStatus,
+      newStatus: subscriptionStatus,
     });
   }
 

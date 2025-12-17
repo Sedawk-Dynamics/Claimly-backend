@@ -54,7 +54,7 @@ export const updateUserStatusController = async (
 
     const { id } = req.params;
     const { subscriptionStatus } = req.body;
-    const updatedUser = await updateUserStatus(id, subscriptionStatus);
+    const updatedUser = await updateUserStatus(req.admin.adminId, id, subscriptionStatus);
     res.status(200).json({
       success: true,
       data: updatedUser,

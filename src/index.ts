@@ -21,6 +21,8 @@ import nomineeDocumentRoutes from './routes/nomineeDocument.routes';
 import testAuthRoutes from './routes/testAuth.routes';
 import companyRoutes from './routes/company.routes';
 import walletRoutes from './routes/wallet.routes';
+import notificationRoutes from './routes/notification.routes';
+import { notificationService } from './services/notification.service';
 import path from 'path';
 import logger from './config/logger';
 import { env } from './config/env';
@@ -118,6 +120,7 @@ app.use('/policy', policyNomineeRoutes);
 app.use('/policy', policyDocumentRoutes);
 app.use('/subscription', subscriptionRoutes);
 app.use('/wallet', walletRoutes);
+app.use('/', notificationRoutes);
 
 // Test authentication routes
 // Enabled by default (set DISABLE_TEST_AUTH=true to disable)
@@ -241,10 +244,46 @@ app.listen(PORT, async () => {
     }
 
     await ensureDefaultAdmin();
+
+    // Start scheduled task to delete old notifications (runs daily at midnight)
+    startNotificationCleanupTask();
   } else {
     logger.warn('Skipping default admin bootstrap because database connection failed');
   }
 });
+
+/**
+ * Start scheduled task to automatically delete notifications older than 1 week
+ * Runs once per day at midnight
+ */
+function startNotificationCleanupTask() {
+  const runCleanup = async () => {
+    try {
+      await notificationService.deleteOldNotifications();
+    } catch (error) {
+      logger.error('Failed to cleanup old notifications', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
+  // Calculate milliseconds until next midnight
+  const now = new Date();
+  const midnight = new Date();
+  midnight.setHours(24, 0, 0, 0);
+  const msUntilMidnight = midnight.getTime() - now.getTime();
+
+  // Run cleanup at midnight, then every 24 hours
+  setTimeout(() => {
+    runCleanup();
+    setInterval(runCleanup, 24 * 60 * 60 * 1000); // Run every 24 hours
+  }, msUntilMidnight);
+
+  logger.info('Notification cleanup task scheduled', {
+    firstRun: midnight.toISOString(),
+    interval: '24 hours',
+  });
+}
 
 export default app;
 

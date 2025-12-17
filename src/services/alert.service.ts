@@ -1,5 +1,6 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
+import { sendAdminActionNotification } from './notification.service';
 
 export interface CreateAlertData {
   userId: string;
@@ -118,6 +119,10 @@ export const verifyAlert = async (adminId: string, alertId: string, data: {
       },
     },
   });
+
+  // Send notification to user based on verification status
+  const actionType = updatedAlert.verification_status === 'VERIFIED' ? 'ALERT_VERIFIED' : 'ALERT_FALSE_ALERT';
+  await sendAdminActionNotification(adminId, updatedAlert.user.id.toString(), actionType);
 
   return {
     id: updatedAlert.id.toString(),

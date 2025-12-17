@@ -33,6 +33,7 @@ model User {
   admin_actions       AdminAction[]
   activity_logs       UserActivityLog[]
   wallet_transactions WalletTransaction[]
+  notifications       AdminNotification[]
   referrer            User?      @relation("UserReferrals", fields: [referred_by], references: [id])
   referrals           User[]     @relation("UserReferrals")
 }
@@ -187,6 +188,20 @@ model Admin {
 
   admin_actions AdminAction[]
   verified_alerts DeceasedAlert[]
+  notifications AdminNotification[]
+}
+
+model AdminNotification {
+  id          BigInt     @id @default(autoincrement())
+  admin_id    BigInt
+  user_id     BigInt
+  title       String
+  message     String     @db.Text
+  is_read     Boolean    @default(false)
+  created_at  DateTime   @default(now())
+
+  admin       Admin      @relation(fields: [admin_id], references: [id])
+  user        User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model UserActivityLog {
