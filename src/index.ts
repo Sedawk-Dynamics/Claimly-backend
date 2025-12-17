@@ -192,6 +192,26 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
       });
       return;
     }
+    if (prismaError.code === 'P2025') {
+      res.status(404).json({
+        success: false,
+        error: 'Record not found',
+      });
+      return;
+    }
+    if (prismaError.code === 'P2003') {
+      res.status(400).json({
+        success: false,
+        error: 'Invalid reference to related record',
+      });
+      return;
+    }
+    // Log other Prisma errors for debugging
+    logger.error('Prisma error occurred', {
+      code: prismaError.code,
+      message: prismaError.message,
+      meta: prismaError.meta,
+    });
   }
 
   // Default error response

@@ -652,7 +652,12 @@ export const getKycDocuments = async (
     ? {
         OR: [
           { name: { contains: search.trim() } },
-          { email: { contains: search.trim() } },
+          { 
+            AND: [
+              { email: { not: null } },
+              { email: { contains: search.trim() } }
+            ]
+          },
           { mobile_number: { contains: search.trim() } },
         ],
       }
@@ -795,56 +800,68 @@ export const getKycDocuments = async (
     });
   }
 
-  const totalUsers = await prisma.user.count({
-    where: whereClause,
-  });
+  try {
+    const totalUsers = await prisma.user.count({
+      where: whereClause,
+    });
 
-  const users = await prisma.user.findMany({
-    where: whereClause,
-    include: {
-      documents: {
-        where: {
-          // Show all documents of required types for all statuses
-          document_type: { in: documentTypes },
-          // For pending status, exclude rejected documents
-          ...(status === 'pending' ? { rejected_at: null } : {}),
+    const users = await prisma.user.findMany({
+      where: whereClause,
+      include: {
+        documents: {
+          where: {
+            // Show all documents of required types for all statuses
+            document_type: { in: documentTypes },
+            // For pending status, exclude rejected documents
+            ...(status === 'pending' ? { rejected_at: null } : {}),
+          },
+          orderBy: { uploaded_at: 'desc' },
         },
-        orderBy: { uploaded_at: 'desc' },
       },
-    },
-    orderBy: { created_at: 'desc' },
-    skip: offset,
-    take: limit,
-  });
+      orderBy: { created_at: 'desc' },
+      skip: offset,
+      take: limit,
+    });
 
-  return {
-    users: users.map((user) => ({
-      id: user.id.toString(),
-      name: user.name,
-      email: user.email,
-      mobileNumber: user.mobile_number,
-      documents: user.documents.map((doc) => ({
-        id: doc.id.toString(),
-        documentType: doc.document_type,
-        documentName: doc.document_name,
-        documentUrl: doc.document_url,
-        isVerified: doc.is_verified,
-        uploadedAt: doc.uploaded_at,
-        verifiedAt: doc.verified_at,
-        rejectedAt: doc.rejected_at,
+    return {
+      users: users.map((user) => ({
+        id: user.id.toString(),
+        name: user.name,
+        email: user.email,
+        mobileNumber: user.mobile_number,
+        documents: user.documents.map((doc) => ({
+          id: doc.id.toString(),
+          documentType: doc.document_type,
+          documentName: doc.document_name,
+          documentUrl: doc.document_url,
+          isVerified: doc.is_verified,
+          uploadedAt: doc.uploaded_at,
+          verifiedAt: doc.verified_at,
+          rejectedAt: doc.rejected_at,
+        })),
+        pendingDocuments: documentTypes.filter(
+          (type) => !user.documents.some((doc) => doc.document_type === type)
+        ),
+        verifiedDocuments: user.documents.filter((doc) => doc.is_verified).map((doc) => doc.document_type),
       })),
-      pendingDocuments: documentTypes.filter(
-        (type) => !user.documents.some((doc) => doc.document_type === type)
-      ),
-      verifiedDocuments: user.documents.filter((doc) => doc.is_verified).map((doc) => doc.document_type),
-    })),
-    pagination: {
+      pagination: {
+        page,
+        limit,
+        total: totalUsers,
+        totalPages: Math.ceil(totalUsers / limit) || 1,
+      },
+    };
+  } catch (error) {
+    logger.error('Error fetching KYC documents', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
       page,
       limit,
-      total: totalUsers,
-      totalPages: Math.ceil(totalUsers / limit) || 1,
-    },
-  };
+      status,
+      search,
+    });
+    throw error;
+  }
 };
 
 export const getPolicyDocuments = async (
@@ -856,11 +873,19 @@ export const getPolicyDocuments = async (
   const offset = (page - 1) * limit;
 
   // Base search filter for user name, email, mobile number, or policy number
+  // Handle nullable email field properly
   const searchFilter = search && search.trim()
     ? {
         OR: [
           { user: { name: { contains: search.trim() } } },
-          { user: { email: { contains: search.trim() } } },
+          { 
+            user: {
+              AND: [
+                { email: { not: null } },
+                { email: { contains: search.trim() } }
+              ]
+            }
+          },
           { user: { mobile_number: { contains: search.trim() } } },
           { policy_number: { contains: search.trim() } },
         ],
@@ -963,72 +988,84 @@ export const getPolicyDocuments = async (
     AND: baseConditions,
   };
 
-  // Count total before fetching
-  const totalPolicies = await prisma.policy.count({ where: whereClause });
+  try {
+    // Count total before fetching
+    const totalPolicies = await prisma.policy.count({ where: whereClause });
 
-  // Fetch policies with pagination
-  const policies = await prisma.policy.findMany({
-    where: whereClause,
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          mobile_number: true,
+    // Fetch policies with pagination
+    const policies = await prisma.policy.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            mobile_number: true,
+          },
+        },
+        insurance_company: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        documents: {
+          orderBy: { uploaded_at: 'desc' },
         },
       },
-      insurance_company: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      documents: {
-        orderBy: { uploaded_at: 'desc' },
-      },
-    },
-    orderBy: { uploaded_at: 'desc' },
-    skip: offset,
-    take: limit,
-  });
+      orderBy: { uploaded_at: 'desc' },
+      skip: offset,
+      take: limit,
+    });
 
-  return {
-    policies: policies.map((policy) => ({
-      id: policy.id.toString(),
-      policyNumber: policy.policy_number,
-      sumAssured: policy.sum_assured.toString(),
-      status: policy.status,
-      uploadedAt: policy.uploaded_at,
-      user: {
-        id: policy.user.id.toString(),
-        name: policy.user.name,
-        email: policy.user.email,
-        mobileNumber: policy.user.mobile_number,
-      },
-      insuranceCompany: {
-        id: policy.insurance_company.id.toString(),
-        name: policy.insurance_company.name,
-      },
-      documents: policy.documents.map((doc) => ({
-        id: doc.id.toString(),
-        documentType: doc.document_type,
-        documentName: doc.document_name,
-        documentUrl: doc.document_url,
-        isVerified: doc.is_verified,
-        uploadedAt: doc.uploaded_at,
-        verifiedAt: doc.verified_at,
-        rejectedAt: doc.rejected_at,
+    return {
+      policies: policies.map((policy) => ({
+        id: policy.id.toString(),
+        policyNumber: policy.policy_number,
+        sumAssured: policy.sum_assured.toString(),
+        status: policy.status,
+        uploadedAt: policy.uploaded_at,
+        user: {
+          id: policy.user.id.toString(),
+          name: policy.user.name,
+          email: policy.user.email,
+          mobileNumber: policy.user.mobile_number,
+        },
+        insuranceCompany: {
+          id: policy.insurance_company.id.toString(),
+          name: policy.insurance_company.name,
+        },
+        documents: policy.documents.map((doc) => ({
+          id: doc.id.toString(),
+          documentType: doc.document_type,
+          documentName: doc.document_name,
+          documentUrl: doc.document_url,
+          isVerified: doc.is_verified,
+          uploadedAt: doc.uploaded_at,
+          verifiedAt: doc.verified_at,
+          rejectedAt: doc.rejected_at,
+        })),
+        verifiedDocuments: policy.documents.filter((doc) => doc.is_verified).map((doc) => doc.id.toString()),
       })),
-      verifiedDocuments: policy.documents.filter((doc) => doc.is_verified).map((doc) => doc.id.toString()),
-    })),
-    pagination: {
+      pagination: {
+        page,
+        limit,
+        total: totalPolicies,
+        totalPages: Math.ceil(totalPolicies / limit) || 1,
+      },
+    };
+  } catch (error) {
+    logger.error('Error fetching policy documents', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
       page,
       limit,
-      total: totalPolicies,
-      totalPages: Math.ceil(totalPolicies / limit) || 1,
-    },
-  };
+      status,
+      search,
+    });
+    throw error;
+  }
 };
 
 export const getNomineeDocuments = async (
@@ -1040,11 +1077,19 @@ export const getNomineeDocuments = async (
   const offset = (page - 1) * limit;
 
   // Base search filter for user name, email, mobile number, or nominee name
+  // Handle nullable email field properly
   const searchFilter = search && search.trim()
     ? {
         OR: [
           { user: { name: { contains: search.trim() } } },
-          { user: { email: { contains: search.trim() } } },
+          { 
+            user: {
+              AND: [
+                { email: { not: null } },
+                { email: { contains: search.trim() } }
+              ]
+            }
+          },
           { user: { mobile_number: { contains: search.trim() } } },
           { name: { contains: search.trim() } },
         ],
@@ -1148,65 +1193,77 @@ export const getNomineeDocuments = async (
     AND: baseConditions,
   };
 
-  // Count total before fetching
-  const totalNominees = await prisma.nominee.count({ where: whereClause });
+  try {
+    // Count total before fetching
+    const totalNominees = await prisma.nominee.count({ where: whereClause });
 
-  // Fetch nominees with pagination
-  const nominees = await prisma.nominee.findMany({
-    where: whereClause,
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          mobile_number: true,
+    // Fetch nominees with pagination
+    const nominees = await prisma.nominee.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            mobile_number: true,
+          },
+        },
+        documents: {
+          orderBy: { uploaded_at: 'desc' },
         },
       },
-      documents: {
-        orderBy: { uploaded_at: 'desc' },
-      },
-    },
-    orderBy: { created_at: 'desc' },
-    skip: offset,
-    take: limit,
-  });
+      orderBy: { created_at: 'desc' },
+      skip: offset,
+      take: limit,
+    });
 
-  return {
-    nominees: nominees.map((nominee) => ({
-      id: nominee.id.toString(),
-      name: nominee.name,
-      relationship: nominee.relationship,
-      mobileNumber: nominee.mobile_number,
-      email: nominee.email,
-      address: nominee.address,
-      createdAt: nominee.created_at,
-      updatedAt: nominee.updated_at,
-      user: {
-        id: nominee.user.id.toString(),
-        name: nominee.user.name,
-        email: nominee.user.email,
-        mobileNumber: nominee.user.mobile_number,
-      },
-      documents: nominee.documents.map((doc) => ({
-        id: doc.id.toString(),
-        documentType: doc.document_type,
-        documentName: doc.document_name,
-        documentUrl: doc.document_url,
-        isVerified: doc.is_verified,
-        uploadedAt: doc.uploaded_at,
-        verifiedAt: doc.verified_at,
-        rejectedAt: doc.rejected_at,
+    return {
+      nominees: nominees.map((nominee) => ({
+        id: nominee.id.toString(),
+        name: nominee.name,
+        relationship: nominee.relationship,
+        mobileNumber: nominee.mobile_number,
+        email: nominee.email,
+        address: nominee.address,
+        createdAt: nominee.created_at,
+        updatedAt: nominee.updated_at,
+        user: {
+          id: nominee.user.id.toString(),
+          name: nominee.user.name,
+          email: nominee.user.email,
+          mobileNumber: nominee.user.mobile_number,
+        },
+        documents: nominee.documents.map((doc) => ({
+          id: doc.id.toString(),
+          documentType: doc.document_type,
+          documentName: doc.document_name,
+          documentUrl: doc.document_url,
+          isVerified: doc.is_verified,
+          uploadedAt: doc.uploaded_at,
+          verifiedAt: doc.verified_at,
+          rejectedAt: doc.rejected_at,
+        })),
+        verifiedDocuments: nominee.documents.filter((doc) => doc.is_verified).map((doc) => doc.id.toString()),
       })),
-      verifiedDocuments: nominee.documents.filter((doc) => doc.is_verified).map((doc) => doc.id.toString()),
-    })),
-    pagination: {
+      pagination: {
+        page,
+        limit,
+        total: totalNominees,
+        totalPages: Math.ceil(totalNominees / limit) || 1,
+      },
+    };
+  } catch (error) {
+    logger.error('Error fetching nominee documents', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
       page,
       limit,
-      total: totalNominees,
-      totalPages: Math.ceil(totalNominees / limit) || 1,
-    },
-  };
+      status,
+      search,
+    });
+    throw error;
+  }
 };
 
 

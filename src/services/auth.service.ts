@@ -45,12 +45,37 @@ function normalizePhoneNumber(phoneNumber: string): string {
 
 export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> => {
   try {
+    // Validate required fields
+    if (!data.idToken) {
+      throw new ValidationError('Firebase ID token is required');
+    }
+    
+    if (!data.mobileNumber) {
+      throw new ValidationError('Mobile number is required');
+    }
+
     // Normalize phone number to ensure consistent format
     const normalizedMobileNumber = normalizePhoneNumber(data.mobileNumber);
+    
+    // Validate phone number format (should be exactly 10 digits after normalization)
+    if (normalizedMobileNumber.length !== 10 || !/^\d{10}$/.test(normalizedMobileNumber)) {
+      throw new ValidationError('Invalid mobile number format. Must be 10 digits.');
+    }
+    
     logger.info('OTP verification attempt', { mobileNumber: normalizedMobileNumber });
     
     // Verify the Firebase ID token
-    const decodedToken = await admin.auth().verifyIdToken(data.idToken);
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(data.idToken);
+    } catch (firebaseError: any) {
+      logger.error('Firebase token verification failed', {
+        error: firebaseError?.message || 'Unknown Firebase error',
+        code: firebaseError?.code,
+      });
+      throw new ValidationError('Invalid or expired Firebase token');
+    }
+    
     const firebaseUid = decodedToken.uid;
     logger.debug('Firebase token verified', { firebaseUid });
 
@@ -221,10 +246,31 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
       stack: error instanceof Error ? error.stack : undefined,
     });
 
+    // Re-throw AppError instances (ValidationError, ConflictError, etc.)
     if (error instanceof AppError) {
       throw error;
     }
 
+    // Handle Prisma errors
+    if (error && typeof error === 'object' && 'code' in error) {
+      const prismaError = error as any;
+      if (prismaError.code === 'P2002') {
+        throw new ConflictError('A user with this information already exists');
+      }
+      if (prismaError.code === 'P2025') {
+        throw new ValidationError('Record not found');
+      }
+    }
+
+    // Handle Firebase errors
+    if (error && typeof error === 'object' && 'code' in error) {
+      const firebaseError = error as any;
+      if (firebaseError.code?.startsWith('auth/')) {
+        throw new ValidationError('Firebase authentication failed');
+      }
+    }
+
+    // Generic error handling
     if (error instanceof Error) {
       throw new AppError(`OTP verification failed: ${error.message}`, 500);
     }
