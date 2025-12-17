@@ -42,47 +42,14 @@ app.set('trust proxy', 1);
 // Security headers (must be before other middleware)
 app.use(securityHeaders);
 
-// CORS configuration
+// CORS configuration - Allow all origins (for development/testing)
 const corsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    const allowedOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
-    
-    // Allow requests with no origin (like mobile apps, curl, or Postman desktop app)
-    // Postman desktop app doesn't send an Origin header, so this covers it
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    // Allow Postman web app and browser extensions (for Postman web or browser-based tools)
-    const postmanOrigins = [
-      'https://www.postman.com',
-      'https://web.postman.com',
-    ];
-    const isPostmanWeb = postmanOrigins.some(postmanOrigin => origin === postmanOrigin);
-    
-    // Allow browser extensions (Postman browser extension or similar tools)
-    const isBrowserExtension = origin.startsWith('chrome-extension://') || 
-                               origin.startsWith('moz-extension://') ||
-                               origin.startsWith('safari-extension://');
-    
-    if (isPostmanWeb || isBrowserExtension) {
-      return callback(null, true);
-    }
-    
-    // Allow configured origins or all origins in development
-    if (allowedOrigins.includes(origin) || env.NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      logger.warn(`CORS blocked origin: ${origin}. Allowed origins: ${allowedOrigins.join(', ')}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   exposedHeaders: ['Content-Length', 'Content-Type'],
   optionsSuccessStatus: 200,
-  preflightContinue: false,
 };
 
 // Apply CORS middleware (automatically handles OPTIONS preflight requests)
@@ -106,8 +73,6 @@ app.get('/health', async (req, res) => {
     // Test database connection
     await prisma.$queryRaw`SELECT 1`;
     
-    const allowedOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
-    
     res.json({
       status: 'OK',
       message: 'Server is running',
@@ -115,8 +80,8 @@ app.get('/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       environment: env.NODE_ENV,
       cors: {
-        allowedOrigins: allowedOrigins,
-        originCount: allowedOrigins.length,
+        allowedOrigins: 'all',
+        note: 'All origins are currently allowed',
       },
     });
   } catch (error) {
@@ -247,11 +212,10 @@ app.use((req, res) => {
 
 // Start server and test database connection
 app.listen(PORT, async () => {
-  const allowedOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
-  logger.info(`Server is running on port ${PORT}`, { port: PORT, env: env.NODE_ENV, corsOrigins: allowedOrigins });
+  logger.info(`Server is running on port ${PORT}`, { port: PORT, env: env.NODE_ENV, cors: 'all origins allowed' });
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📦 Environment: ${env.NODE_ENV}`);
-  console.log(`🌐 CORS Allowed Origins: ${allowedOrigins.join(', ') || 'None configured'}`);
+  console.log(`🌐 CORS: All origins allowed`);
   
   // Test database connection
   try {
