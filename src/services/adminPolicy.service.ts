@@ -160,8 +160,7 @@ export const getAllPolicies = async (page: number = 1, limit: number = 20, searc
     ];
   }
 
-  // Filter out policies with invalid user_id (orphaned policies)
-  where.user_id = { not: null };
+  // Note: user_id is required in schema (BigInt, non-nullable), so no need to filter null values
 
   try {
     const [policies, total] = await Promise.all([

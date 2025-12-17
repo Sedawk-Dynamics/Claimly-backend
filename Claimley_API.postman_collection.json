@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "claimley-api-collection",
 		"name": "Claimley API",
-		"description": "Complete API collection for Claimley - Insurance Policy Management System\n\n**For Mobile App Developers:**\nThis collection contains all backend API endpoints. The frontend React Router routes (like /login, /profile, etc.) are client-side routes and are not API endpoints. Use this collection to understand:\n\n1. **Authentication Flow:** POST /auth/register (after Firebase OTP verification)\n2. **User Management:** GET/PUT /user/profile, GET /user/subscription, GET /user/kyc-status\n3. **Documents:** POST/GET/PUT/DELETE /user/document, /policy/:id/document, /nominee/:id/document\n4. **Policies:** CRUD operations on /policies\n5. **Nominees:** CRUD operations on /nominees\n6. **Policy-Nominee Linking:** /policy/:policyId/nominee endpoints\n7. **Subscriptions:** POST /subscription\n\n**Frontend Routes (for reference only - not API endpoints):**\n- /login - Login page (uses POST /auth/register)\n- / - Homepage (requires auth)\n- /profile - User profile (uses GET/PUT /user/profile)\n- /nominees - Nominees list (uses GET /nominees)\n- /nominees/add - Add nominee (uses POST /nominees)\n- /nominees/:id/edit - Edit nominee (uses GET/PUT /nominees/:id)\n- /policies - Policies list (uses GET /policies)\n- /policies/add - Add policy (uses POST /policies)\n- /policies/:id/edit - Edit policy (uses GET/PUT /policies/:id)\n- /subscription - Subscription status (uses GET /user/subscription)\n- /kyc - KYC completion (uses GET /user/kyc-status, POST /user/document)",
+		"description": "Complete API collection for Claimley - Insurance Policy Management System\n\n**For Mobile App Developers:**\nThis collection contains all backend API endpoints. The frontend React Router routes (like /login, /profile, etc.) are client-side routes and are not API endpoints. Use this collection to understand:\n\n1. **Authentication Flow:** POST /auth/register (after Firebase OTP verification)\n2. **User Management:** GET/PUT /user/profile, GET /user/subscription, GET /user/kyc-status, POST /user/referral-code\n3. **Documents:** POST/GET/PUT/DELETE /user/document, /policy/:id/document, /nominee/:id/document\n4. **Policies:** CRUD operations on /policies\n5. **Nominees:** CRUD operations on /nominees\n6. **Policy-Nominee Linking:** /policy/:policyId/nominee endpoints\n7. **Subscriptions:** POST /subscription\n8. **Wallet:** GET /wallet/balance, GET /wallet/transactions, GET /wallet/eligibility\n9. **Notifications:** GET /notifications, PATCH /notifications/:id/read, DELETE /notifications/:id (Admin: POST /admin/notifications)\n10. **Alerts:** POST /alerts, GET /alerts/:id, PATCH /alerts/:id/verify\n\n**Admin Endpoints:**\n- **Users:** GET /admin/users, GET /admin/users/:id, GET /admin/users/:id/activity-logs, PUT /admin/users/:id/status\n- **Alerts:** GET /admin/alerts/stats, GET /admin/alerts, GET /admin/alerts/:id, PUT /admin/alerts/:id/verify, POST /admin/alerts/bulk-verify\n- **Documents:** GET /admin/documents/kyc-documents, GET /admin/documents/policy-documents, GET /admin/documents/nominee-documents, PATCH /admin/documents/verify-document/:id, PATCH /admin/documents/reject-document/:id, POST /admin/documents/accept-entity/:id, POST /admin/documents/reject-entity/:id\n- **Policies:** GET /admin/policies, POST /admin/policies/:id/accept, POST /admin/policies/:id/reject\n- **Notifications:** POST /admin/notifications\n\n**Frontend Routes (for reference only - not API endpoints):**\n- /login - Login page (uses POST /auth/register)\n- / - Homepage (requires auth)\n- /profile - User profile (uses GET/PUT /user/profile)\n- /nominees - Nominees list (uses GET /nominees)\n- /nominees/add - Add nominee (uses POST /nominees)\n- /nominees/:id/edit - Edit nominee (uses GET/PUT /nominees/:id)\n- /policies - Policies list (uses GET /policies)\n- /policies/add - Add policy (uses POST /policies)\n- /policies/:id/edit - Edit policy (uses GET/PUT /policies/:id)\n- /subscription - Subscription status (uses GET /user/subscription)\n- /kyc - KYC completion (uses GET /user/kyc-status, POST /user/document)",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "claimley-api"
 	},
@@ -348,6 +348,30 @@
 							]
 						},
 						"description": "Get the user's KYC completion status including pending document requirements"
+					},
+					"response": []
+				},
+				{
+					"name": "Generate Referral Code",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/referral-code",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								"referral-code"
+							]
+						},
+						"description": "Generate a referral code for the authenticated user. Returns a unique referral code that can be shared with others."
 					},
 					"response": []
 				}
@@ -1649,6 +1673,209 @@
 			]
 		},
 		{
+			"name": "Wallet",
+			"item": [
+				{
+					"name": "Get Wallet Balance",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/wallet/balance",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"wallet",
+								"balance"
+							]
+						},
+						"description": "Get the wallet balance for the authenticated user"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Wallet Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/wallet/transactions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"wallet",
+								"transactions"
+							]
+						},
+						"description": "Get all wallet transactions for the authenticated user"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Wallet Eligibility",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/wallet/eligibility",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"wallet",
+								"eligibility"
+							]
+						},
+						"description": "Get wallet redemption eligibility status for the authenticated user"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Notifications",
+			"item": [
+				{
+					"name": "Create Notification (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_id\": \"user-id-here\",\n  \"title\": \"Important Update\",\n  \"message\": \"Your policy has been updated successfully\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/admin/notifications",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"notifications"
+							]
+						},
+						"description": "Create a notification for a user (Admin only). Requires user_id, title, and message."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Notifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/notifications",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"notifications"
+							]
+						},
+						"description": "Get all notifications for the authenticated user"
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Notification as Read",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/notifications/:id/read",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"notifications",
+								":id",
+								"read"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "notification-id-here"
+								}
+							]
+						},
+						"description": "Mark a notification as read for the authenticated user"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Notification",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/notifications/:id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"notifications",
+								":id"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "notification-id-here"
+								}
+							]
+						},
+						"description": "Delete a notification for the authenticated user"
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Admin",
 			"item": [
 				{
@@ -1760,6 +1987,38 @@
 									]
 								},
 								"description": "Get a specific user by ID (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get User Activity Logs",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/users/:id/activity-logs",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"users",
+										":id",
+										"activity-logs"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "user-id-here"
+										}
+									]
+								},
+								"description": "Get activity logs for a specific user (Admin only)"
 							},
 							"response": []
 						},
@@ -1935,6 +2194,44 @@
 									]
 								},
 								"description": "Verify an alert (Admin only). Verification status: VERIFIED or FALSE_ALERT"
+							},
+							"response": []
+						},
+						{
+							"name": "Bulk Verify Alerts",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"alertIds\": [\"alert-id-1\", \"alert-id-2\"],\n  \"verificationStatus\": \"VERIFIED\",\n  \"remarks\": \"Bulk verification completed\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/alerts/bulk-verify",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"alerts",
+										"bulk-verify"
+									]
+								},
+								"description": "Bulk verify multiple alerts at once (Admin only). Requires array of alert IDs, verificationStatus, and optional remarks."
 							},
 							"response": []
 						}
@@ -2235,6 +2532,70 @@
 								"description": "Get all policies across all users (Admin only)"
 							},
 							"response": []
+						},
+						{
+							"name": "Accept Policy",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/policies/:id/accept",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"policies",
+										":id",
+										"accept"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "policy-id-here"
+										}
+									]
+								},
+								"description": "Accept a policy (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Reject Policy",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/policies/:id/reject",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"policies",
+										":id",
+										"reject"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "policy-id-here"
+										}
+									]
+								},
+								"description": "Reject a policy (Admin only)"
+							},
+							"response": []
 						}
 					]
 				},
@@ -2278,6 +2639,86 @@
 							]
 						},
 						"description": "Fetch paginated KYC documents awaiting review. Adjust the `status`, `page`, and `limit` query params as needed."
+					},
+					"response": []
+				},
+				{
+					"name": "List Policy Documents",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/documents/policy-documents?status=pending&page=1&limit=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"documents",
+								"policy-documents"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending",
+									"description": "Filter by verification status: pending | verified"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Fetch paginated policy documents awaiting review. Adjust the `status`, `page`, and `limit` query params as needed."
+					},
+					"response": []
+				},
+				{
+					"name": "List Nominee Documents",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{adminToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/admin/documents/nominee-documents?status=pending&page=1&limit=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"admin",
+								"documents",
+								"nominee-documents"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending",
+									"description": "Filter by verification status: pending | verified"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Fetch paginated nominee documents awaiting review. Adjust the `status`, `page`, and `limit` query params as needed."
 					},
 					"response": []
 				},
@@ -2362,6 +2803,128 @@
 							]
 						},
 						"description": "Verify a uploaded document (Admin only). `documentType` accepts `user`, `policy`, or `nominee`."
+							},
+							"response": []
+						},
+						{
+							"name": "Reject Document",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"documentType\": \"user\",\n  \"rejectionReason\": \"Document quality is poor\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/documents/reject-document/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"documents",
+										"reject-document",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "document-id-here"
+										}
+									]
+								},
+								"description": "Reject a document (Admin only). `documentType` accepts `user`, `policy`, or `nominee`. `rejectionReason` is required."
+							},
+							"response": []
+						},
+						{
+							"name": "Accept Entity Without Documents",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/admin/documents/accept-entity/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"documents",
+										"accept-entity",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "entity-id-here"
+										}
+									]
+								},
+								"description": "Accept an entity (user/policy/nominee) without requiring documents (Admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Reject Entity Without Documents",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"rejectionReason\": \"Entity does not meet requirements\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/documents/reject-entity/:id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"documents",
+										"reject-entity",
+										":id"
+									],
+									"variable": [
+										{
+											"key": "id",
+											"value": "entity-id-here"
+										}
+									]
+								},
+								"description": "Reject an entity (user/policy/nominee) without documents (Admin only). `rejectionReason` is required."
 							},
 							"response": []
 						}
