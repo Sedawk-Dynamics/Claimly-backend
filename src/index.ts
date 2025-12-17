@@ -85,7 +85,9 @@ const corsOptions = {
   preflightContinue: false,
 };
 
+// Apply CORS middleware (automatically handles OPTIONS preflight requests)
 app.use(cors(corsOptions));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -104,12 +106,18 @@ app.get('/health', async (req, res) => {
     // Test database connection
     await prisma.$queryRaw`SELECT 1`;
     
+    const allowedOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
+    
     res.json({
       status: 'OK',
       message: 'Server is running',
       database: 'connected',
       timestamp: new Date().toISOString(),
       environment: env.NODE_ENV,
+      cors: {
+        allowedOrigins: allowedOrigins,
+        originCount: allowedOrigins.length,
+      },
     });
   } catch (error) {
     logger.error('Health check failed', { error: error instanceof Error ? error.message : 'Unknown error' });
