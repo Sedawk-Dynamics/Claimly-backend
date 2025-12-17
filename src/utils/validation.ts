@@ -23,8 +23,13 @@ export const verifyOTPSchema = z.object({
       .pipe(z.string().regex(/^[0-9]{10}$/, 'Invalid mobile number format. Must be 10 digits.')),
     name: z.string().optional(),
     email: z.preprocess(
-      (val) => (val === '' || val === null ? undefined : val),
-      z.string().email('Invalid email format').optional()
+      (val) => {
+        if (val === '' || val === null || val === undefined) {
+          return null;
+        }
+        return typeof val === 'string' ? val.trim() : null;
+      },
+      z.string().email('Invalid email format').nullable().optional()
     ),
     deviceId: z.string().optional(),
     referralCode: z.string().optional(),
@@ -248,6 +253,8 @@ export const validate = (schema: ZodSchema) => {
         });
         return;
       }
+      // Log unexpected errors for debugging
+      console.error('Validation middleware unexpected error:', error);
       next(error);
     }
   };

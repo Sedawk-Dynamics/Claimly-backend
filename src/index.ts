@@ -148,6 +148,21 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
     ip: req.ip,
   });
 
+  // Handle Zod validation errors
+  if (err.name === 'ZodError' || (err as any).issues) {
+    const zodError = err as any;
+    const errors = (zodError.issues || []).map((issue: any) => ({
+      path: issue.path?.join('.') || 'unknown',
+      message: issue.message || 'Validation error',
+    }));
+    res.status(400).json({
+      success: false,
+      error: 'Validation failed',
+      details: errors,
+    });
+    return;
+  }
+
   // Handle multer file upload errors
   if (err.name === 'MulterError') {
     const multerError = err as any;

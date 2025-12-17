@@ -5,11 +5,14 @@ export const verifyOTPController = async (req: Request, res: Response, next: Nex
   try {
     const { idToken, mobileNumber, name, email, deviceId, referralCode } = req.body;
 
+    // Clean up email - convert empty string to undefined
+    const cleanedEmail = email && email.trim() !== '' ? email.trim() : undefined;
+
     const result = await verifyOTP({
       idToken,
       mobileNumber,
       name,
-      email,
+      email: cleanedEmail,
       deviceId,
       referralCode,
     });
