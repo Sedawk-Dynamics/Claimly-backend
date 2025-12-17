@@ -22,7 +22,10 @@ export const verifyOTPSchema = z.object({
       .transform((val) => normalizePhoneNumber(val))
       .pipe(z.string().regex(/^[0-9]{10}$/, 'Invalid mobile number format. Must be 10 digits.')),
     name: z.string().optional(),
-    email: z.string().email('Invalid email format').optional(),
+    email: z.preprocess(
+      (val) => (val === '' || val === null ? undefined : val),
+      z.string().email('Invalid email format').optional()
+    ),
     deviceId: z.string().optional(),
     referralCode: z.string().optional(),
   }),
@@ -222,11 +225,15 @@ import { ZodError, ZodSchema } from 'zod';
 export const validate = (schema: ZodSchema) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await schema.parseAsync({
+      const validated = await schema.parseAsync({
         body: req.body,
         query: req.query,
         params: req.params,
-      });
+      }) as { body?: any; query?: any; params?: any };
+      // Update request with validated and transformed values
+      if (validated.body) req.body = validated.body;
+      if (validated.query) req.query = validated.query;
+      if (validated.params) req.params = validated.params;
       next();
     } catch (error: unknown) {
       if (error instanceof ZodError) {
