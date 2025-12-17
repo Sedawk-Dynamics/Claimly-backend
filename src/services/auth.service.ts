@@ -67,12 +67,22 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
     // Verify the Firebase ID token
     let decodedToken;
     try {
+      // Check if Firebase Admin is initialized
+      if (!admin.apps.length) {
+        logger.error('Firebase Admin not initialized');
+        throw new AppError('Firebase Admin SDK not initialized. Please check server configuration.', 500);
+      }
       decodedToken = await admin.auth().verifyIdToken(data.idToken);
     } catch (firebaseError: any) {
       logger.error('Firebase token verification failed', {
         error: firebaseError?.message || 'Unknown Firebase error',
         code: firebaseError?.code,
+        stack: firebaseError?.stack,
       });
+      // If it's an initialization error, return 500, otherwise 400
+      if (firebaseError?.message?.includes('not initialized') || firebaseError?.code === 'app/no-app') {
+        throw new AppError('Authentication service unavailable. Please contact support.', 500);
+      }
       throw new ValidationError('Invalid or expired Firebase token');
     }
     

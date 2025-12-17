@@ -39,9 +39,13 @@ if (!admin.apps.length) {
       console.warn('Firebase Admin not initialized. Set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL in .env');
     }
   } catch (error) {
-    console.error('Firebase Admin initialization error:', error);
-    // Don't crash the app if Firebase fails to initialize
-    console.warn('Continuing without Firebase Admin initialization');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('Firebase Admin initialization error:', errorMessage);
+    console.error('Firebase Admin initialization stack:', errorStack);
+    // Don't crash the app if Firebase fails to initialize, but log it clearly
+    console.warn('⚠️  WARNING: Continuing without Firebase Admin initialization. Authentication will fail!');
+    throw new Error(`Firebase Admin initialization failed: ${errorMessage}`);
   }
 }
 

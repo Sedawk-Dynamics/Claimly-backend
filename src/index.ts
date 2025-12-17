@@ -155,6 +155,12 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
       path: issue.path?.join('.') || 'unknown',
       message: issue.message || 'Validation error',
     }));
+    logger.error('Validation error', {
+      errors,
+      path: req.path,
+      method: req.method,
+      body: req.body,
+    });
     res.status(400).json({
       success: false,
       error: 'Validation failed',
@@ -230,10 +236,20 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   }
 
   // Default error response
+  // In production, still log the error message for debugging but don't expose it to client
+  const errorMessage = err.message || 'Unknown error';
+  logger.error('Unhandled error', {
+    message: errorMessage,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+  });
+  
   res.status(500).json({
     success: false,
     error: 'Internal server error',
-    message: env.NODE_ENV === 'development' ? err.message : undefined,
+    message: env.NODE_ENV === 'development' ? errorMessage : 'An unexpected error occurred. Please try again.',
+    ...(env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 });
 
@@ -259,7 +275,26 @@ app.listen(PORT, async () => {
     logger.error('Server startup halted due to Prisma client generation failure', {
       error: generateError instanceof Error ? generateError.message : 'Unknown error',
     });
+    console.error('❌ Prisma client generation failed');
     return;
+  }
+
+  // Check Firebase initialization
+  try {
+    const admin = await import('./config/firebase');
+    if (!admin.default.apps.length) {
+      logger.error('Firebase Admin SDK not initialized');
+      console.error('❌ Firebase Admin SDK not initialized. Authentication will fail!');
+      console.error('Please check FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL environment variables.');
+    } else {
+      logger.info('Firebase Admin SDK initialized successfully');
+      console.log('✅ Firebase Admin SDK initialized');
+    }
+  } catch (firebaseError) {
+    logger.error('Firebase initialization check failed', {
+      error: firebaseError instanceof Error ? firebaseError.message : 'Unknown error',
+    });
+    console.error('❌ Firebase initialization check failed:', firebaseError instanceof Error ? firebaseError.message : 'Unknown error');
   }
 
   const connected = await testDatabaseConnection();
@@ -271,6 +306,7 @@ app.listen(PORT, async () => {
       logger.error('Server startup halted due to migration failure', {
         error: migrationError instanceof Error ? migrationError.message : 'Unknown error',
       });
+      console.error('❌ Database migration failed');
       return;
     }
 
@@ -280,6 +316,7 @@ app.listen(PORT, async () => {
     startNotificationCleanupTask();
   } else {
     logger.warn('Skipping default admin bootstrap because database connection failed');
+    console.warn('⚠️  Database connection failed');
   }
 });
 

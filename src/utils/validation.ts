@@ -246,6 +246,13 @@ export const validate = (schema: ZodSchema) => {
           path: issue.path.join('.'),
           message: issue.message,
         }));
+        // Log validation errors for debugging
+        console.error('Validation error:', {
+          path: req.path,
+          method: req.method,
+          errors,
+          body: req.body,
+        });
         res.status(400).json({
           success: false,
           error: 'Validation failed',
@@ -254,7 +261,14 @@ export const validate = (schema: ZodSchema) => {
         return;
       }
       // Log unexpected errors for debugging
-      console.error('Validation middleware unexpected error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      console.error('Validation middleware unexpected error:', {
+        message: errorMessage,
+        stack: errorStack,
+        path: req.path,
+        method: req.method,
+      });
       next(error);
     }
   };

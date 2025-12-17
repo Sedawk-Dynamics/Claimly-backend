@@ -25,10 +25,28 @@ const logger = winston.createLogger({
   ],
 });
 
-// If we're not in production, log to console as well
+// Always log errors to console for visibility, even in production
+logger.add(
+  new winston.transports.Console({
+    level: 'error', // Only log errors to console in production
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.printf(({ timestamp, level, message, ...meta }) => {
+        let msg = `${timestamp} [${level}]: ${message}`;
+        if (Object.keys(meta).length > 0) {
+          msg += ` ${JSON.stringify(meta)}`;
+        }
+        return msg;
+      })
+    ),
+  })
+);
+
+// If we're not in production, also log info/debug to console
 if (process.env.NODE_ENV !== 'production') {
   logger.add(
     new winston.transports.Console({
+      level: 'info',
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.printf(({ timestamp, level, message, ...meta }) => {
