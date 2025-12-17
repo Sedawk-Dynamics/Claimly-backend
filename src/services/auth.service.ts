@@ -26,9 +26,28 @@ export interface AuthResponse {
   };
 }
 
+/**
+ * Normalizes a phone number to exactly 10 digits
+ * Removes all non-digit characters and takes the last 10 digits
+ */
+function normalizePhoneNumber(phoneNumber: string): string {
+  // Remove all non-digit characters
+  const digitsOnly = phoneNumber.replace(/\D/g, '');
+  
+  // Take the last 10 digits (handles country codes like +91)
+  if (digitsOnly.length >= 10) {
+    return digitsOnly.slice(-10);
+  }
+  
+  // If less than 10 digits, return as is (will be caught by validation)
+  return digitsOnly;
+}
+
 export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> => {
   try {
-    logger.info('OTP verification attempt', { mobileNumber: data.mobileNumber });
+    // Normalize phone number to ensure consistent format
+    const normalizedMobileNumber = normalizePhoneNumber(data.mobileNumber);
+    logger.info('OTP verification attempt', { mobileNumber: normalizedMobileNumber });
     
     // Verify the Firebase ID token
     const decodedToken = await admin.auth().verifyIdToken(data.idToken);
@@ -44,7 +63,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
     if (!user) {
       // Check if mobile number already exists
       const existingUser = await prisma.user.findUnique({
-        where: { mobile_number: data.mobileNumber },
+        where: { mobile_number: normalizedMobileNumber },
       });
 
       // If user exists by mobile number, link the firebase_id to existing user
@@ -58,7 +77,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         });
         logger.info('Linked Firebase ID to existing user', { 
           userId: user.id.toString(), 
-          mobileNumber: data.mobileNumber 
+          mobileNumber: normalizedMobileNumber 
         });
       } else {
         // User doesn't exist at all - require name and email for new user
@@ -139,7 +158,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           data: {
             name: data.name,
             email: data.email,
-            mobile_number: data.mobileNumber,
+            mobile_number: normalizedMobileNumber,
             firebase_id: firebaseUid,
             device_id: data.deviceId || null,
             subscription_status: 'INACTIVE',
@@ -151,7 +170,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         const newUserId = user.id.toString();
         logger.info('New user created', { 
           userId: newUserId, 
-          mobileNumber: data.mobileNumber,
+          mobileNumber: normalizedMobileNumber,
           referralCode: referralCode,
           referredBy: referredById?.toString() || null,
         });
@@ -199,6 +218,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
     logger.error('OTP verification failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       mobileNumber: data.mobileNumber,
+      stack: error instanceof Error ? error.stack : undefined,
     });
 
     if (error instanceof AppError) {

@@ -1,10 +1,26 @@
 import { z } from 'zod';
 
+// Helper function to normalize phone numbers
+function normalizePhoneNumber(phoneNumber: string): string {
+  // Remove all non-digit characters
+  const digitsOnly = phoneNumber.replace(/\D/g, '');
+  
+  // Take the last 10 digits (handles country codes like +91)
+  if (digitsOnly.length >= 10) {
+    return digitsOnly.slice(-10);
+  }
+  
+  // If less than 10 digits, return as is (will be caught by validation)
+  return digitsOnly;
+}
+
 // Auth validation schemas
 export const verifyOTPSchema = z.object({
   body: z.object({
     idToken: z.string().min(1, 'idToken is required'),
-    mobileNumber: z.string().regex(/^[0-9]{10}$/, 'Invalid mobile number format'),
+    mobileNumber: z.string()
+      .transform((val) => normalizePhoneNumber(val))
+      .pipe(z.string().regex(/^[0-9]{10}$/, 'Invalid mobile number format. Must be 10 digits.')),
     name: z.string().optional(),
     email: z.string().email('Invalid email format').optional(),
     deviceId: z.string().optional(),
