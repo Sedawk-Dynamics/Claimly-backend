@@ -32,7 +32,8 @@ NODE_ENV=production
 LOG_LEVEL=info
 
 # CORS Configuration (comma-separated list of allowed origins)
-CORS_ORIGIN="https://app.claimly.com,https://www.claimly.com"
+# Include all frontend domains that will make requests to this API
+CORS_ORIGIN="https://web.claimly.co.in,https://admin.claimly.co.in"
 
 # Security Configuration
 DISABLE_TEST_AUTH=true
