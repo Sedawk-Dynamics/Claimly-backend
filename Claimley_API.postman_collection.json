@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "claimley-api-collection",
 		"name": "Claimley API",
-		"description": "Complete API collection for Claimley - Insurance Policy Management System\n\n**For Mobile App Developers:**\nThis collection contains all backend API endpoints. The frontend React Router routes (like /login, /profile, etc.) are client-side routes and are not API endpoints. Use this collection to understand:\n\n1. **Authentication Flow:** POST /auth/register (after Firebase OTP verification)\n2. **User Management:** GET/PUT /user/profile, GET /user/subscription, GET /user/kyc-status, POST /user/referral-code\n3. **Documents:** POST/GET/PUT/DELETE /user/document, /policy/:id/document, /nominee/:id/document\n4. **Policies:** CRUD operations on /policies\n5. **Nominees:** CRUD operations on /nominees\n6. **Policy-Nominee Linking:** /policy/:policyId/nominee endpoints\n7. **Subscriptions:** POST /subscription\n8. **Wallet:** GET /wallet/balance, GET /wallet/transactions, GET /wallet/eligibility\n9. **Notifications:** GET /notifications, PATCH /notifications/:id/read, DELETE /notifications/:id (Admin: POST /admin/notifications)\n10. **Alerts:** POST /alerts, GET /alerts/:id, PATCH /alerts/:id/verify\n\n**Admin Endpoints:**\n- **Users:** GET /admin/users, GET /admin/users/:id, GET /admin/users/:id/activity-logs, PUT /admin/users/:id/status\n- **Alerts:** GET /admin/alerts/stats, GET /admin/alerts, GET /admin/alerts/:id, PUT /admin/alerts/:id/verify, POST /admin/alerts/bulk-verify\n- **Documents:** GET /admin/documents/kyc-documents, GET /admin/documents/policy-documents, GET /admin/documents/nominee-documents, PATCH /admin/documents/verify-document/:id, PATCH /admin/documents/reject-document/:id, POST /admin/documents/accept-entity/:id, POST /admin/documents/reject-entity/:id\n- **Policies:** GET /admin/policies, POST /admin/policies/:id/accept, POST /admin/policies/:id/reject\n- **Notifications:** POST /admin/notifications\n\n**Frontend Routes (for reference only - not API endpoints):**\n- /login - Login page (uses POST /auth/register)\n- / - Homepage (requires auth)\n- /profile - User profile (uses GET/PUT /user/profile)\n- /nominees - Nominees list (uses GET /nominees)\n- /nominees/add - Add nominee (uses POST /nominees)\n- /nominees/:id/edit - Edit nominee (uses GET/PUT /nominees/:id)\n- /policies - Policies list (uses GET /policies)\n- /policies/add - Add policy (uses POST /policies)\n- /policies/:id/edit - Edit policy (uses GET/PUT /policies/:id)\n- /subscription - Subscription status (uses GET /user/subscription)\n- /kyc - KYC completion (uses GET /user/kyc-status, POST /user/document)",
+		"description": "Complete API collection for Claimley - Insurance Policy Management System\n\n**For Mobile App Developers:**\nThis collection contains all backend API endpoints. The frontend React Router routes (like /login, /profile, etc.) are client-side routes and are not API endpoints. Use this collection to understand:\n\n1. **Authentication Flow:** POST /auth/register (after Firebase OTP verification)\n2. **User Management:** GET/PUT /user/profile, GET /user/subscription, GET /user/kyc-status, POST /user/referral-code, POST /user/fcm-token, DELETE /user/fcm-token\n3. **Documents:** POST/GET/PUT/DELETE /user/document, /policy/:id/document, /nominee/:id/document\n4. **Policies:** CRUD operations on /policies\n5. **Nominees:** CRUD operations on /nominees\n6. **Policy-Nominee Linking:** /policy/:policyId/nominee endpoints\n7. **Subscriptions:** POST /subscription\n8. **Wallet:** GET /wallet/balance, GET /wallet/transactions, GET /wallet/eligibility\n9. **Notifications:** GET /notifications, PATCH /notifications/:id/read, DELETE /notifications/:id (Admin: POST /admin/notifications). Push notifications are automatically sent when notifications are created.\n10. **Alerts:** POST /alerts, GET /alerts/:id, PATCH /alerts/:id/verify\n11. **Push Notifications:** POST /user/fcm-token (register), DELETE /user/fcm-token (unregister) - Enable push notifications on mobile/web devices\n\n**Admin Endpoints:**\n- **Users:** GET /admin/users, GET /admin/users/:id, GET /admin/users/:id/activity-logs, PUT /admin/users/:id/status\n- **Alerts:** GET /admin/alerts/stats, GET /admin/alerts, GET /admin/alerts/:id, PUT /admin/alerts/:id/verify, POST /admin/alerts/bulk-verify\n- **Documents:** GET /admin/documents/kyc-documents, GET /admin/documents/policy-documents, GET /admin/documents/nominee-documents, PATCH /admin/documents/verify-document/:id, PATCH /admin/documents/reject-document/:id, POST /admin/documents/accept-entity/:id, POST /admin/documents/reject-entity/:id\n- **Policies:** GET /admin/policies, POST /admin/policies/:id/accept, POST /admin/policies/:id/reject\n- **Notifications:** POST /admin/notifications\n\n**Frontend Routes (for reference only - not API endpoints):**\n- /login - Login page (uses POST /auth/register)\n- / - Homepage (requires auth)\n- /profile - User profile (uses GET/PUT /user/profile)\n- /nominees - Nominees list (uses GET /nominees)\n- /nominees/add - Add nominee (uses POST /nominees)\n- /nominees/:id/edit - Edit nominee (uses GET/PUT /nominees/:id)\n- /policies - Policies list (uses GET /policies)\n- /policies/add - Add policy (uses POST /policies)\n- /policies/:id/edit - Edit policy (uses GET/PUT /policies/:id)\n- /subscription - Subscription status (uses GET /user/subscription)\n- /kyc - KYC completion (uses GET /user/kyc-status, POST /user/document)",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "claimley-api"
 	},
@@ -372,6 +372,67 @@
 							]
 						},
 						"description": "Generate a referral code for the authenticated user. Returns a unique referral code that can be shared with others."
+					},
+					"response": []
+				},
+				{
+					"name": "Register FCM Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"fcm-token-from-firebase-here\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/fcm-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								"fcm-token"
+							]
+						},
+						"description": "Register Firebase Cloud Messaging (FCM) token for push notifications.\n\n**For Mobile/Web App Developers:**\n\nThis endpoint registers the FCM token obtained from Firebase Cloud Messaging to enable push notifications for the user.\n\n**Flow:**\n1. User grants notification permission in the app\n2. Get FCM token from Firebase Messaging SDK\n3. Call this endpoint to register the token\n4. User will now receive push notifications even when app is closed\n\n**Request Body:**\n- `token` (required): The FCM token string obtained from Firebase Messaging\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"message\": \"FCM token registered successfully\"\n}\n```\n\n**Notes:**\n- Token is stored in the user's `device_id` field\n- Only one token per user (new token replaces old one)\n- Invalid tokens are automatically cleaned up by the backend\n- Token is required for push notifications to work"
+					},
+					"response": []
+				},
+				{
+					"name": "Unregister FCM Token",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/fcm-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								"fcm-token"
+							]
+						},
+						"description": "Unregister Firebase Cloud Messaging (FCM) token to disable push notifications.\n\n**For Mobile/Web App Developers:**\n\nThis endpoint removes the FCM token from the user's account, effectively disabling push notifications.\n\n**Use Cases:**\n- User disables notifications in app settings\n- User logs out\n- App uninstalled (call from cleanup logic)\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"message\": \"FCM token unregistered successfully\"\n}\n```\n\n**Notes:**\n- Removes the token from user's `device_id` field\n- User will no longer receive push notifications\n- Safe to call even if no token is registered"
 					},
 					"response": []
 				}

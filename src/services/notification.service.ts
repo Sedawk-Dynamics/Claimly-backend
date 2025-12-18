@@ -1,9 +1,11 @@
 import prisma from "../config/prismaClient";
 import logger from "../config/logger";
+import admin from "../config/firebase";
+import { getFCMToken } from "./user.service";
 
 export class NotificationService {
   async createNotification(adminId: bigint, userId: bigint, title: string, message: string) {
-    return prisma.adminNotification.create({
+    const notification = await prisma.adminNotification.create({
       data: {
         admin_id: adminId,
         user_id: userId,
@@ -11,6 +13,20 @@ export class NotificationService {
         message,
       },
     });
+
+    // Send push notification if FCM token exists
+    try {
+      await sendPushNotification(userId.toString(), title, message, notification.id.toString());
+    } catch (error) {
+      // Log error but don't fail notification creation
+      logger.error('Failed to send push notification', {
+        userId: userId.toString(),
+        notificationId: notification.id.toString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    return notification;
   }
 
   async listUserNotifications(userId: bigint) {
@@ -78,7 +94,7 @@ export async function sendAdminActionNotification(
     const title = getNotificationTitle(actionType, details);
     const message = getNotificationMessage(actionType, details);
 
-    await notificationService.createNotification(
+    const notification = await notificationService.createNotification(
       BigInt(adminId),
       BigInt(userId),
       title,
@@ -89,6 +105,7 @@ export async function sendAdminActionNotification(
       adminId,
       userId,
       actionType,
+      notificationId: notification.id.toString(),
     });
   } catch (error) {
     // Silently fail - don't interrupt the main flow if notification fails
@@ -176,6 +193,77 @@ function getNotificationMessage(actionType: string, details?: Record<string, any
       return `Your subscription status has been updated to ${details?.newStatus || 'updated'}.`;
     default:
       return 'An admin action has been performed on your account.';
+  }
+}
+
+/**
+ * Send push notification via Firebase Cloud Messaging
+ */
+async function sendPushNotification(
+  userId: string,
+  title: string,
+  message: string,
+  notificationId: string
+): Promise<void> {
+  // Check if Firebase Admin is initialized
+  if (!admin.apps.length) {
+    logger.warn('Firebase Admin not initialized, skipping push notification');
+    return;
+  }
+
+  try {
+    // Get FCM token for user
+    const fcmToken = await getFCMToken(userId);
+    
+    if (!fcmToken) {
+      logger.debug('No FCM token found for user', { userId });
+      return;
+    }
+
+    // Send push notification
+    const messagePayload = {
+      notification: {
+        title,
+        body: message,
+      },
+      data: {
+        title,
+        message,
+        notificationId,
+        url: '/notifications',
+      },
+      token: fcmToken,
+    };
+
+    const response = await admin.messaging().send(messagePayload);
+    logger.info('Push notification sent successfully', {
+      userId,
+      notificationId,
+      messageId: response,
+    });
+  } catch (error: any) {
+    // Handle specific FCM errors
+    if (error.code === 'messaging/invalid-registration-token' || 
+        error.code === 'messaging/registration-token-not-registered') {
+      // Token is invalid, remove it
+      logger.warn('Invalid FCM token, removing from user', { userId });
+      try {
+        await prisma.user.update({
+          where: { id: BigInt(userId) },
+          data: { device_id: null },
+        });
+      } catch (updateError) {
+        logger.error('Failed to remove invalid FCM token', { userId, error: updateError });
+      }
+    } else {
+      logger.error('Failed to send push notification', {
+        userId,
+        notificationId,
+        error: error.message || 'Unknown error',
+        code: error.code,
+      });
+    }
+    // Don't throw - we don't want to fail notification creation if push fails
   }
 }
 

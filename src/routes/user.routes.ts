@@ -10,6 +10,8 @@ import {
   updateUserByIdController,
   getKycStatusController,
   generateReferralCodeController,
+  registerFCMTokenController,
+  unregisterFCMTokenController,
 } from '../controllers/user.controller';
 
 const router = Router();
@@ -22,6 +24,8 @@ router.put('/profile', validateUpdateProfile, updateProfileController);
 router.get('/subscription', getSubscriptionController);
 router.get('/kyc-status', getKycStatusController);
 router.post('/referral-code', generateReferralCodeController);
+router.post('/fcm-token', registerFCMTokenController);
+router.delete('/fcm-token', unregisterFCMTokenController);
 router.get('/:id', validate(getUserByIdSchema), getUserByIdController);
 router.put('/:id', validate(updateUserByIdSchema), updateUserByIdController);
 

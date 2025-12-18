@@ -412,4 +412,62 @@ export const generateUserReferralCode = async (userId: string, regenerate: boole
   };
 };
 
+/**
+ * Register FCM token for push notifications
+ */
+export const registerFCMToken = async (userId: string, token: string): Promise<void> => {
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  // Store FCM token in device_id field
+  await prisma.user.update({
+    where: { id: BigInt(userId) },
+    data: { device_id: token },
+  });
+
+  logger.info('FCM token registered for user', { userId });
+};
+
+/**
+ * Unregister FCM token (remove it)
+ */
+export const unregisterFCMToken = async (userId: string): Promise<void> => {
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  // Clear FCM token
+  await prisma.user.update({
+    where: { id: BigInt(userId) },
+    data: { device_id: null },
+  });
+
+  logger.info('FCM token unregistered for user', { userId });
+};
+
+/**
+ * Get FCM token for a user
+ */
+export const getFCMToken = async (userId: string): Promise<string | null> => {
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+    select: { device_id: true },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  return user.device_id;
+};
+
 

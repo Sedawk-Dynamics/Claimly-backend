@@ -9,6 +9,8 @@ import {
   updateUserById,
   getUserKycStatus,
   generateUserReferralCode,
+  registerFCMToken,
+  unregisterFCMToken,
 } from '../services/user.service';
 
 export const getProfileController = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -156,6 +158,46 @@ export const generateReferralCodeController = async (req: AuthRequest, res: Resp
         referralCode: result.referralCode,
         expiresAt: result.expiresAt.toISOString(),
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const registerFCMTokenController = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { token } = req.body;
+    if (!token || typeof token !== 'string') {
+      res.status(400).json({ error: 'FCM token is required' });
+      return;
+    }
+
+    await registerFCMToken(req.user.userId, token);
+    res.status(200).json({
+      success: true,
+      message: 'FCM token registered successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const unregisterFCMTokenController = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await unregisterFCMToken(req.user.userId);
+    res.status(200).json({
+      success: true,
+      message: 'FCM token unregistered successfully',
     });
   } catch (error) {
     next(error);
