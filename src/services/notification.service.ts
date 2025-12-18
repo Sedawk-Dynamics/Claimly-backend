@@ -311,13 +311,35 @@ async function sendPushNotification(
         type: 'admin_notification', // Helps identify notification type
       },
       token: fcmToken,
-      // Ensure notification is shown even when app is in background
+      // Ensure notification is shown even when app is in background or closed
       android: {
         priority: 'high' as const,
+        notification: {
+          sound: 'default',
+          channelId: 'default',
+        },
       },
       apns: {
         headers: {
           'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+          },
+        },
+      },
+      webpush: {
+        notification: {
+          title,
+          body: message,
+          icon: '/icon-192x192.png',
+          badge: '/icon-192x192.png',
+          requireInteraction: false,
+        },
+        fcmOptions: {
+          link: '/notifications',
         },
       },
     };
