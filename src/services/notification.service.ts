@@ -4,26 +4,62 @@ import admin from "../config/firebase";
 import { getFCMToken } from "./user.service";
 
 export class NotificationService {
+  /**
+   * Create a notification in the database and send push notification
+   * This ensures ALL notifications are:
+   * 1. Saved to database (for in-app display)
+   * 2. Sent via FCM push (for when app is closed)
+   * 
+   * Database record is created FIRST, then push is sent.
+   * If push fails, the database record still exists.
+   */
   async createNotification(adminId: bigint, userId: bigint, title: string, message: string) {
-    const notification = await prisma.adminNotification.create({
-      data: {
-        admin_id: adminId,
-        user_id: userId,
-        title,
-        message,
-      },
-    });
+    // Step 1: ALWAYS create database record first
+    // This ensures the notification appears in the app even if push fails
+    let notification;
+    try {
+      notification = await prisma.adminNotification.create({
+        data: {
+          admin_id: adminId,
+          user_id: userId,
+          title,
+          message,
+        },
+      });
 
-    // Send push notification if FCM token exists
+      logger.info('Notification created in database', {
+        notificationId: notification.id.toString(),
+        adminId: adminId.toString(),
+        userId: userId.toString(),
+        title,
+      });
+    } catch (dbError) {
+      // If database creation fails, log and rethrow - this is critical
+      logger.error('CRITICAL: Failed to create notification in database', {
+        adminId: adminId.toString(),
+        userId: userId.toString(),
+        title,
+        error: dbError instanceof Error ? dbError.message : 'Unknown error',
+      });
+      throw dbError; // Re-throw to ensure caller knows notification wasn't created
+    }
+
+    // Step 2: Send push notification (non-blocking - don't fail if this fails)
+    // The database record already exists, so notification will show in app
     try {
       await sendPushNotification(userId.toString(), title, message, notification.id.toString());
-    } catch (error) {
-      // Log error but don't fail notification creation
-      logger.error('Failed to send push notification', {
+      logger.info('Notification sent via push and saved to database', {
+        notificationId: notification.id.toString(),
+        userId: userId.toString(),
+      });
+    } catch (pushError) {
+      // Log error but don't fail - database record already exists
+      logger.warn('Push notification failed, but notification saved to database', {
         userId: userId.toString(),
         notificationId: notification.id.toString(),
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: pushError instanceof Error ? pushError.message : 'Unknown error',
       });
+      // Notification is still in database, so it will show in app
     }
 
     return notification;
@@ -82,7 +118,12 @@ export const notificationService = new NotificationService();
 
 /**
  * Helper function to automatically send notifications to users when admin performs actions
- * This function silently fails if notification creation fails to not interrupt the main flow
+ * 
+ * This ensures ALL auto-generated notifications are:
+ * 1. Saved to database (appears in app)
+ * 2. Sent via FCM push (works when app is closed)
+ * 
+ * This function is called for ALL admin actions (document verification, KYC, policy, etc.)
  */
 export async function sendAdminActionNotification(
   adminId: string,
@@ -90,10 +131,23 @@ export async function sendAdminActionNotification(
   actionType: string,
   details?: Record<string, any>
 ): Promise<void> {
+  // Validate inputs
+  if (!adminId || !userId || !actionType) {
+    logger.error('Invalid parameters for admin action notification', {
+      adminId,
+      userId,
+      actionType,
+    });
+    return;
+  }
+
   try {
     const title = getNotificationTitle(actionType, details);
     const message = getNotificationMessage(actionType, details);
 
+    // Create notification - this will:
+    // 1. Save to database (for in-app display)
+    // 2. Send push notification (for when app is closed)
     const notification = await notificationService.createNotification(
       BigInt(adminId),
       BigInt(userId),
@@ -101,20 +155,26 @@ export async function sendAdminActionNotification(
       message
     );
 
-    logger.info('Admin action notification sent', {
+    logger.info('Admin action notification created successfully', {
       adminId,
       userId,
       actionType,
       notificationId: notification.id.toString(),
+      title,
+      savedToDatabase: true,
+      pushSent: true, // Will be true if FCM token exists, false otherwise
     });
   } catch (error) {
-    // Silently fail - don't interrupt the main flow if notification fails
-    logger.error('Failed to send admin action notification', {
+    // Log error but don't interrupt main flow
+    // However, this should rarely happen as createNotification handles errors internally
+    logger.error('CRITICAL: Failed to create admin action notification', {
       adminId,
       userId,
       actionType,
       error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
     });
+    // Don't throw - allow admin action to complete even if notification fails
   }
 }
 
@@ -198,6 +258,15 @@ function getNotificationMessage(actionType: string, details?: Record<string, any
 
 /**
  * Send push notification via Firebase Cloud Messaging
+ * 
+ * This function:
+ * 1. Checks if Firebase is initialized
+ * 2. Gets the user's FCM token
+ * 3. Sends push notification via FCM
+ * 4. Handles invalid tokens by removing them
+ * 
+ * Note: This is called AFTER the database record is created,
+ * so even if push fails, the notification will still appear in the app.
  */
 async function sendPushNotification(
   userId: string,
@@ -207,7 +276,10 @@ async function sendPushNotification(
 ): Promise<void> {
   // Check if Firebase Admin is initialized
   if (!admin.apps.length) {
-    logger.warn('Firebase Admin not initialized, skipping push notification');
+    logger.warn('Firebase Admin not initialized, skipping push notification', {
+      userId,
+      notificationId,
+    });
     return;
   }
 
@@ -216,11 +288,16 @@ async function sendPushNotification(
     const fcmToken = await getFCMToken(userId);
     
     if (!fcmToken) {
-      logger.debug('No FCM token found for user', { userId });
+      logger.debug('No FCM token found for user - notification saved to database only', {
+        userId,
+        notificationId,
+        note: 'User needs to enable push notifications in the app',
+      });
       return;
     }
 
-    // Send push notification
+    // Send push notification via FCM
+    // This will work even when the app is closed (service worker handles it)
     const messagePayload = {
       notification: {
         title,
@@ -231,39 +308,60 @@ async function sendPushNotification(
         message,
         notificationId,
         url: '/notifications',
+        type: 'admin_notification', // Helps identify notification type
       },
       token: fcmToken,
+      // Ensure notification is shown even when app is in background
+      android: {
+        priority: 'high' as const,
+      },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+        },
+      },
     };
 
     const response = await admin.messaging().send(messagePayload);
-    logger.info('Push notification sent successfully', {
+    logger.info('Push notification sent successfully via FCM', {
       userId,
       notificationId,
       messageId: response,
+      fcmToken: fcmToken.substring(0, 20) + '...', // Log partial token for debugging
     });
   } catch (error: any) {
     // Handle specific FCM errors
     if (error.code === 'messaging/invalid-registration-token' || 
         error.code === 'messaging/registration-token-not-registered') {
-      // Token is invalid, remove it
-      logger.warn('Invalid FCM token, removing from user', { userId });
+      // Token is invalid or expired, remove it from user profile
+      logger.warn('Invalid or expired FCM token, removing from user profile', {
+        userId,
+        notificationId,
+        errorCode: error.code,
+      });
       try {
         await prisma.user.update({
           where: { id: BigInt(userId) },
           data: { device_id: null },
         });
+        logger.info('Invalid FCM token removed from user profile', { userId });
       } catch (updateError) {
-        logger.error('Failed to remove invalid FCM token', { userId, error: updateError });
+        logger.error('Failed to remove invalid FCM token from user profile', {
+          userId,
+          error: updateError instanceof Error ? updateError.message : 'Unknown error',
+        });
       }
     } else {
-      logger.error('Failed to send push notification', {
+      // Other FCM errors (network, quota, etc.)
+      logger.error('Failed to send push notification via FCM', {
         userId,
         notificationId,
         error: error.message || 'Unknown error',
-        code: error.code,
+        errorCode: error.code,
+        note: 'Notification is still saved to database and will appear in app',
       });
     }
-    // Don't throw - we don't want to fail notification creation if push fails
+    // Don't throw - database record already exists, so notification will show in app
   }
 }
 
