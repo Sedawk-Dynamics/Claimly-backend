@@ -24,6 +24,7 @@ import walletRoutes from './routes/wallet.routes';
 import notificationRoutes from './routes/notification.routes';
 import { notificationService } from './services/notification.service';
 import path from 'path';
+import fs from 'fs';
 import logger from './config/logger';
 import { env } from './config/env';
 import { apiLimiter, authLimiter, adminLimiter, uploadLimiter } from './middlewares/rateLimiter.middleware';
@@ -61,11 +62,73 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Request logging
 app.use(requestLogger);
 
-// Apply general rate limiting to all routes
-app.use(apiLimiter);
+// Serve static files from uploads directory (before rate limiting to allow file access)
+const uploadsPath = path.join(process.cwd(), 'uploads');
+app.use('/uploads', express.static(uploadsPath, {
+  setHeaders: (res, filePath) => {
+    // Set appropriate headers for file serving
+    res.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+  },
+}));
 
-// Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Route handler for uploaded files with proper error handling
+app.get('/uploads/:type/:filename', (req, res, next) => {
+  const { type, filename } = req.params;
+  
+  // Validate type to prevent directory traversal
+  const allowedTypes = ['users', 'policies', 'nominees'];
+  if (!allowedTypes.includes(type)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid upload type',
+    });
+  }
+  
+  // Sanitize filename to prevent directory traversal
+  const sanitizedFilename = path.basename(filename);
+  if (sanitizedFilename !== filename || filename.includes('..')) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid filename',
+    });
+  }
+  
+  const filePath = path.join(uploadsPath, type, sanitizedFilename);
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    logger.warn('File not found', { filePath, type, filename });
+    return res.status(404).json({
+      success: false,
+      error: 'File not found',
+    });
+  }
+  
+  // Check if it's a file (not a directory)
+  const stats = fs.statSync(filePath);
+  if (!stats.isFile()) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid file path',
+    });
+  }
+  
+  // Send the file
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      logger.error('Error sending file', { error: err.message, filePath });
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: 'Error serving file',
+        });
+      }
+    }
+  });
+});
+
+// Apply general rate limiting to all routes (after static files)
+app.use(apiLimiter);
 
 // Health check endpoint with database status
 app.get('/health', async (req, res) => {
