@@ -229,6 +229,17 @@ model WalletTransaction {
   related_subscription Subscription? @relation(fields: [related_subscription_id], references: [id])
 }
 
+model SubscriptionPlan {
+  id              BigInt     @id @default(autoincrement())
+  name            String     @unique
+  price           Decimal    @db.Decimal(10,2)
+  features        String     @db.Text // JSON array of feature strings
+  is_popular      Boolean    @default(false)
+  status          RecordStatus @default(ACTIVE)
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+}
+
 // ===== ENUMS =====
 
 enum SubscriptionStatus {

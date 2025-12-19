@@ -4,6 +4,7 @@ import { env } from '../config/env';
 import logger from '../config/logger';
 import { ValidationError } from '../utils/errors';
 import { createSubscription } from './subscription.service';
+import { getSubscriptionPlanByName } from './subscriptionPlan.service';
 
 // Initialize Razorpay instance
 let razorpayInstance: Razorpay | null = null;
@@ -136,7 +137,34 @@ export const verifyAndCreateSubscription = async (data: VerifyPaymentData) => {
       orderId: data.razorpay_order_id,
       paymentId: data.razorpay_payment_id,
       userId: data.userId,
+      planName: data.planName,
+      amount: data.amount,
     });
+
+    // Get plan from database to validate amount
+    const plan = await getSubscriptionPlanByName(data.planName);
+    if (!plan) {
+      throw new ValidationError(`Subscription plan "${data.planName}" not found`);
+    }
+
+    if (plan.status !== 'ACTIVE') {
+      throw new ValidationError(`Subscription plan "${data.planName}" is not active`);
+    }
+
+    // Validate that the amount matches the plan price
+    const planPrice = parseFloat(plan.price);
+    const providedAmount = parseFloat(data.amount);
+    if (isNaN(providedAmount) || Math.abs(providedAmount - planPrice) > 0.01) {
+      logger.warn('Amount mismatch detected', {
+        planName: data.planName,
+        planPrice,
+        providedAmount,
+        difference: Math.abs(providedAmount - planPrice),
+      });
+      throw new ValidationError(
+        `Amount mismatch. Plan "${data.planName}" price is Rs. ${planPrice}, but provided amount is Rs. ${providedAmount}`
+      );
+    }
 
     // Verify payment signature
     const isValid = verifyPaymentSignature(
@@ -148,6 +176,9 @@ export const verifyAndCreateSubscription = async (data: VerifyPaymentData) => {
     if (!isValid) {
       throw new ValidationError('Invalid payment signature. Payment verification failed.');
     }
+
+    // Use plan price from database instead of frontend-provided amount for security
+    const validatedAmount = planPrice.toString();
 
     // Get payment details from Razorpay to confirm status
     const razorpay = getRazorpayInstance();
@@ -179,11 +210,11 @@ export const verifyAndCreateSubscription = async (data: VerifyPaymentData) => {
       }
     }
 
-    // Create subscription
+    // Create subscription using validated amount from database
     const subscription = await createSubscription({
       userId: data.userId,
       planName: data.planName,
-      amount: data.amount,
+      amount: validatedAmount, // Use validated amount from database
       paymentId: data.razorpay_payment_id,
       paymentStatus,
       transactionDate: new Date().toISOString(),

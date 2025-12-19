@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "claimley-api-collection",
 		"name": "Claimley API",
-		"description": "**Complete API Collection for Claimley - Insurance Policy Management System**\n\nThis collection contains all backend API endpoints with comprehensive documentation. Updated to include referral system, wallet functionality, and notification system.\n\n## 📱 For Mobile App Developers:\n\n### **Core Features:**\n\n1. **Authentication Flow:**\n   - POST /auth/register - OTP verification & signup/login (Firebase integration required)\n   - POST /test-auth/login - Test endpoint (development only)\n\n2. **User Management:**\n   - GET/PUT /user/profile - Get/update user profile\n   - GET /user/subscription - Get subscription status (append ?all=true for history)\n   - GET /user/kyc-status - Check KYC completion status\n   - POST /user/referral-code - Generate referral code\n   - POST /user/fcm-token - Register FCM token for push notifications\n   - DELETE /user/fcm-token - Unregister FCM token\n\n3. **Referral System:**\n   - **During Signup:** Include `referralCode` parameter in POST /auth/register to use someone's referral code\n   - **Generate Code:** POST /user/referral-code - Generate unique referral code (valid 30 days)\n   - **Automatic Rewards:** When someone you referred makes their first successful subscription, you automatically receive 10% of their subscription amount in your wallet\n   - Referral rewards are tracked in wallet transactions (type: REFERRAL_REWARD)\n   - **How It Works:**\n     1. User A generates referral code via POST /user/referral-code\n     2. User A shares code with User B\n     3. User B signs up with `referralCode: \"ABC123XYZ\"` in POST /auth/register\n     4. User B is linked to User A\n     5. When User B subscribes (first time), User A gets 10% reward automatically\n\n4. **Wallet System:**\n   - GET /wallet/balance - Get current wallet balance\n   - GET /wallet/transactions - Get transaction history (last 50)\n   - GET /wallet/eligibility - Check redemption eligibility\n   - **Wallet Usage:** Use `walletAmountUsed` parameter when creating subscription to pay partially/fully from wallet\n\n5. **Notifications:**\n   - GET /notifications - Get all user notifications\n   - PATCH /notifications/:id/read - Mark notification as read\n   - DELETE /notifications/:id - Delete notification\n   - **Auto Notifications:** Automatically created when admin verifies documents, accepts/rejects policies, etc.\n   - **Push Notifications:** All notifications are sent via FCM (works when app is closed)\n\n6. **Documents:**\n   - POST/GET/PUT/DELETE /user/document - User KYC documents (AADHAAR, PAN)\n   - POST/GET/PUT/DELETE /policy/:id/document - Policy documents\n   - POST/GET/PUT/DELETE /nominee/:id/document - Nominee documents\n\n7. **Policies:**\n   - CRUD operations on /policies\n   - Requires completed KYC to create policy\n\n8. **Nominees:**\n   - CRUD operations on /nominees\n   - Link nominees to policies with share percentages\n\n9. **Subscriptions:**\n   - POST /subscription - Create subscription (supports wallet payment via `walletAmountUsed`)\n   - **Referral Rewards:** Automatically credited when referred user subscribes\n\n10. **Alerts:**\n    - POST /alerts - Create deceased alert\n    - GET /alerts/:id - Get alert details\n\n## 🔐 Admin Endpoints:\n\n- **Authentication:** POST /admin/login\n- **Users:** GET /admin/users, GET /admin/users/:id, GET /admin/users/:id/activity-logs, PUT /admin/users/:id/status\n- **Alerts:** GET /admin/alerts/stats, GET /admin/alerts, GET /admin/alerts/:id, PUT /admin/alerts/:id/verify, POST /admin/alerts/bulk-verify\n- **Documents:** GET /admin/documents/kyc-documents, GET /admin/documents/policy-documents, GET /admin/documents/nominee-documents, PATCH /admin/documents/verify-document/:id, PATCH /admin/documents/reject-document/:id, POST /admin/documents/accept-entity/:id, POST /admin/documents/reject-entity/:id\n- **Policies:** GET /admin/policies, POST /admin/policies/:id/accept, POST /admin/policies/:id/reject\n- **Notifications:** POST /admin/notifications (creates notification + sends push)\n- **Companies:** CRUD operations on /admin/companies\n- **Actions:** POST/GET /admin/actions (admin action logs)\n\n## 📋 Frontend Routes (for reference only - not API endpoints):\n- /login - Login page (uses POST /auth/register)\n- / - Homepage (requires auth)\n- /profile - User profile (uses GET/PUT /user/profile)\n- /nominees - Nominees list (uses GET /nominees)\n- /nominees/add - Add nominee (uses POST /nominees)\n- /nominees/:id/edit - Edit nominee (uses GET/PUT /nominees/:id)\n- /policies - Policies list (uses GET /policies)\n- /policies/add - Add policy (uses POST /policies)\n- /policies/:id/edit - Edit policy (uses GET/PUT /policies/:id)\n- /subscription - Subscription status (uses GET /user/subscription)\n- /kyc - KYC completion (uses GET /user/kyc-status, POST /user/document)\n- /wallet - Wallet balance & transactions (uses GET /wallet/balance, GET /wallet/transactions)\n- /notifications - Notifications list (uses GET /notifications)\n- /referral - Referral code & rewards (uses POST /user/referral-code, GET /wallet/transactions)",
+		"description": "**Complete API Collection for Claimley - Insurance Policy Management System**\n\nThis collection contains all backend API endpoints with comprehensive documentation. Updated to include Razorpay payment integration, receipt management, referral system, wallet functionality, and notification system.\n\n## 📱 For Mobile App Developers:\n\n### **Core Features:**\n\n1. **Authentication Flow:**\n   - POST /auth/register - OTP verification & signup/login (Firebase integration required)\n   - POST /test-auth/login - Test endpoint (development only)\n\n2. **User Management:**\n   - GET/PUT /user/profile - Get/update user profile\n   - GET /user/subscription - Get subscription status (append ?all=true for history)\n   - GET /user/kyc-status - Check KYC completion status\n   - POST /user/referral-code - Generate referral code\n   - POST /user/fcm-token - Register FCM token for push notifications\n   - DELETE /user/fcm-token - Unregister FCM token\n\n3. **Payment & Subscription (Razorpay Integration):**\n   - **Step 1:** POST /payment/create-order - Create Razorpay payment order\n   - **Step 2:** Open Razorpay Checkout with order details (frontend)\n   - **Step 3:** POST /payment/verify - Verify payment signature and create subscription\n   - **Alternative:** POST /subscription - Direct subscription creation (legacy, for wallet-only payments)\n   - **Receipts:** GET /subscription/:id/receipt - Download receipt PDF\n   - **Receipt URL:** GET /subscription/:id/receipt-url - Get receipt download URL\n   - **Wallet Integration:** Use `walletAmountUsed` parameter to pay partially/fully from wallet\n   - **Payment Flow:**\n     1. User selects subscription plan\n     2. Check wallet balance (GET /wallet/balance)\n     3. Create Razorpay order (POST /payment/create-order) with final amount after wallet deduction\n     4. Open Razorpay Checkout in app\n     5. After payment, verify with backend (POST /payment/verify)\n     6. Subscription is created automatically\n     7. Download receipt (GET /subscription/:id/receipt)\n\n4. **Referral System:**\n   - **During Signup:** Include `referralCode` parameter in POST /auth/register to use someone's referral code\n   - **Generate Code:** POST /user/referral-code - Generate unique referral code (valid 30 days)\n   - **Automatic Rewards:** When someone you referred makes their first successful subscription, you automatically receive 10% of their subscription amount in your wallet\n   - Referral rewards are tracked in wallet transactions (type: REFERRAL_REWARD)\n   - **How It Works:**\n     1. User A generates referral code via POST /user/referral-code\n     2. User A shares code with User B\n     3. User B signs up with `referralCode: \"ABC123XYZ\"` in POST /auth/register\n     4. User B is linked to User A\n     5. When User B subscribes (first time), User A gets 10% reward automatically\n\n5. **Wallet System:**\n   - GET /wallet/balance - Get current wallet balance\n   - GET /wallet/transactions - Get transaction history (last 50)\n   - GET /wallet/eligibility - Check redemption eligibility\n   - **Wallet Usage:** Use `walletAmountUsed` parameter when creating subscription to pay partially/fully from wallet\n\n6. **Notifications:**\n   - GET /notifications - Get all user notifications\n   - PATCH /notifications/:id/read - Mark notification as read\n   - DELETE /notifications/:id - Delete notification\n   - **Auto Notifications:** Automatically created when admin verifies documents, accepts/rejects policies, etc.\n   - **Push Notifications:** All notifications are sent via FCM (works when app is closed)\n\n7. **Documents:**\n   - POST/GET/PUT/DELETE /user/document - User KYC documents (AADHAAR, PAN)\n   - POST/GET/PUT/DELETE /policy/:id/document - Policy documents\n   - POST/GET/PUT/DELETE /nominee/:id/document - Nominee documents\n\n8. **Policies:**\n   - CRUD operations on /policies\n   - Requires completed KYC to create policy\n\n9. **Nominees:**\n   - CRUD operations on /nominees\n   - Link nominees to policies with share percentages\n\n10. **Alerts:**\n    - POST /alerts - Create deceased alert\n    - GET /alerts/:id - Get alert details\n\n## 🔐 Admin Endpoints:\n\n- **Authentication:** POST /admin/login\n- **Users:** GET /admin/users, GET /admin/users/:id, GET /admin/users/:id/activity-logs, PUT /admin/users/:id/status\n- **Alerts:** GET /admin/alerts/stats, GET /admin/alerts, GET /admin/alerts/:id, PUT /admin/alerts/:id/verify, POST /admin/alerts/bulk-verify\n- **Documents:** GET /admin/documents/kyc-documents, GET /admin/documents/policy-documents, GET /admin/documents/nominee-documents, PATCH /admin/documents/verify-document/:id, PATCH /admin/documents/reject-document/:id, POST /admin/documents/accept-entity/:id, POST /admin/documents/reject-entity/:id\n- **Policies:** GET /admin/policies, POST /admin/policies/:id/accept, POST /admin/policies/:id/reject\n- **Notifications:** POST /admin/notifications (creates notification + sends push)\n- **Companies:** CRUD operations on /admin/companies\n- **Actions:** POST/GET /admin/actions (admin action logs)\n\n## 📋 Frontend Routes (for reference only - not API endpoints):\n- /login - Login page (uses POST /auth/register)\n- / - Homepage (requires auth)\n- /profile - User profile (uses GET/PUT /user/profile)\n- /nominees - Nominees list (uses GET /nominees)\n- /nominees/add - Add nominee (uses POST /nominees)\n- /nominees/:id/edit - Edit nominee (uses GET/PUT /nominees/:id)\n- /policies - Policies list (uses GET /policies)\n- /policies/add - Add policy (uses POST /policies)\n- /policies/:id/edit - Edit policy (uses GET/PUT /policies/:id)\n- /subscription - Subscription status (uses GET /user/subscription)\n- /kyc - KYC completion (uses GET /user/kyc-status, POST /user/document)\n- /wallet - Wallet balance & transactions (uses GET /wallet/balance, GET /wallet/transactions)\n- /notifications - Notifications list (uses GET /notifications)\n- /referral - Referral code & rewards (uses POST /user/referral-code, GET /wallet/transactions)\n\n## 💳 Payment Integration Notes:\n\n**Razorpay Integration:**\n- All payment amounts are in INR (Indian Rupees)\n- Backend converts amounts to paise (smallest currency unit) for Razorpay\n- Frontend should send amounts in rupees (e.g., 999 for ₹999)\n- Backend returns `key_id` in create-order response for Razorpay Checkout initialization\n- Payment signature verification is done server-side for security\n- Receipts are automatically generated as PDFs for successful payments\n- Receipt URLs are stored in subscription records for easy access",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "claimley-api"
 	},
@@ -1587,10 +1587,89 @@
 			]
 		},
 		{
+			"name": "Payments (Razorpay)",
+			"item": [
+				{
+					"name": "Create Payment Order",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": 899,\n  \"currency\": \"INR\",\n  \"receipt\": \"receipt_1234567890\",\n  \"notes\": {\n    \"planName\": \"Premium Plan\",\n    \"subscriptionAmount\": \"999\",\n    \"walletAmountUsed\": \"100\"\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/payment/create-order",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"payment",
+								"create-order"
+							]
+						},
+						"description": "**Create Razorpay Payment Order**\n\n📱 **For Mobile App Developers:**\n\nThis endpoint creates a Razorpay payment order that is used to initialize the Razorpay Checkout in your mobile app.\n\n**Payment Flow:**\n1. User selects subscription plan (e.g., ₹999)\n2. Check wallet balance (GET /wallet/balance)\n3. If user wants to use wallet, calculate: `finalAmount = subscriptionAmount - walletAmount`\n4. Call this endpoint with `amount` in **rupees** (e.g., 899 if wallet covers ₹100)\n5. Backend converts to paise and creates Razorpay order\n6. Use returned `key_id` and `id` (order_id) to open Razorpay Checkout\n7. After payment, call POST /payment/verify with payment details\n\n**Request Body:**\n```json\n{\n  \"amount\": 899,              // Amount in rupees (will be converted to paise)\n  \"currency\": \"INR\",          // Optional, defaults to \"INR\"\n  \"receipt\": \"receipt_123\",   // Optional, auto-generated if not provided\n  \"notes\": {                   // Optional metadata\n    \"planName\": \"Premium Plan\",\n    \"subscriptionAmount\": \"999\",\n    \"walletAmountUsed\": \"100\"\n  }\n}\n```\n\n**Important Notes:**\n- `amount` should be in **rupees** (not paise) - backend converts automatically\n- `amount` should be the final amount after wallet deduction (if any)\n- Example: If subscription is ₹999 and user uses ₹100 from wallet, send `amount: 899`\n- Backend automatically adds `userId` to notes for tracking\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"order_ABC123XYZ\",      // Razorpay Order ID - use this in checkout\n    \"amount\": 89900,                // Amount in paise (899 * 100)\n    \"currency\": \"INR\",\n    \"receipt\": \"receipt_1234567890\",\n    \"status\": \"created\",\n    \"key_id\": \"rzp_test_xxxxx\"     // Razorpay Key ID - use this in checkout\n  }\n}\n```\n\n**Mobile App Integration:**\n```javascript\n// After receiving order response:\nconst options = {\n  key: orderResponse.key_id,        // From response\n  amount: orderResponse.amount,     // Already in paise\n  currency: orderResponse.currency,\n  name: 'Claimly',\n  description: 'Subscription Payment',\n  order_id: orderResponse.id,      // Razorpay Order ID\n  handler: async (response) => {\n    // Call POST /payment/verify with response\n  }\n};\n// Open Razorpay Checkout\nconst razorpay = new Razorpay(options);\nrazorpay.open();\n```\n\n**Error Handling:**\n- 401: Unauthorized (missing/invalid token)\n- 400: Validation error (invalid amount, etc.)\n- 500: Razorpay API error or server error"
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"razorpay_order_id\": \"order_ABC123XYZ\",\n  \"razorpay_payment_id\": \"pay_XYZ789ABC\",\n  \"razorpay_signature\": \"signature_hash_here\",\n  \"planName\": \"Premium Plan\",\n  \"amount\": \"999\",\n  \"walletAmountUsed\": \"100\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/payment/verify",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"payment",
+								"verify"
+							]
+						},
+						"description": "**Verify Razorpay Payment and Create Subscription**\n\n📱 **For Mobile App Developers:**\n\nThis endpoint verifies the Razorpay payment signature (for security) and automatically creates a subscription for the user.\n\n**When to Call:**\n- After Razorpay Checkout completes successfully\n- In the `handler` callback of Razorpay Checkout\n- Pass all payment details from Razorpay response\n\n**Request Body:**\n```json\n{\n  \"razorpay_order_id\": \"order_ABC123XYZ\",     // From Razorpay response\n  \"razorpay_payment_id\": \"pay_XYZ789ABC\",     // From Razorpay response\n  \"razorpay_signature\": \"signature_hash\",     // From Razorpay response\n  \"planName\": \"Premium Plan\",                 // Original plan name\n  \"amount\": \"999\",                            // Original subscription amount (in rupees)\n  \"walletAmountUsed\": \"100\"                    // Optional: Amount used from wallet\n}\n```\n\n**Payment Verification:**\n- Backend verifies payment signature using Razorpay secret key\n- Fetches payment details from Razorpay API to confirm status\n- Only creates subscription if signature is valid\n\n**What Happens:**\n1. Payment signature is verified (security check)\n2. Payment status is fetched from Razorpay\n3. Subscription is created automatically\n4. Wallet amount is deducted (if `walletAmountUsed` provided)\n5. Referral rewards are processed (if applicable)\n6. Receipt PDF is generated and stored\n7. User subscription status is updated to ACTIVE\n8. Notification is sent to user\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"success\": true,\n    \"subscription\": {\n      \"id\": \"subscription-id\",\n      \"userId\": \"user-id\",\n      \"planName\": \"Premium Plan\",\n      \"amount\": \"999\",\n      \"paymentId\": \"pay_XYZ789ABC\",\n      \"paymentStatus\": \"SUCCESS\",\n      \"transactionDate\": \"2024-01-15T10:30:00Z\",\n      \"expiresAt\": \"2024-02-14T10:30:00Z\",\n      \"walletAmountUsed\": \"100\",\n      \"receiptUrl\": \"/uploads/receipts/receipt_xxx.pdf\"\n    },\n    \"paymentStatus\": \"SUCCESS\"\n  }\n}\n```\n\n**Error Handling:**\n- 401: Unauthorized (missing/invalid token)\n- 400: Invalid payment signature or validation error\n- 500: Server error during subscription creation\n\n**Important Notes:**\n- Always verify payment on backend (never trust frontend-only verification)\n- `amount` should be the **original subscription amount** (before wallet deduction)\n- `walletAmountUsed` should match the amount deducted from wallet\n- Subscription is only created if payment signature is valid\n- Receipt is automatically generated for successful payments\n- After successful verification, navigate user to success page"
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Subscriptions",
 			"item": [
 				{
-					"name": "Create Subscription",
+					"name": "Create Subscription (Legacy)",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -1621,7 +1700,69 @@
 								"subscription"
 							]
 						},
-						"description": "**Create Subscription with Wallet Support**\n\nCreate a new subscription for the authenticated user. Supports partial payment from wallet balance.\n\n**Request Body:**\n```json\n{\n  \"planName\": \"Premium Plan\",\n  \"amount\": \"999\",\n  \"paymentId\": \"payment-12345\",\n  \"paymentStatus\": \"SUCCESS\",\n  \"transactionDate\": \"2024-01-15T10:30:00Z\",\n  \"walletAmountUsed\": \"100\"  // Optional: Amount to deduct from wallet\n}\n```\n\n**Payment Status:** SUCCESS, PENDING, FAILED\n\n**Wallet Integration:**\n- If `walletAmountUsed` is provided, that amount is deducted from user's wallet balance\n- The remaining amount (`amount - walletAmountUsed`) should be paid via payment gateway\n- Wallet amount cannot exceed subscription amount\n- User must have sufficient wallet balance\n\n**Automatic Referral Rewards:**\n- If the user was referred by someone (has `referred_by` field), and this is their **first successful subscription**, the referrer automatically receives:\n  - **10% of subscription amount** added to their wallet\n  - A `REFERRAL_REWARD` transaction is created\n  - This happens automatically when `paymentStatus` is `SUCCESS`\n\n**Subscription Validity:**\n- Subscriptions are valid for 30 days from transaction date\n- User's `subscription_status` is set to `ACTIVE` when payment is successful\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"subscription-id\",\n    \"userId\": \"user-id\",\n    \"planName\": \"Premium Plan\",\n    \"amount\": \"999\",\n    \"paymentId\": \"payment-12345\",\n    \"paymentStatus\": \"SUCCESS\",\n    \"transactionDate\": \"2024-01-15T10:30:00Z\",\n    \"expiresAt\": \"2024-02-14T10:30:00Z\",\n    \"walletAmountUsed\": \"100\"\n  }\n}\n```"
+						"description": "**Create Subscription (Legacy Endpoint)**\n\n⚠️ **Note:** This endpoint is for direct subscription creation without Razorpay. For Razorpay payments, use POST /payment/create-order and POST /payment/verify instead.\n\n**Use Cases:**\n- Wallet-only payments (when wallet covers full amount)\n- Manual subscription creation (admin/testing)\n- Alternative payment methods\n\n**Request Body:**\n```json\n{\n  \"planName\": \"Premium Plan\",\n  \"amount\": \"999\",\n  \"paymentId\": \"payment-12345\",              // Custom payment ID\n  \"paymentStatus\": \"SUCCESS\",                 // SUCCESS, PENDING, or FAILED\n  \"transactionDate\": \"2024-01-15T10:30:00Z\", // Optional, defaults to now\n  \"walletAmountUsed\": \"100\"                   // Optional: Amount from wallet\n}\n```\n\n**Payment Status:** SUCCESS, PENDING, FAILED\n\n**Wallet Integration:**\n- If `walletAmountUsed` is provided, that amount is deducted from user's wallet balance\n- Wallet amount cannot exceed subscription amount\n- User must have sufficient wallet balance\n\n**Automatic Referral Rewards:**\n- If the user was referred by someone (has `referred_by` field), and this is their **first successful subscription**, the referrer automatically receives:\n  - **10% of subscription amount** added to their wallet\n  - A `REFERRAL_REWARD` transaction is created\n  - This happens automatically when `paymentStatus` is `SUCCESS`\n\n**Subscription Validity:**\n- Subscriptions are valid for 30 days from transaction date\n- User's `subscription_status` is set to `ACTIVE` when payment is successful\n- Receipt PDF is automatically generated for successful payments\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"subscription-id\",\n    \"userId\": \"user-id\",\n    \"planName\": \"Premium Plan\",\n    \"amount\": \"999\",\n    \"paymentId\": \"payment-12345\",\n    \"paymentStatus\": \"SUCCESS\",\n    \"transactionDate\": \"2024-01-15T10:30:00Z\",\n    \"expiresAt\": \"2024-02-14T10:30:00Z\",\n    \"walletAmountUsed\": \"100\",\n    \"receiptUrl\": \"/uploads/receipts/receipt_xxx.pdf\"\n  }\n}\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "Download Receipt",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/subscription/:id/receipt",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subscription",
+								":id",
+								"receipt"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "subscription-id-here"
+								}
+							]
+						},
+						"description": "**Download Receipt PDF**\n\n📱 **For Mobile App Developers:**\n\nDownload the receipt PDF for a subscription. The receipt is automatically generated when a subscription payment is successful.\n\n**Request:**\n- GET /subscription/:id/receipt\n- Requires authentication\n- Subscription must belong to the authenticated user\n\n**Response:**\n- Content-Type: `application/pdf`\n- Content-Disposition: `attachment; filename=\"receipt_{subscriptionId}.pdf\"`\n- Returns PDF file directly\n\n**Error Handling:**\n- 401: Unauthorized (missing/invalid token)\n- 403: Subscription does not belong to user\n- 404: Subscription not found or receipt not available\n\n**Mobile App Usage:**\n```javascript\n// Download receipt\nconst response = await fetch(`/subscription/${subscriptionId}/receipt`, {\n  headers: { 'Authorization': `Bearer ${token}` }\n});\nconst blob = await response.blob();\n// Save or display PDF\nconst url = URL.createObjectURL(blob);\n// Open in PDF viewer or download\n```\n\n**Receipt Contents:**\n- User information (name, email, mobile)\n- Subscription details (plan name, amount, payment ID)\n- Payment information (status, method, date)\n- Wallet usage (if applicable)\n- Transaction date and expiry date\n- Receipt number and date"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Receipt URL",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{authToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/subscription/:id/receipt-url",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subscription",
+								":id",
+								"receipt-url"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "subscription-id-here"
+								}
+							]
+						},
+						"description": "**Get Receipt URL**\n\n📱 **For Mobile App Developers:**\n\nGet the receipt URL for a subscription. This endpoint returns both the direct file URL and the download endpoint URL.\n\n**Request:**\n- GET /subscription/:id/receipt-url\n- Requires authentication\n- Subscription must belong to the authenticated user\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"receiptUrl\": \"https://api.example.com/uploads/receipts/receipt_xxx.pdf\",\n    \"downloadUrl\": \"https://api.example.com/subscription/123/receipt\"\n  }\n}\n```\n\n**URLs Explained:**\n- `receiptUrl`: Direct URL to the receipt PDF file (can be opened in browser/PDF viewer)\n- `downloadUrl`: API endpoint URL that triggers download with proper headers\n\n**Error Handling:**\n- 401: Unauthorized (missing/invalid token)\n- 403: Subscription does not belong to user\n- 404: Subscription not found or receipt not available\n\n**Mobile App Usage:**\n```javascript\n// Get receipt URL\nconst response = await fetch(`/subscription/${subscriptionId}/receipt-url`, {\n  headers: { 'Authorization': `Bearer ${token}` }\n});\nconst { receiptUrl, downloadUrl } = await response.json();\n// Use receiptUrl to display PDF in WebView\n// Use downloadUrl to trigger download\n```\n\n**Note:**\n- Receipts are only available for subscriptions with `paymentStatus: 'SUCCESS'`\n- Receipts are automatically generated when payment is verified\n- Receipt URLs are stored in the subscription record"
 					},
 					"response": []
 				}
