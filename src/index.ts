@@ -64,20 +64,84 @@ app.use(requestLogger);
 
 // Serve static files from uploads directory (before rate limiting to allow file access)
 const uploadsPath = path.join(process.cwd(), 'uploads');
+
+// Log all /uploads requests for debugging
+app.use('/uploads', (req, res, next) => {
+  logger.info('File request received', {
+    method: req.method,
+    url: req.url,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    query: req.query,
+    uploadsPath,
+    cwd: process.cwd(),
+  });
+  next();
+});
+
+// Check if uploads directory exists
+if (!fs.existsSync(uploadsPath)) {
+  logger.warn('Uploads directory does not exist, creating it', { uploadsPath });
+  fs.mkdirSync(uploadsPath, { recursive: true });
+}
+
+// Log uploads directory structure
+try {
+  if (fs.existsSync(uploadsPath)) {
+    const uploadsContents = fs.readdirSync(uploadsPath);
+    logger.info('Uploads directory contents', {
+      uploadsPath,
+      contents: uploadsContents,
+    });
+    
+    // Log subdirectories
+    ['users', 'policies', 'nominees'].forEach((subdir) => {
+      const subdirPath = path.join(uploadsPath, subdir);
+      if (fs.existsSync(subdirPath)) {
+        const files = fs.readdirSync(subdirPath);
+        logger.info(`Uploads/${subdir} directory contents`, {
+          path: subdirPath,
+          fileCount: files.length,
+          files: files.slice(0, 10), // Log first 10 files
+        });
+      } else {
+        logger.warn(`Uploads/${subdir} directory does not exist`, { path: subdirPath });
+      }
+    });
+  }
+} catch (error) {
+  logger.error('Error reading uploads directory', {
+    error: error instanceof Error ? error.message : 'Unknown error',
+    uploadsPath,
+  });
+}
+
+// Serve static files from uploads directory
 app.use('/uploads', express.static(uploadsPath, {
   setHeaders: (res, filePath) => {
     // Set appropriate headers for file serving
     res.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    logger.debug('Serving static file', { filePath });
   },
+  fallthrough: true, // Allow request to continue to next handler if file not found
 }));
 
 // Route handler for uploaded files with proper error handling
 app.get('/uploads/:type/:filename', (req, res, next) => {
   const { type, filename } = req.params;
   
+  logger.info('Route handler called for file request', {
+    type,
+    filename,
+    originalFilename: filename,
+    url: req.url,
+    path: req.path,
+  });
+  
   // Validate type to prevent directory traversal
   const allowedTypes = ['users', 'policies', 'nominees'];
   if (!allowedTypes.includes(type)) {
+    logger.warn('Invalid upload type requested', { type, filename });
     return res.status(400).json({
       success: false,
       error: 'Invalid upload type',
@@ -87,6 +151,10 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
   // Sanitize filename to prevent directory traversal
   const sanitizedFilename = path.basename(filename);
   if (sanitizedFilename !== filename || filename.includes('..')) {
+    logger.warn('Invalid filename detected (directory traversal attempt?)', {
+      original: filename,
+      sanitized: sanitizedFilename,
+    });
     return res.status(400).json({
       success: false,
       error: 'Invalid filename',
@@ -94,35 +162,121 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
   }
   
   const filePath = path.join(uploadsPath, type, sanitizedFilename);
+  const normalizedPath = path.normalize(filePath);
+  
+  logger.info('Checking file existence', {
+    type,
+    filename,
+    sanitizedFilename,
+    filePath,
+    normalizedPath,
+    uploadsPath,
+  });
   
   // Check if file exists
-  if (!fs.existsSync(filePath)) {
-    logger.warn('File not found', { filePath, type, filename });
+  if (!fs.existsSync(normalizedPath)) {
+    // List files in the directory for debugging
+    const typeDir = path.join(uploadsPath, type);
+    let dirContents: string[] = [];
+    try {
+      if (fs.existsSync(typeDir)) {
+        dirContents = fs.readdirSync(typeDir);
+        logger.warn('File not found - listing directory contents', {
+          filePath: normalizedPath,
+          type,
+          filename,
+          sanitizedFilename,
+          directory: typeDir,
+          directoryExists: true,
+          filesInDirectory: dirContents.slice(0, 20), // Log first 20 files
+          totalFiles: dirContents.length,
+        });
+      } else {
+        logger.warn('File not found - directory does not exist', {
+          filePath: normalizedPath,
+          type,
+          filename,
+          sanitizedFilename,
+          directory: typeDir,
+          directoryExists: false,
+        });
+      }
+    } catch (dirError) {
+      logger.error('Error reading directory', {
+        error: dirError instanceof Error ? dirError.message : 'Unknown error',
+        directory: typeDir,
+      });
+    }
+    
     return res.status(404).json({
       success: false,
       error: 'File not found',
+      details: {
+        requestedFile: filename,
+        sanitizedFile: sanitizedFilename,
+        type,
+        path: normalizedPath,
+      },
     });
   }
   
   // Check if it's a file (not a directory)
-  const stats = fs.statSync(filePath);
+  let stats: fs.Stats;
+  try {
+    stats = fs.statSync(normalizedPath);
+  } catch (statError) {
+    logger.error('Error getting file stats', {
+      error: statError instanceof Error ? statError.message : 'Unknown error',
+      filePath: normalizedPath,
+    });
+    return res.status(500).json({
+      success: false,
+      error: 'Error accessing file',
+    });
+  }
+  
   if (!stats.isFile()) {
+    logger.warn('Path is not a file', {
+      filePath: normalizedPath,
+      isDirectory: stats.isDirectory(),
+      isFile: stats.isFile(),
+    });
     return res.status(400).json({
       success: false,
       error: 'Invalid file path',
     });
   }
   
+  logger.info('Serving file', {
+    filePath: normalizedPath,
+    filename,
+    size: stats.size,
+    type,
+  });
+  
   // Send the file
-  res.sendFile(filePath, (err) => {
+  res.sendFile(normalizedPath, (err) => {
     if (err) {
-      logger.error('Error sending file', { error: err.message, filePath });
+      logger.error('Error sending file', {
+        error: err.message,
+        stack: err.stack,
+        filePath: normalizedPath,
+        filename,
+        type,
+        headersSent: res.headersSent,
+      });
       if (!res.headersSent) {
         res.status(500).json({
           success: false,
           error: 'Error serving file',
         });
       }
+    } else {
+      logger.info('File served successfully', {
+        filePath: normalizedPath,
+        filename,
+        type,
+      });
     }
   });
 });
@@ -318,6 +472,29 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 
 // 404 handler
 app.use((req, res) => {
+  // Log 404 requests, especially for /uploads paths
+  if (req.path.startsWith('/uploads')) {
+    logger.warn('404 - Uploads route not found', {
+      method: req.method,
+      url: req.url,
+      path: req.path,
+      originalUrl: req.originalUrl,
+      query: req.query,
+      headers: {
+        'user-agent': req.headers['user-agent'],
+        'referer': req.headers.referer,
+      },
+      uploadsPath,
+      cwd: process.cwd(),
+    });
+  } else {
+    logger.debug('404 - Route not found', {
+      method: req.method,
+      url: req.url,
+      path: req.path,
+    });
+  }
+  
   res.status(404).json({
     success: false,
     error: 'Route not found',
