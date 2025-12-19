@@ -171,16 +171,58 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
     filePath,
     normalizedPath,
     uploadsPath,
+    cwd: process.cwd(),
   });
   
+  // First, try exact match
+  let actualFilePath = normalizedPath;
+  let fileExists = fs.existsSync(normalizedPath);
+  
+  // If not found, try case-insensitive lookup
+  if (!fileExists) {
+    const typeDir = path.join(uploadsPath, type);
+    if (fs.existsSync(typeDir)) {
+      try {
+        const dirContents = fs.readdirSync(typeDir);
+        const filenameLower = sanitizedFilename.toLowerCase();
+        const foundFile = dirContents.find(file => file.toLowerCase() === filenameLower);
+        
+        if (foundFile) {
+          actualFilePath = path.join(typeDir, foundFile);
+          fileExists = true;
+          logger.info('Found file with case-insensitive match', {
+            requested: sanitizedFilename,
+            found: foundFile,
+            actualPath: actualFilePath,
+          });
+        }
+      } catch (err) {
+        logger.error('Error during case-insensitive lookup', {
+          error: err instanceof Error ? err.message : 'Unknown error',
+        });
+      }
+    }
+  }
+  
   // Check if file exists
-  if (!fs.existsSync(normalizedPath)) {
+  if (!fileExists) {
     // List files in the directory for debugging
     const typeDir = path.join(uploadsPath, type);
     let dirContents: string[] = [];
+    let foundSimilar: string | null = null;
+    
     try {
       if (fs.existsSync(typeDir)) {
         dirContents = fs.readdirSync(typeDir);
+        
+        // Try to find a similar filename (case-insensitive or partial match)
+        const filenameLower = sanitizedFilename.toLowerCase();
+        foundSimilar = dirContents.find(file => 
+          file.toLowerCase() === filenameLower ||
+          file.toLowerCase().includes(filenameLower) ||
+          filenameLower.includes(file.toLowerCase())
+        ) || null;
+        
         logger.warn('File not found - listing directory contents', {
           filePath: normalizedPath,
           type,
@@ -188,9 +230,23 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
           sanitizedFilename,
           directory: typeDir,
           directoryExists: true,
-          filesInDirectory: dirContents.slice(0, 20), // Log first 20 files
+          filesInDirectory: dirContents.slice(0, 50), // Log first 50 files
           totalFiles: dirContents.length,
+          foundSimilarFile: foundSimilar,
+          requestedFilenameLower: filenameLower,
+          allFilesLower: dirContents.map(f => f.toLowerCase()).slice(0, 20),
         });
+        
+        // If we found a similar file, log it prominently
+        if (foundSimilar) {
+          logger.warn('Found similar filename - possible case sensitivity or naming mismatch', {
+            requested: sanitizedFilename,
+            found: foundSimilar,
+            requestedLower: filenameLower,
+            foundLower: foundSimilar.toLowerCase(),
+            match: filenameLower === foundSimilar.toLowerCase() ? 'exact (case mismatch)' : 'partial',
+          });
+        }
       } else {
         logger.warn('File not found - directory does not exist', {
           filePath: normalizedPath,
@@ -208,7 +264,8 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
       });
     }
     
-    return res.status(404).json({
+    // Return detailed error with suggestions
+    const errorResponse: any = {
       success: false,
       error: 'File not found',
       details: {
@@ -216,18 +273,29 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
         sanitizedFile: sanitizedFilename,
         type,
         path: normalizedPath,
+        directory: typeDir,
+        directoryExists: fs.existsSync(typeDir),
+        totalFilesInDirectory: dirContents.length,
       },
-    });
+    };
+    
+    if (foundSimilar) {
+      errorResponse.suggestion = `Found similar filename: ${foundSimilar}. This might be a case sensitivity issue or filename mismatch.`;
+      errorResponse.foundSimilarFile = foundSimilar;
+    }
+    
+    return res.status(404).json(errorResponse);
   }
   
   // Check if it's a file (not a directory)
   let stats: fs.Stats;
   try {
-    stats = fs.statSync(normalizedPath);
+    stats = fs.statSync(actualFilePath);
   } catch (statError) {
     logger.error('Error getting file stats', {
       error: statError instanceof Error ? statError.message : 'Unknown error',
-      filePath: normalizedPath,
+      filePath: actualFilePath,
+      normalizedPath,
     });
     return res.status(500).json({
       success: false,
@@ -237,7 +305,8 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
   
   if (!stats.isFile()) {
     logger.warn('Path is not a file', {
-      filePath: normalizedPath,
+      filePath: actualFilePath,
+      normalizedPath,
       isDirectory: stats.isDirectory(),
       isFile: stats.isFile(),
     });
@@ -248,19 +317,21 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
   }
   
   logger.info('Serving file', {
-    filePath: normalizedPath,
+    filePath: actualFilePath,
+    normalizedPath,
     filename,
     size: stats.size,
     type,
   });
   
   // Send the file
-  res.sendFile(normalizedPath, (err) => {
+  res.sendFile(actualFilePath, (err) => {
     if (err) {
       logger.error('Error sending file', {
         error: err.message,
         stack: err.stack,
-        filePath: normalizedPath,
+        filePath: actualFilePath,
+        normalizedPath,
         filename,
         type,
         headersSent: res.headersSent,
@@ -273,7 +344,8 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
       }
     } else {
       logger.info('File served successfully', {
-        filePath: normalizedPath,
+        filePath: actualFilePath,
+        normalizedPath,
         filename,
         type,
       });
@@ -283,6 +355,52 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
 
 // Apply general rate limiting to all routes (after static files)
 app.use(apiLimiter);
+
+// Diagnostic endpoint for uploads directory
+app.get('/diagnostics/uploads', (req, res) => {
+  try {
+    const diagnostics: any = {
+      uploadsPath,
+      cwd: process.cwd(),
+      uploadsExists: fs.existsSync(uploadsPath),
+      directories: {},
+    };
+    
+    ['users', 'policies', 'nominees'].forEach((type) => {
+      const typeDir = path.join(uploadsPath, type);
+      const exists = fs.existsSync(typeDir);
+      diagnostics.directories[type] = {
+        path: typeDir,
+        exists,
+        fileCount: 0,
+        files: [],
+      };
+      
+      if (exists) {
+        try {
+          const files = fs.readdirSync(typeDir);
+          diagnostics.directories[type].fileCount = files.length;
+          diagnostics.directories[type].files = files.slice(0, 50); // First 50 files
+        } catch (err) {
+          diagnostics.directories[type].error = err instanceof Error ? err.message : 'Unknown error';
+        }
+      }
+    });
+    
+    res.json({
+      success: true,
+      diagnostics,
+    });
+  } catch (error) {
+    logger.error('Error generating uploads diagnostics', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error generating diagnostics',
+    });
+  }
+});
 
 // Health check endpoint with database status
 app.get('/health', async (req, res) => {
