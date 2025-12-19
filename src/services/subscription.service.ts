@@ -18,7 +18,11 @@ export interface CreateSubscriptionData {
 const SUBSCRIPTION_VALIDITY_DAYS = 30;
 
 export const createSubscription = async (data: CreateSubscriptionData) => {
-  logger.info('Creating subscription', { userId: data.userId, paymentId: data.paymentId });
+  logger.info('Creating subscription', { 
+    userId: data.userId, 
+    paymentId: data.paymentId,
+    walletAmountUsed: data.walletAmountUsed,
+  });
 
   // Verify user exists and get wallet balance
   const user = await prisma.user.findUnique({
@@ -43,15 +47,40 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
   }
 
   // Validate wallet amount if provided
-  const walletAmountUsed = data.walletAmountUsed ? parseFloat(data.walletAmountUsed) : 0;
-  if (isNaN(walletAmountUsed) || walletAmountUsed < 0) {
-    throw new ValidationError('Wallet amount must be a non-negative number');
+  let walletAmountUsed = 0;
+  if (data.walletAmountUsed) {
+    const parsed = parseFloat(String(data.walletAmountUsed).trim());
+    if (isNaN(parsed)) {
+      throw new ValidationError('Wallet amount must be a valid number');
+    }
+    if (parsed < 0) {
+      throw new ValidationError('Wallet amount cannot be negative');
+    }
+    walletAmountUsed = parsed;
   }
+  
+  logger.info('Wallet amount processing', {
+    walletAmountUsedInput: data.walletAmountUsed,
+    walletAmountUsedParsed: walletAmountUsed,
+    userWalletBalance: Number(user.wallet_balance),
+    walletBalanceType: typeof user.wallet_balance,
+  });
 
   // Check if user has sufficient wallet balance
   if (walletAmountUsed > 0) {
-    if (walletAmountUsed > Number(user.wallet_balance)) {
-      throw new ValidationError('Insufficient wallet balance');
+    const userBalance = Number(user.wallet_balance);
+    if (isNaN(userBalance) || userBalance < 0) {
+      logger.error('Invalid wallet balance for user', { userId: data.userId, walletBalance: user.wallet_balance });
+      throw new ValidationError('Invalid wallet balance. Please contact support.');
+    }
+    
+    if (walletAmountUsed > userBalance) {
+      throw new ValidationError(`Insufficient wallet balance. Available: ₹${userBalance.toFixed(2)}, Requested: ₹${walletAmountUsed.toFixed(2)}`);
+    }
+    
+    // Additional validation: ensure wallet amount doesn't exceed subscription amount
+    if (walletAmountUsed > amount) {
+      throw new ValidationError(`Wallet amount (₹${walletAmountUsed.toFixed(2)}) cannot exceed subscription amount (₹${amount.toFixed(2)})`);
     }
   }
 
@@ -101,111 +130,123 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
     logger.info('New subscription, expiry date set from transaction date');
   }
 
-  // Deduct wallet amount if used
-  if (walletAmountUsed > 0) {
-    await prisma.user.update({
-      where: { id: BigInt(data.userId) },
-      data: {
-        wallet_balance: {
-          decrement: walletAmountUsed,
-        },
-      },
-    });
-
-    logger.info('Wallet amount deducted for subscription', { 
-      userId: data.userId, 
-      walletAmountUsed,
-      remainingBalance: Number(user.wallet_balance) - walletAmountUsed,
-    });
-  }
-
-  // Create subscription record
-  const subscription = await prisma.subscription.create({
-    data: {
-      user_id: BigInt(data.userId),
-      plan_name: data.planName,
-      amount: amount,
-      payment_id: data.paymentId,
-      payment_status: data.paymentStatus,
-      transaction_date: transactionDate,
-      expires_at: expiresAt,
-      wallet_amount_used: walletAmountUsed > 0 ? walletAmountUsed : null,
-    },
-  });
-
-  // Update user subscription status to ACTIVE if payment is successful
-  if (data.paymentStatus === 'SUCCESS') {
-    await prisma.user.update({
-      where: { id: BigInt(data.userId) },
-      data: { subscription_status: 'ACTIVE' },
-    });
-    logger.info('User subscription status updated to ACTIVE', { userId: data.userId });
-
-    // Award referral reward if user was referred and this is their first successful subscription
-    if (user.referred_by) {
-      // Check if this is the user's first successful subscription
-      const previousSuccessfulSubscriptions = await prisma.subscription.count({
-        where: {
-          user_id: BigInt(data.userId),
-          payment_status: 'SUCCESS',
-          id: { not: subscription.id },
+  // Create subscription and deduct wallet in a transaction
+  const subscription = await prisma.$transaction(async (tx) => {
+    // Deduct wallet amount if used (within transaction)
+    if (walletAmountUsed > 0) {
+      await tx.user.update({
+        where: { id: BigInt(data.userId) },
+        data: {
+          wallet_balance: {
+            decrement: walletAmountUsed,
+          },
         },
       });
 
-      // Award reward only for first successful subscription
-      if (previousSuccessfulSubscriptions === 0) {
-        // Calculate reward: 10% of subscription amount (configurable)
-        const rewardPercentage = 0.10; // 10%
-        const rewardAmount = amount * rewardPercentage;
+      logger.info('Wallet amount deducted for subscription', { 
+        userId: data.userId, 
+        walletAmountUsed,
+        remainingBalance: Number(user.wallet_balance) - walletAmountUsed,
+      });
+    }
 
-        // Update referrer's wallet balance
-        await prisma.$transaction(async (tx) => {
-          // Add to referrer's wallet
-          await tx.user.update({
-            where: { id: user.referred_by! },
-            data: {
-              wallet_balance: {
-                increment: rewardAmount,
-              },
-            },
-          });
+    // Create subscription record
+    const newSubscription = await tx.subscription.create({
+      data: {
+        user_id: BigInt(data.userId),
+        plan_name: data.planName,
+        amount: amount,
+        payment_id: data.paymentId,
+        payment_status: data.paymentStatus,
+        transaction_date: transactionDate,
+        expires_at: expiresAt,
+        wallet_amount_used: walletAmountUsed > 0 ? walletAmountUsed : null,
+      },
+    });
 
-          // Create wallet transaction record
-          await tx.walletTransaction.create({
-            data: {
-              user_id: user.referred_by!,
-              transaction_type: 'REFERRAL_REWARD',
-              amount: rewardAmount,
-              description: `Referral reward for ${user.name}'s subscription (${data.planName})`,
-              related_user_id: BigInt(data.userId),
-              related_subscription_id: subscription.id,
-            },
-          });
+    // Update user subscription status to ACTIVE if payment is successful
+    if (data.paymentStatus === 'SUCCESS') {
+      await tx.user.update({
+        where: { id: BigInt(data.userId) },
+        data: { subscription_status: 'ACTIVE' },
+      });
+      logger.info('User subscription status updated to ACTIVE', { userId: data.userId });
+
+      // Create wallet transaction for redemption if wallet was used (within transaction)
+      if (walletAmountUsed > 0) {
+        await tx.walletTransaction.create({
+          data: {
+            user_id: BigInt(data.userId),
+            transaction_type: 'REDEMPTION',
+            amount: walletAmountUsed,
+            description: `Wallet redemption for subscription: ${data.planName}`,
+            related_subscription_id: newSubscription.id,
+          },
         });
-
-        logger.info('Referral reward awarded', {
-          referrerId: user.referred_by.toString(),
-          referredUserId: data.userId,
-          rewardAmount,
-          subscriptionId: subscription.id.toString(),
+        logger.info('Wallet transaction created for redemption', { 
+          userId: data.userId, 
+          amount: walletAmountUsed,
+          subscriptionId: newSubscription.id.toString(),
         });
       }
     }
 
-    // Create wallet transaction for redemption if wallet was used
-    if (walletAmountUsed > 0) {
-      await prisma.walletTransaction.create({
-        data: {
-          user_id: BigInt(data.userId),
-          transaction_type: 'REDEMPTION',
-          amount: walletAmountUsed,
-          description: `Wallet redemption for subscription: ${data.planName}`,
-          related_subscription_id: subscription.id,
-        },
+    return newSubscription;
+  });
+
+  // Award referral reward if user was referred and this is their first successful subscription
+  if (data.paymentStatus === 'SUCCESS' && user.referred_by) {
+    // Check if this is the user's first successful subscription
+    const previousSuccessfulSubscriptions = await prisma.subscription.count({
+      where: {
+        user_id: BigInt(data.userId),
+        payment_status: 'SUCCESS',
+        id: { not: subscription.id },
+      },
+    });
+
+    // Award reward only for first successful subscription
+    if (previousSuccessfulSubscriptions === 0) {
+      // Calculate reward: 10% of subscription amount (configurable)
+      const rewardPercentage = 0.10; // 10%
+      const rewardAmount = amount * rewardPercentage;
+
+      // Update referrer's wallet balance
+      await prisma.$transaction(async (tx) => {
+        // Add to referrer's wallet
+        await tx.user.update({
+          where: { id: user.referred_by! },
+          data: {
+            wallet_balance: {
+              increment: rewardAmount,
+            },
+          },
+        });
+
+        // Create wallet transaction record
+        await tx.walletTransaction.create({
+          data: {
+            user_id: user.referred_by!,
+            transaction_type: 'REFERRAL_REWARD',
+            amount: rewardAmount,
+            description: `Referral reward for ${user.name}'s subscription (${data.planName})`,
+            related_user_id: BigInt(data.userId),
+            related_subscription_id: subscription.id,
+          },
+        });
+      });
+
+      logger.info('Referral reward awarded', {
+        referrerId: user.referred_by.toString(),
+        referredUserId: data.userId,
+        rewardAmount,
+        subscriptionId: subscription.id.toString(),
       });
     }
+  }
 
-    // Create alert for admin panel when subscription is successfully purchased
+  // Create alert for admin panel when subscription is successfully purchased
+  if (data.paymentStatus === 'SUCCESS') {
     await createAlert({
       userId: data.userId,
       detectedVia: 'MANUAL',

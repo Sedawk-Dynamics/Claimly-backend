@@ -132,7 +132,6 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         // Validate and find referrer if referral code is provided
         let referredById: bigint | null = null;
         let referralCode: string | undefined;
-        let referralCodeExpiresAt: Date | undefined;
         
         // Check if referral_code column exists by trying a simple query
         let referralCodeColumnExists = false;
@@ -159,20 +158,11 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           try {
             const referrer = await prisma.user.findUnique({
               where: { referral_code: data.referralCode.toUpperCase() },
-              select: { id: true, referral_code_expires_at: true },
+              select: { id: true },
             });
 
             if (!referrer) {
               throw new ValidationError('Invalid referral code');
-            }
-
-            // Check if referral code has expired
-            if (referrer.referral_code_expires_at) {
-              const now = new Date();
-              const expiresAt = new Date(referrer.referral_code_expires_at);
-              if (expiresAt <= now) {
-                throw new ValidationError('This referral code has expired');
-              }
             }
 
             referredById = referrer.id;
@@ -222,12 +212,6 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           if (!isUnique && referralCode) {
             throw new AppError('Failed to generate unique referral code', 500);
           }
-
-          // Set expiration to 30 days from now
-          if (referralCode) {
-            referralCodeExpiresAt = new Date();
-            referralCodeExpiresAt.setDate(referralCodeExpiresAt.getDate() + 30);
-          }
         }
 
         // Create new user (with or without referral code depending on column existence)
@@ -244,9 +228,6 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         if (referralCodeColumnExists) {
           if (referralCode) {
             userData.referral_code = referralCode;
-          }
-          if (referralCodeExpiresAt) {
-            userData.referral_code_expires_at = referralCodeExpiresAt;
           }
           if (referredById) {
             userData.referred_by = referredById;

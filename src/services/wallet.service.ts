@@ -12,7 +12,7 @@ export interface WalletTransaction {
   transactionType: 'REFERRAL_REWARD' | 'REDEMPTION' | 'REFUND';
   amount: number;
   description: string;
-  createdAt: Date;
+  createdAt: string;
   relatedUserId?: string;
 }
 
@@ -49,10 +49,10 @@ export const getWalletTransactions = async (userId: string): Promise<WalletTrans
 
   return transactions.map((tx) => ({
     id: tx.id.toString(),
-    transactionType: tx.transaction_type,
+    transactionType: tx.transaction_type as 'REFERRAL_REWARD' | 'REDEMPTION' | 'REFUND',
     amount: Number(tx.amount),
     description: tx.description,
-    createdAt: tx.created_at,
+    createdAt: tx.created_at.toISOString(),
     relatedUserId: tx.related_user_id ? tx.related_user_id.toString() : undefined,
   }));
 };

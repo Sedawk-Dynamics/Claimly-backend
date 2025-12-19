@@ -19,7 +19,6 @@ model User {
   device_id           String?
   subscription_status SubscriptionStatus @default(INACTIVE)
   referral_code       String?    @unique
-  referral_code_expires_at DateTime?
   referred_by         BigInt?
   wallet_balance      Decimal    @default(0) @db.Decimal(10,2)
   created_at          DateTime   @default(now())

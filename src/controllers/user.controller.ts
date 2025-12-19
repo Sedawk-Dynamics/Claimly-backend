@@ -150,13 +150,11 @@ export const generateReferralCodeController = async (req: AuthRequest, res: Resp
       return;
     }
 
-    const { regenerate } = req.query;
-    const result = await generateUserReferralCode(req.user.userId, regenerate === 'true');
+    const result = await generateUserReferralCode(req.user.userId);
     res.status(200).json({
       success: true,
       data: { 
         referralCode: result.referralCode,
-        expiresAt: result.expiresAt.toISOString(),
       },
     });
   } catch (error) {

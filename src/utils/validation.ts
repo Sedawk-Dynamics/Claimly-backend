@@ -181,6 +181,13 @@ export const createSubscriptionSchema = z.object({
     paymentId: z.string().min(1, 'paymentId is required'),
     paymentStatus: z.enum(['SUCCESS', 'PENDING', 'FAILED']).optional(),
     transactionDate: z.string().datetime().optional(),
+    walletAmountUsed: z.union([
+      z.string().refine((val) => {
+        const num = parseFloat(val);
+        return !isNaN(num) && num >= 0;
+      }, { message: 'walletAmountUsed must be a non-negative number' }),
+      z.number().nonnegative(),
+    ]).optional(),
   }),
 });
 
