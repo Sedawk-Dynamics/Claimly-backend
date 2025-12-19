@@ -25,6 +25,10 @@ interface EnvConfig {
   
   // Security
   DISABLE_TEST_AUTH: boolean;
+  
+  // Razorpay
+  RAZORPAY_KEY_ID: string;
+  RAZORPAY_KEY_SECRET: string;
 }
 
 const requiredEnvVars = [
@@ -73,6 +77,8 @@ function validateEnv(): EnvConfig {
     LOG_LEVEL: process.env.LOG_LEVEL || 'info',
     CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5175,http://localhost:5173',
     DISABLE_TEST_AUTH: process.env.DISABLE_TEST_AUTH === 'true',
+    RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || '',
+    RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || '',
   };
 }
 

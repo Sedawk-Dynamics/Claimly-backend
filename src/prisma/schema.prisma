@@ -47,6 +47,7 @@ model Subscription {
   transaction_date DateTime
   expires_at       DateTime?  // Subscription expiry date
   wallet_amount_used Decimal?  @db.Decimal(10,2) // Amount paid from wallet
+  receipt_url      String?    // URL to download receipt/invoice
 
   user             User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
   wallet_transactions WalletTransaction[]

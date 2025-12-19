@@ -7,6 +7,7 @@ import nomineeRoutes from './routes/nominee.routes';
 import policyNomineeRoutes from './routes/policyNominee.routes';
 import policyDocumentRoutes from './routes/policyDocument.routes';
 import subscriptionRoutes from './routes/subscription.routes';
+import paymentRoutes from './routes/payment.routes';
 import adminAuthRoutes from './routes/adminAuth.routes';
 import adminUserRoutes from './routes/adminUser.routes';
 import adminAlertRoutes from './routes/adminAlert.routes';
@@ -449,6 +450,7 @@ app.use('/companies', companyRoutes);
 app.use('/policy', policyNomineeRoutes);
 app.use('/policy', policyDocumentRoutes);
 app.use('/subscription', subscriptionRoutes);
+app.use('/payment', paymentRoutes);
 app.use('/wallet', walletRoutes);
 app.use('/', notificationRoutes);
 

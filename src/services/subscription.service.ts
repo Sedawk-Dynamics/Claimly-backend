@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from '../utils/errors';
 import logger from '../config/logger';
 import { createActivityLog } from './userActivityLog.service';
 import { createAlert } from './alert.service';
+import { generateReceiptPDF, generateReceiptNumber } from './receipt.service';
 
 export interface CreateSubscriptionData {
   userId: string;
@@ -12,6 +13,7 @@ export interface CreateSubscriptionData {
   paymentStatus: 'SUCCESS' | 'PENDING' | 'FAILED';
   transactionDate?: string;
   walletAmountUsed?: string; // Amount paid from wallet
+  orderId?: string; // Razorpay Order ID
 }
 
 // Subscription validity period in days (1 month = 30 days)
@@ -33,6 +35,8 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
       wallet_balance: true,
       name: true,
       subscription_status: true,
+      email: true,
+      mobile_number: true,
     },
   });
 
@@ -245,8 +249,57 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
     }
   }
 
-  // Create alert for admin panel when subscription is successfully purchased
+  // Generate our own receipt PDF and store receipt URL for successful payments
+  let receiptUrl: string | null = null;
   if (data.paymentStatus === 'SUCCESS') {
+    try {
+      // Always generate our own PDF receipt for consistency and to store in database
+      const finalAmountPaid = amount - walletAmountUsed;
+      const receiptNumber = generateReceiptNumber();
+      const receiptPath = await generateReceiptPDF({
+        subscriptionId: subscription.id.toString(),
+        receiptNumber: receiptNumber,
+        userId: data.userId,
+        userName: user.name,
+        userEmail: user.email,
+        userPhone: user.mobile_number,
+        orderId: data.orderId || data.paymentId, // Use order ID if available, fallback to payment ID
+        paymentId: data.paymentId,
+        paymentStatus: data.paymentStatus,
+        planName: data.planName,
+        amount: amount,
+        currency: 'INR',
+        walletAmountUsed: walletAmountUsed > 0 ? walletAmountUsed : undefined,
+        finalAmountPaid: finalAmountPaid,
+        transactionDate: transactionDate,
+        expiresAt: expiresAt,
+      });
+      receiptUrl = receiptPath;
+      logger.info('Receipt PDF generated and stored', { 
+        subscriptionId: subscription.id.toString(), 
+        receiptUrl,
+        paymentId: data.paymentId,
+      });
+
+      // Update subscription with receipt URL (stored in database for future access)
+      await prisma.subscription.update({
+        where: { id: subscription.id },
+        data: { receipt_url: receiptUrl },
+      });
+      logger.info('Receipt URL stored in database', { 
+        subscriptionId: subscription.id.toString(),
+        receiptUrl,
+      });
+    } catch (receiptError: any) {
+      // Don't fail the subscription creation if receipt generation fails
+      logger.error('Failed to generate receipt', {
+        error: receiptError.message,
+        stack: receiptError.stack,
+        subscriptionId: subscription.id.toString(),
+      });
+    }
+
+    // Create alert for admin panel when subscription is successfully purchased
     await createAlert({
       userId: data.userId,
       detectedVia: 'MANUAL',
@@ -277,16 +330,22 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
     console.error('Failed to log activity:', err);
   });
 
+  // Fetch updated subscription with receipt URL
+  const updatedSubscription = await prisma.subscription.findUnique({
+    where: { id: subscription.id },
+  });
+
   return {
-    id: subscription.id.toString(),
-    userId: subscription.user_id.toString(),
-    planName: subscription.plan_name,
-    amount: subscription.amount.toString(),
-    paymentId: subscription.payment_id,
-    paymentStatus: subscription.payment_status,
-    transactionDate: subscription.transaction_date,
-    expiresAt: subscription.expires_at ? subscription.expires_at.toISOString() : null,
-    walletAmountUsed: subscription.wallet_amount_used ? subscription.wallet_amount_used.toString() : '0',
+    id: updatedSubscription!.id.toString(),
+    userId: updatedSubscription!.user_id.toString(),
+    planName: updatedSubscription!.plan_name,
+    amount: updatedSubscription!.amount.toString(),
+    paymentId: updatedSubscription!.payment_id,
+    paymentStatus: updatedSubscription!.payment_status,
+    transactionDate: updatedSubscription!.transaction_date,
+    expiresAt: updatedSubscription!.expires_at ? updatedSubscription!.expires_at.toISOString() : null,
+    walletAmountUsed: updatedSubscription!.wallet_amount_used ? updatedSubscription!.wallet_amount_used.toString() : '0',
+    receiptUrl: updatedSubscription!.receipt_url || null,
   };
 };
 

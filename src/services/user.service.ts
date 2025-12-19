@@ -135,6 +135,7 @@ export const getUserSubscriptions = async (userId: string) => {
     paymentStatus: sub.payment_status,
     transactionDate: sub.transaction_date,
     expiresAt: sub.expires_at ? sub.expires_at.toISOString() : null,
+    receiptUrl: sub.receipt_url || null,
   }));
 };
 
@@ -155,6 +156,7 @@ export const getCurrentSubscription = async (userId: string) => {
           payment_status: true,
           transaction_date: true,
           expires_at: true,
+          receipt_url: true,
         },
         orderBy: {
           transaction_date: 'desc',
@@ -193,7 +195,7 @@ export const getCurrentSubscription = async (userId: string) => {
 
   return {
     status: user.subscription_status,
-    subscription: latestSubscription
+        subscription: latestSubscription
       ? {
           id: latestSubscription.id.toString(),
           planName: latestSubscription.plan_name,
@@ -202,6 +204,7 @@ export const getCurrentSubscription = async (userId: string) => {
           transactionDate: latestSubscription.transaction_date,
           expiresAt: expiresAt,
           paymentStatus: latestSubscription.payment_status,
+          receiptUrl: latestSubscription.receipt_url || null,
         }
       : null,
   };

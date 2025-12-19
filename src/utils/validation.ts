@@ -171,6 +171,29 @@ export const verifyAlertSchema = z.object({
   }),
 });
 
+// Payment validation schemas
+export const createPaymentOrderSchema = z.object({
+  body: z.object({
+    amount: z.number().positive('Amount must be a positive number'),
+    currency: z.string().optional().default('INR'),
+    receipt: z.string().optional(),
+    notes: z.record(z.string(), z.string()).optional(),
+  }),
+});
+
+export const verifyPaymentSchema = z.object({
+  body: z.object({
+    razorpay_order_id: z.string().min(1, 'razorpay_order_id is required'),
+    razorpay_payment_id: z.string().min(1, 'razorpay_payment_id is required'),
+    razorpay_signature: z.string().min(1, 'razorpay_signature is required'),
+    planName: z.string().min(1, 'planName is required'),
+    amount: z.string().refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
+      message: 'amount must be a positive number',
+    }),
+    walletAmountUsed: z.string().optional(),
+  }),
+});
+
 // Subscription validation schemas
 export const createSubscriptionSchema = z.object({
   body: z.object({
