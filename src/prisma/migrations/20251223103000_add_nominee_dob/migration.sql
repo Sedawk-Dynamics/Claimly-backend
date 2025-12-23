@@ -1,0 +1,3 @@
+ALTER TABLE `nominee`
+  ADD COLUMN `dob` DATETIME(3) NULL;
+

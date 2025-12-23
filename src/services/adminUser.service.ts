@@ -167,6 +167,7 @@ export const getUserById = async (userId: string) => {
       name: nominee.name,
       relationship: nominee.relationship,
       mobileNumber: nominee.mobile_number,
+      dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
       email: nominee.email,
       address: nominee.address,
       createdAt: nominee.created_at,

@@ -8,6 +8,7 @@ export interface CreateNomineeData {
   name: string;
   relationship: 'SPOUSE' | 'CHILD' | 'PARENT' | 'SIBLING' | 'FRIEND' | 'OTHER';
   mobileNumber: string;
+  dob: string;
   email?: string;
   address?: string;
 }
@@ -29,12 +30,26 @@ export interface UpdateNomineeData {
   name?: string;
   relationship?: 'SPOUSE' | 'CHILD' | 'PARENT' | 'SIBLING' | 'FRIEND' | 'OTHER';
   mobileNumber?: string;
+  dob?: string;
   email?: string;
   address?: string;
   documentsToAdd?: DocumentToAdd[];
   documentsToUpdate?: DocumentToUpdate[];
   documentsToDelete?: string[];
 }
+
+const parseDob = (dob?: string) => {
+  if (!dob) {
+    return null;
+  }
+
+  const parsed = new Date(`${dob}T00:00:00.000Z`);
+  if (isNaN(parsed.getTime())) {
+    throw new ValidationError('Invalid date of birth');
+  }
+
+  return parsed;
+};
 
 export const createNominee = async (userId: string, data: CreateNomineeData) => {
   // Validate mobile number format
@@ -51,12 +66,15 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
     }
   }
 
+  const dobDate = parseDob(data.dob);
+
   const nominee = await prisma.nominee.create({
     data: {
       user_id: BigInt(userId),
       name: data.name,
       relationship: data.relationship,
       mobile_number: data.mobileNumber,
+      dob: dobDate,
       email: data.email || null,
       address: data.address || null,
     },
@@ -116,6 +134,7 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
     name: nominee.name,
     relationship: nominee.relationship,
     mobileNumber: nominee.mobile_number,
+    dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
     createdAt: nominee.created_at,
@@ -175,6 +194,7 @@ export const getUserNominees = async (userId: string) => {
     name: nominee.name,
     relationship: nominee.relationship,
     mobileNumber: nominee.mobile_number,
+    dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
     createdAt: nominee.created_at,
@@ -232,6 +252,7 @@ export const getNomineeById = async (userId: string, nomineeId: string) => {
     name: nominee.name,
     relationship: nominee.relationship,
     mobileNumber: nominee.mobile_number,
+    dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
     createdAt: nominee.created_at,
@@ -315,6 +336,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
   if (data.mobileNumber) updateData.mobile_number = data.mobileNumber;
   if (data.email !== undefined) updateData.email = data.email || null;
   if (data.address !== undefined) updateData.address = data.address || null;
+  if (data.dob !== undefined) updateData.dob = data.dob ? parseDob(data.dob) : null;
 
   const updatedNominee = await prisma.nominee.update({
     where: { id: BigInt(nomineeId) },
@@ -435,6 +457,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     name: updatedNominee.name,
     relationship: updatedNominee.relationship,
     mobileNumber: updatedNominee.mobile_number,
+    dob: updatedNominee.dob ? updatedNominee.dob.toISOString().split('T')[0] : null,
     email: updatedNominee.email,
     address: updatedNominee.address,
     createdAt: updatedNominee.created_at,

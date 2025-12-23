@@ -172,6 +172,7 @@ export const getAlertById = async (alertId: string) => {
                       name: true,
                       relationship: true,
                       mobile_number: true,
+                      dob: true,
                     },
                   },
                 },
@@ -230,6 +231,7 @@ export const getAlertById = async (alertId: string) => {
           name: pn.nominee.name,
           relationship: pn.nominee.relationship,
           mobileNumber: pn.nominee.mobile_number,
+          dob: pn.nominee.dob ? pn.nominee.dob.toISOString().split('T')[0] : null,
         },
         sharePercentage: pn.share_percentage.toString(),
       })),
@@ -239,6 +241,7 @@ export const getAlertById = async (alertId: string) => {
       name: nominee.name,
       relationship: nominee.relationship,
       mobileNumber: nominee.mobile_number,
+      dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
       email: nominee.email,
     })),
   };

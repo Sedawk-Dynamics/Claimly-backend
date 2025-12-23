@@ -19,11 +19,12 @@ export const createNomineeController = async (
       return;
     }
 
-    const { name, relationship, mobileNumber, email, address } = req.body;
+    const { name, relationship, mobileNumber, dob, email, address } = req.body;
     const nominee = await createNominee(req.user.userId, {
       name,
       relationship,
       mobileNumber,
+      dob,
       email,
       address,
     });
@@ -92,7 +93,7 @@ export const updateNomineeController = async (
     }
 
     const { id } = req.params;
-    const { name, relationship, mobileNumber, email, address, documentsToDelete } = req.body;
+    const { name, relationship, mobileNumber, dob, email, address, documentsToDelete } = req.body;
     
     // Parse documentsToDelete if it's a string (from form data)
     let documentsToDeleteArray: string[] = [];
@@ -158,6 +159,7 @@ export const updateNomineeController = async (
       name,
       relationship,
       mobileNumber,
+      dob,
       email,
       address,
       documentsToAdd: documentsToAdd.length > 0 ? documentsToAdd : undefined,
