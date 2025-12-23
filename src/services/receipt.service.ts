@@ -5,6 +5,17 @@ import { env } from '../config/env';
 import logger from '../config/logger';
 import Razorpay from 'razorpay';
 
+const RECEIPTS_DIR = path.join(process.cwd(), 'uploads', 'receipts');
+const RECEIPT_SEQUENCE_FILE = path.join(RECEIPTS_DIR, 'receipt_sequence.json');
+const CLAIMLY_LOGO_PATH = path.join(process.cwd(), 'logo', 'claimly logo png.png');
+const TOTAL_ALPHA_COMBINATIONS = 26 * 26;
+const MAX_NUMERIC_SEQUENCE = 9999;
+
+interface ReceiptSequenceState {
+  alphaIndex: number;
+  numericSequence: number;
+}
+
 // Initialize Razorpay instance
 let razorpayInstance: Razorpay | null = null;
 
@@ -20,6 +31,88 @@ function getRazorpayInstance(): Razorpay {
   }
   return razorpayInstance;
 }
+
+const ensureReceiptsDirectory = (): void => {
+  if (!fs.existsSync(RECEIPTS_DIR)) {
+    fs.mkdirSync(RECEIPTS_DIR, { recursive: true });
+  }
+};
+
+const convertAlphaIndexToLetters = (index: number): string => {
+  const safeIndex = Math.max(0, Math.min(index, TOTAL_ALPHA_COMBINATIONS - 1));
+  const first = Math.floor(safeIndex / 26);
+  const second = safeIndex % 26;
+  return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
+};
+
+const readSequenceState = (): ReceiptSequenceState => {
+  try {
+    if (!fs.existsSync(RECEIPT_SEQUENCE_FILE)) {
+      return { alphaIndex: 0, numericSequence: 0 };
+    }
+    const rawContent = fs.readFileSync(RECEIPT_SEQUENCE_FILE, 'utf-8');
+    const parsed = JSON.parse(rawContent);
+    const parsedAlphaIndex = Number(parsed?.alphaIndex);
+    const parsedNumericSequence = Number(parsed?.numericSequence);
+    return {
+      alphaIndex: Number.isFinite(parsedAlphaIndex) ? parsedAlphaIndex : 0,
+      numericSequence: Number.isFinite(parsedNumericSequence) ? parsedNumericSequence : 0,
+    };
+  } catch (error) {
+    logger.warn('Unable to read receipt sequence state, using defaults', {
+      error: error instanceof Error ? error.message : error,
+    });
+    return { alphaIndex: 0, numericSequence: 0 };
+  }
+};
+
+const persistSequenceState = (state: ReceiptSequenceState): void => {
+  try {
+    ensureReceiptsDirectory();
+    fs.writeFileSync(RECEIPT_SEQUENCE_FILE, JSON.stringify(state), { encoding: 'utf-8' });
+  } catch (error) {
+    logger.error('Unable to persist receipt sequence state', {
+      error: error instanceof Error ? error.message : error,
+    });
+  }
+};
+
+const getNextAlphaNumericSuffix = (): { letters: string; digits: string } => {
+  const state = readSequenceState();
+  let { alphaIndex, numericSequence } = state;
+
+  numericSequence += 1;
+  if (numericSequence > MAX_NUMERIC_SEQUENCE) {
+    numericSequence = 1;
+    alphaIndex = (alphaIndex + 1) % TOTAL_ALPHA_COMBINATIONS;
+  }
+
+  persistSequenceState({ alphaIndex, numericSequence });
+
+  return {
+    letters: convertAlphaIndexToLetters(alphaIndex),
+    digits: numericSequence.toString().padStart(4, '0'),
+  };
+};
+
+const getISTDate = (): Date => {
+  const now = new Date();
+  const utcMillis = now.getTime() + now.getTimezoneOffset() * 60000;
+  const IST_OFFSET_MILLIS = 5.5 * 60 * 60 * 1000;
+  return new Date(utcMillis + IST_OFFSET_MILLIS);
+};
+
+const formatISTDateForReceipt = (date: Date): string => {
+  const pad = (value: number) => value.toString().padStart(2, '0');
+  return (
+    date.getFullYear().toString() +
+    pad(date.getMonth() + 1) +
+    pad(date.getDate()) +
+    pad(date.getHours()) +
+    pad(date.getMinutes()) +
+    pad(date.getSeconds())
+  );
+};
 
 export interface ReceiptData {
   subscriptionId: string;
@@ -44,9 +137,21 @@ export interface ReceiptData {
  * Generate a unique receipt number
  */
 export const generateReceiptNumber = (): string => {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-  return `CLM-${timestamp}-${random}`;
+  try {
+    ensureReceiptsDirectory();
+    const istDate = getISTDate();
+    const datePart = formatISTDateForReceipt(istDate);
+    const suffix = getNextAlphaNumericSuffix();
+    return `CLM-${datePart}-${suffix.letters}${suffix.digits}`;
+  } catch (error) {
+    logger.error('Falling back to timestamp-based receipt number generation', {
+      error: error instanceof Error ? error.message : error,
+    });
+    const fallbackRandom = Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, '0');
+    return `CLM-${Date.now()}-${fallbackRandom}`;
+  }
 };
 
 /**
@@ -63,14 +168,9 @@ const getRupeeSymbol = (): string => {
  */
 export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => {
   try {
-    // Create receipts directory if it doesn't exist
-    const receiptsDir = path.join(process.cwd(), 'uploads', 'receipts');
-    if (!fs.existsSync(receiptsDir)) {
-      fs.mkdirSync(receiptsDir, { recursive: true });
-    }
-
+    ensureReceiptsDirectory();
     const fileName = `receipt_${data.subscriptionId}_${Date.now()}.pdf`;
-    const filePath = path.join(receiptsDir, fileName);
+    const filePath = path.join(RECEIPTS_DIR, fileName);
 
     // Create PDF document
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
@@ -85,11 +185,21 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
 
     let yPos = 50;
 
-    // Header Section
-    doc.fontSize(28).fillColor('#0ea5e9').text('Claimly', 50, yPos, { align: 'left' });
-    yPos += 35;
-    doc.fontSize(20).fillColor('#0f172a').text('Payment Receipt', 50, yPos, { align: 'left' });
-    yPos += 40;
+    // Header Section with logo
+    const brandLogoAvailable = fs.existsSync(CLAIMLY_LOGO_PATH);
+    if (brandLogoAvailable) {
+      doc.image(CLAIMLY_LOGO_PATH, 50, yPos, { fit: [90, 90] });
+      doc.fontSize(22).fillColor('#0f172a').text('Claimly', 160, yPos + 10);
+      doc.fontSize(12).fillColor('#0ea5e9').text('Settle Your Claim Easily!', 160, yPos + 35);
+    } else {
+      doc.fontSize(28).fillColor('#0ea5e9').text('Claimly', 50, yPos, { align: 'left' });
+      doc.fontSize(12).fillColor('#0ea5e9').text('Settle Your Claim Easily!', 50, yPos + 35);
+    }
+    doc
+      .fontSize(20)
+      .fillColor('#0f172a')
+      .text('Payment Receipt', 320, yPos + 20, { align: 'left' });
+    yPos += 90;
 
     // Line separator
     doc.moveTo(50, yPos).lineTo(545, yPos).strokeColor('#e2e8f0').lineWidth(1).stroke();
@@ -244,10 +354,6 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
     yPos += 15;
     doc.text('For any queries, please contact our support team.', 50, yPos, { align: 'center', width: 495 });
     yPos += 20;
-
-    // Razorpay branding (optional)
-    doc.fontSize(9).fillColor('#cbd5e1');
-    doc.text('Powered by Razorpay', 50, yPos, { align: 'right', width: 495 });
 
     // Finalize PDF
     doc.end();
