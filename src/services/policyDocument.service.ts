@@ -1,5 +1,5 @@
 import prisma from '../config/prismaClient';
-import { NotFoundError, ValidationError } from '../utils/errors';
+import { NotFoundError, ValidationError, safeBigInt } from '../utils/errors';
 import { getFileUrl } from '../utils/fileUpload';
 import { createActivityLog } from './userActivityLog.service';
 
@@ -14,11 +14,15 @@ export const uploadPolicyDocument = async (
   policyId: string,
   data: UploadPolicyDocumentData
 ) => {
+  // Validate and convert IDs to BigInt
+  const policyIdBigInt = safeBigInt(policyId, 'Policy ID');
+  const userIdBigInt = safeBigInt(userId, 'User ID');
+  
   // Verify policy exists and belongs to user
   const policy = await prisma.policy.findFirst({
     where: {
-      id: BigInt(policyId),
-      user_id: BigInt(userId),
+      id: policyIdBigInt,
+      user_id: userIdBigInt,
     },
   });
 
@@ -36,7 +40,7 @@ export const uploadPolicyDocument = async (
 
   const document = await prisma.policyDocument.create({
     data: {
-      policy_id: BigInt(policyId),
+      policy_id: policyIdBigInt,
       document_type: data.documentType,
       document_name: data.documentName,
       document_url: documentUrl,
@@ -74,11 +78,15 @@ export const uploadPolicyDocument = async (
 };
 
 export const getPolicyDocuments = async (userId: string, policyId: string) => {
+  // Validate and convert IDs to BigInt
+  const policyIdBigInt = safeBigInt(policyId, 'Policy ID');
+  const userIdBigInt = safeBigInt(userId, 'User ID');
+  
   // Verify policy exists and belongs to user
   const policy = await prisma.policy.findFirst({
     where: {
-      id: BigInt(policyId),
-      user_id: BigInt(userId),
+      id: policyIdBigInt,
+      user_id: userIdBigInt,
     },
   });
 
@@ -87,7 +95,7 @@ export const getPolicyDocuments = async (userId: string, policyId: string) => {
   }
 
   const documents = await prisma.policyDocument.findMany({
-    where: { policy_id: BigInt(policyId) },
+    where: { policy_id: policyIdBigInt },
     orderBy: { uploaded_at: 'desc' },
   });
 
@@ -107,11 +115,16 @@ export const getPolicyDocumentById = async (
   policyId: string,
   documentId: string
 ) => {
+  // Validate and convert IDs to BigInt
+  const policyIdBigInt = safeBigInt(policyId, 'Policy ID');
+  const userIdBigInt = safeBigInt(userId, 'User ID');
+  const documentIdBigInt = safeBigInt(documentId, 'Document ID');
+  
   // Verify policy exists and belongs to user
   const policy = await prisma.policy.findFirst({
     where: {
-      id: BigInt(policyId),
-      user_id: BigInt(userId),
+      id: policyIdBigInt,
+      user_id: userIdBigInt,
     },
   });
 
@@ -121,8 +134,8 @@ export const getPolicyDocumentById = async (
 
   const document = await prisma.policyDocument.findFirst({
     where: {
-      id: BigInt(documentId),
-      policy_id: BigInt(policyId),
+      id: documentIdBigInt,
+      policy_id: policyIdBigInt,
     },
   });
 
@@ -148,11 +161,16 @@ export const updatePolicyDocument = async (
   documentId: string,
   data: UploadPolicyDocumentData
 ) => {
+  // Validate and convert IDs to BigInt
+  const policyIdBigInt = safeBigInt(policyId, 'Policy ID');
+  const userIdBigInt = safeBigInt(userId, 'User ID');
+  const documentIdBigInt = safeBigInt(documentId, 'Document ID');
+  
   // Verify policy exists and belongs to user
   const policy = await prisma.policy.findFirst({
     where: {
-      id: BigInt(policyId),
-      user_id: BigInt(userId),
+      id: policyIdBigInt,
+      user_id: userIdBigInt,
     },
   });
 
@@ -163,8 +181,8 @@ export const updatePolicyDocument = async (
   // Verify document exists and belongs to policy
   const existingDocument = await prisma.policyDocument.findFirst({
     where: {
-      id: BigInt(documentId),
-      policy_id: BigInt(policyId),
+      id: documentIdBigInt,
+      policy_id: policyIdBigInt,
     },
   });
 
@@ -189,7 +207,7 @@ export const updatePolicyDocument = async (
   // Update document with new file and reset verification
   // Preserve verified_at if it exists (indicates re-verification needed)
   const updatedDocument = await prisma.policyDocument.update({
-    where: { id: BigInt(documentId) },
+    where: { id: documentIdBigInt },
     data: {
       document_type: data.documentType,
       document_name: data.documentName,
@@ -219,11 +237,16 @@ export const deletePolicyDocument = async (
   policyId: string,
   documentId: string
 ) => {
+  // Validate and convert IDs to BigInt
+  const policyIdBigInt = safeBigInt(policyId, 'Policy ID');
+  const userIdBigInt = safeBigInt(userId, 'User ID');
+  const documentIdBigInt = safeBigInt(documentId, 'Document ID');
+  
   // Verify policy exists and belongs to user
   const policy = await prisma.policy.findFirst({
     where: {
-      id: BigInt(policyId),
-      user_id: BigInt(userId),
+      id: policyIdBigInt,
+      user_id: userIdBigInt,
     },
   });
 
@@ -233,8 +256,8 @@ export const deletePolicyDocument = async (
 
   const document = await prisma.policyDocument.findFirst({
     where: {
-      id: BigInt(documentId),
-      policy_id: BigInt(policyId),
+      id: documentIdBigInt,
+      policy_id: policyIdBigInt,
     },
   });
 
@@ -252,7 +275,7 @@ export const deletePolicyDocument = async (
 
   // Delete from database
   await prisma.policyDocument.delete({
-    where: { id: BigInt(documentId) },
+    where: { id: documentIdBigInt },
   });
 
   return { message: 'Document deleted successfully' };

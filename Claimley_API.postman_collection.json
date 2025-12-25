@@ -647,7 +647,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Jane Doe\",\n  \"relationship\": \"SPOUSE\",\n  \"mobileNumber\": \"9876543211\",\n  \"email\": \"jane.doe@example.com\",\n  \"address\": \"123 Main Street, City, State, 12345\"\n}",
+							"raw": "{\n  \"name\": \"Jane Doe\",\n  \"relationship\": \"SPOUSE\",\n  \"mobileNumber\": \"9876543211\",\n  \"dob\": \"1990-01-15\",\n  \"email\": \"jane.doe@example.com\",\n  \"address\": \"123 Main Street, City, State, 12345\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -663,7 +663,7 @@
 								"nominees"
 							]
 						},
-						"description": "Create a new nominee. Relationship can be: SPOUSE, CHILD, PARENT, SIBLING, FRIEND, OTHER"
+						"description": "Create a new nominee. Include the nominee's date of birth in YYYY-MM-DD format (required). Relationship can be: SPOUSE, CHILD, PARENT, SIBLING, FRIEND, OTHER."
 					},
 					"response": []
 				},
@@ -736,7 +736,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Jane Doe Updated\",\n  \"relationship\": \"SPOUSE\",\n  \"mobileNumber\": \"9876543211\",\n  \"email\": \"jane.doe.updated@example.com\",\n  \"address\": \"456 New Street, City, State, 12345\"\n}",
+							"raw": "{\n  \"name\": \"Jane Doe Updated\",\n  \"relationship\": \"SPOUSE\",\n  \"mobileNumber\": \"9876543211\",\n  \"dob\": \"1990-01-15\",\n  \"email\": \"jane.doe.updated@example.com\",\n  \"address\": \"456 New Street, City, State, 12345\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -759,7 +759,7 @@
 								}
 							]
 						},
-						"description": "Update a nominee by ID"
+						"description": "Update a nominee by ID. You can change any field, including `dob` (YYYY-MM-DD)."
 					},
 					"response": []
 				},

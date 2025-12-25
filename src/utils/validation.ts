@@ -99,9 +99,19 @@ export const createNomineeSchema = z.object({
   body: z.object({
     name: z.string().min(1, 'Name is required'),
     relationship: z.enum(['SPOUSE', 'CHILD', 'PARENT', 'SIBLING', 'FRIEND', 'OTHER']),
-    mobileNumber: z.string().regex(/^[0-9]{10}$/, 'Invalid mobile number format'),
+    mobileNumber: z.string()
+      .transform((val) => normalizePhoneNumber(val))
+      .pipe(z.string().regex(/^[0-9]{10}$/, 'Invalid mobile number format. Must be 10 digits.')),
     dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be in YYYY-MM-DD format'),
-    email: z.string().email().nullable().optional(),
+    email: z.preprocess(
+      (val) => {
+        if (val === '' || val === null || val === undefined) {
+          return null;
+        }
+        return typeof val === 'string' ? val.trim() : null;
+      },
+      z.string().email('Invalid email address').nullable().optional()
+    ),
     address: z.string().nullable().optional(),
   }),
 });
