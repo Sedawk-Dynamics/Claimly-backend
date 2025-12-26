@@ -879,7 +879,7 @@ export const getKycDocuments = async (
 export const getPolicyDocuments = async (
   page: number,
   limit: number,
-  status: 'pending' | 'verified' | 'rejected',
+  status: 'pending' | 'verified' | 'rejected' | 'draft',
   search?: string
 ) => {
   const offset = (page - 1) * limit;
@@ -907,10 +907,20 @@ export const getPolicyDocuments = async (
   // Build status conditions
   let statusConditions: any;
 
-  if (status === 'verified') {
-    // Policies that have all documents verified AND have NO unverified documents
+  if (status === 'draft') {
+    // Draft: Policies with DRAFT status
+    statusConditions = {
+      status: 'DRAFT',
+    };
+  } else if (status === 'verified') {
+    // Policies that have all documents verified AND have NO unverified documents AND status is PENDING or ACCEPTED
     statusConditions = {
       AND: [
+        {
+          status: {
+            in: ['PENDING', 'ACCEPTED'],
+          },
+        },
         // Policy has at least one document
         {
           documents: {
@@ -928,57 +938,72 @@ export const getPolicyDocuments = async (
       ],
     };
   } else if (status === 'rejected') {
-    // Rejected: Policies that have ALL documents rejected
-    statusConditions = {
-      AND: [
-        // Policy has at least one document
-        {
-          documents: {
-            some: {},
-          },
-        },
-        // Policy has NO documents that are not rejected (all documents are rejected)
-        {
-          documents: {
-            none: {
-              rejected_at: null,
-            },
-          },
-        },
-      ],
-    };
-  } else {
-    // Pending: Policies that have NO verified documents OR have some (but not all) rejected documents
+    // Rejected: Policies that have ALL documents rejected OR status is REJECTED
     statusConditions = {
       OR: [
-        // Policy has no documents
         {
-          documents: {
-            none: {},
-          },
+          status: 'REJECTED',
         },
-        // Policy has documents but none are verified AND not all rejected
         {
           AND: [
+            // Policy has at least one document
             {
               documents: {
                 some: {},
               },
             },
+            // Policy has NO documents that are not rejected (all documents are rejected)
             {
               documents: {
                 none: {
-                  is_verified: true,
-                },
-              },
-            },
-            // Policy has at least one document that is not rejected (if all rejected, it's in rejected filter)
-            {
-              documents: {
-                some: {
                   rejected_at: null,
                 },
               },
+            },
+          ],
+        },
+      ],
+    };
+  } else {
+    // Pending: Policies with PENDING status that have NO verified documents OR have some (but not all) rejected documents
+    // Excludes DRAFT status
+    statusConditions = {
+      AND: [
+        {
+          status: 'PENDING',
+        },
+        {
+          OR: [
+            // Policy has no documents
+            {
+              documents: {
+                none: {},
+              },
+            },
+            // Policy has documents but none are verified AND not all rejected
+            {
+              AND: [
+                {
+                  documents: {
+                    some: {},
+                  },
+                },
+                {
+                  documents: {
+                    none: {
+                      is_verified: true,
+                    },
+                  },
+                },
+                // Policy has at least one document that is not rejected (if all rejected, it's in rejected filter)
+                {
+                  documents: {
+                    some: {
+                      rejected_at: null,
+                    },
+                  },
+                },
+              ],
             },
           ],
         },
@@ -1083,7 +1108,7 @@ export const getPolicyDocuments = async (
 export const getNomineeDocuments = async (
   page: number,
   limit: number,
-  status: 'pending' | 'verified' | 'rejected',
+  status: 'pending' | 'verified' | 'rejected' | 'draft',
   search?: string
 ) => {
   const offset = (page - 1) * limit;
@@ -1111,10 +1136,20 @@ export const getNomineeDocuments = async (
   // Build status conditions
   let statusConditions: any;
 
-  if (status === 'verified') {
-    // Nominees that have all documents verified AND have NO unverified documents
+  if (status === 'draft') {
+    // Draft: Nominees with DRAFT status
+    statusConditions = {
+      status: 'DRAFT',
+    };
+  } else if (status === 'verified') {
+    // Nominees that have all documents verified AND have NO unverified documents AND status is PENDING or ACCEPTED
     statusConditions = {
       AND: [
+        {
+          status: {
+            in: ['PENDING', 'ACCEPTED'],
+          },
+        },
         // Nominee has at least one document
         {
           documents: {
@@ -1132,58 +1167,73 @@ export const getNomineeDocuments = async (
       ],
     };
   } else if (status === 'rejected') {
-    // Rejected: Nominees that have ALL documents rejected
-    statusConditions = {
-      AND: [
-        // Nominee has at least one document
-        {
-          documents: {
-            some: {},
-          },
-        },
-        // Nominee has NO documents that are not rejected (all documents are rejected)
-        {
-          documents: {
-            none: {
-              rejected_at: null,
-            },
-          },
-        },
-      ],
-    };
-  } else {
-    // Pending: Nominees that don't have all documents verified AND don't have all documents rejected
+    // Rejected: Nominees that have ALL documents rejected OR status is REJECTED
     statusConditions = {
       OR: [
-        // Nominee has no documents
         {
-          documents: {
-            none: {},
-          },
+          status: 'REJECTED',
         },
-        // Nominee has documents but not all verified AND not all rejected
         {
           AND: [
+            // Nominee has at least one document
             {
               documents: {
                 some: {},
               },
             },
-            // Not all documents are verified (has at least one unverified document)
+            // Nominee has NO documents that are not rejected (all documents are rejected)
             {
               documents: {
-                some: {
-                  is_verified: false,
-                },
-              },
-            },
-            // Not all documents are rejected (has at least one document that is not rejected)
-            {
-              documents: {
-                some: {
+                none: {
                   rejected_at: null,
                 },
               },
+            },
+          ],
+        },
+      ],
+    };
+  } else {
+    // Pending: Nominees with PENDING status that don't have all documents verified AND don't have all documents rejected
+    // Excludes DRAFT status
+    statusConditions = {
+      AND: [
+        {
+          status: 'PENDING',
+        },
+        {
+          OR: [
+            // Nominee has no documents
+            {
+              documents: {
+                none: {},
+              },
+            },
+            // Nominee has documents but not all verified AND not all rejected
+            {
+              AND: [
+                {
+                  documents: {
+                    some: {},
+                  },
+                },
+                // Not all documents are verified (has at least one unverified document)
+                {
+                  documents: {
+                    some: {
+                      is_verified: false,
+                    },
+                  },
+                },
+                // Not all documents are rejected (has at least one document that is not rejected)
+                {
+                  documents: {
+                    some: {
+                      rejected_at: null,
+                    },
+                  },
+                },
+              ],
             },
           ],
         },
