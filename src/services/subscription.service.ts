@@ -2,7 +2,6 @@ import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import logger from '../config/logger';
 import { createActivityLog } from './userActivityLog.service';
-import { createAlert } from './alert.service';
 import { generateReceiptPDF, generateReceiptNumber } from './receipt.service';
 
 export interface CreateSubscriptionData {
@@ -299,15 +298,7 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
       });
     }
 
-    // Create alert for admin panel when subscription is successfully purchased
-    await createAlert({
-      userId: data.userId,
-      detectedVia: 'MANUAL',
-      remarks: `Subscription purchased: ${data.planName} - ₹${data.amount} (Payment ID: ${data.paymentId})${walletAmountUsed > 0 ? ` - ₹${walletAmountUsed} from wallet` : ''}`,
-    }).catch((err) => {
-      // Don't fail the request if alert creation fails
-      logger.error('Failed to create alert for subscription purchase', { error: err, userId: data.userId });
-    });
+    // Alert creation removed - alerts now only come from mobile app SMS reading
   }
 
   logger.info('Subscription created successfully', { subscriptionId: subscription.id.toString() });

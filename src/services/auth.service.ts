@@ -3,7 +3,6 @@ import prisma from '../config/prismaClient';
 import { generateToken } from '../utils/jwt';
 import { ValidationError, ConflictError, AppError } from '../utils/errors';
 import logger from '../config/logger';
-import { createAlert } from './alert.service';
 import { generateReferralCode, isValidReferralCodeFormat } from '../utils/referral';
 
 export interface VerifyOTPRequest {
@@ -245,15 +244,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           referredBy: referredById?.toString() || null,
         });
 
-        // Create alert for admin panel
-        await createAlert({
-          userId: newUserId,
-          detectedVia: 'MANUAL',
-          remarks: `New user registered: ${data.name} (${data.mobileNumber})`,
-        }).catch((err) => {
-          // Don't fail the request if alert creation fails
-          logger.error('Failed to create alert for new user', { error: err, userId: newUserId });
-        });
+        // Alert creation removed - alerts now only come from mobile app SMS reading
       }
     } else {
       // Update device ID if provided

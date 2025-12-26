@@ -1,7 +1,6 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { createActivityLog } from './userActivityLog.service';
-import { createAlert } from './alert.service';
 import { getFileUrl } from '../utils/fileUpload';
 
 export interface CreateNomineeData {
@@ -119,15 +118,7 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
     console.error('Failed to log activity:', err);
   });
 
-  // Create alert for admin panel
-  await createAlert({
-    userId,
-    detectedVia: 'MANUAL',
-    remarks: `New nominee added: ${data.name} (${data.relationship})`,
-  }).catch((err) => {
-    // Don't fail the request if alert creation fails
-    console.error('Failed to create alert for new nominee:', err);
-  });
+  // Alert creation removed - alerts now only come from mobile app SMS reading
 
   return {
     id: nominee.id.toString(),
