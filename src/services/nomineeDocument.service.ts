@@ -4,7 +4,7 @@ import { getFileUrl } from '../utils/fileUpload';
 import { createActivityLog } from './userActivityLog.service';
 
 export interface UploadNomineeDocumentData {
-  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'DEATH_CERTIFICATE' | 'OTHER';
+  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'OTHER';
   documentName: string;
   filename: string;
 }
@@ -23,7 +23,7 @@ export const uploadNomineeDocument = async (userId: string, nomineeId: string, d
   }
 
   // Validate document type
-  const validTypes = ['NOMINEE_ID', 'ADDRESS_PROOF', 'DEATH_CERTIFICATE', 'OTHER'];
+  const validTypes = ['NOMINEE_ID', 'ADDRESS_PROOF', 'OTHER'];
   if (!validTypes.includes(data.documentType)) {
     throw new ValidationError(`documentType must be one of: ${validTypes.join(', ')}`);
   }
@@ -166,7 +166,7 @@ export const updateNomineeDocument = async (
   }
 
   // Validate document type
-  const validTypes = ['NOMINEE_ID', 'ADDRESS_PROOF', 'DEATH_CERTIFICATE', 'OTHER'];
+  const validTypes = ['NOMINEE_ID', 'ADDRESS_PROOF', 'OTHER'];
   if (!validTypes.includes(data.documentType)) {
     throw new ValidationError(`documentType must be one of: ${validTypes.join(', ')}`);
   }

@@ -13,14 +13,14 @@ export interface CreateNomineeData {
 }
 
 export interface DocumentToAdd {
-  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'DEATH_CERTIFICATE' | 'OTHER';
+  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'OTHER';
   documentName: string;
   filename: string;
 }
 
 export interface DocumentToUpdate {
   documentId: string;
-  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'DEATH_CERTIFICATE' | 'OTHER';
+  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'OTHER';
   documentName: string;
   filename: string;
 }
@@ -302,7 +302,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
   }
 
   // Validate document types
-  const validDocumentTypes = ['NOMINEE_ID', 'ADDRESS_PROOF', 'DEATH_CERTIFICATE', 'OTHER'];
+  const validDocumentTypes = ['NOMINEE_ID', 'ADDRESS_PROOF', 'OTHER'];
   
   if (data.documentsToAdd) {
     for (const doc of data.documentsToAdd) {
