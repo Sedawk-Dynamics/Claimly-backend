@@ -261,6 +261,7 @@ export const getAllPolicies = async (page: number = 1, limit: number = 20, searc
             name: pn.nominee.name,
             relationship: pn.nominee.relationship,
             dob: pn.nominee.dob ? pn.nominee.dob.toISOString().split('T')[0] : null,
+            status: pn.nominee.status,
           },
           sharePercentage: pn.share_percentage.toString(),
         })),

@@ -91,6 +91,7 @@ model Nominee {
   dob           DateTime?
   email         String?
   address       String?
+  status        PolicyStatus @default(DRAFT)
   created_at    DateTime   @default(now())
   updated_at    DateTime   @updatedAt
 

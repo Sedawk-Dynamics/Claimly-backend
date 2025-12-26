@@ -553,6 +553,12 @@ export const acceptNomineeWithoutDocuments = async (nomineeId: string, adminId: 
     throw new NotFoundError('Nominee not found');
   }
 
+  // Update nominee status to ACCEPTED
+  await prisma.nominee.update({
+    where: { id: BigInt(nomineeId) },
+    data: { status: 'ACCEPTED' },
+  });
+
   // Create placeholder accepted document
   const doc = await prisma.nomineeDocument.create({
     data: {
@@ -596,6 +602,12 @@ export const rejectNomineeWithoutDocuments = async (nomineeId: string, adminId: 
   if (!nominee) {
     throw new NotFoundError('Nominee not found');
   }
+
+  // Update nominee status to REJECTED
+  await prisma.nominee.update({
+    where: { id: BigInt(nomineeId) },
+    data: { status: 'REJECTED' },
+  });
 
   // Create placeholder rejected document
   const doc = await prisma.nomineeDocument.create({
@@ -1227,6 +1239,7 @@ export const getNomineeDocuments = async (
         dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
         email: nominee.email,
         address: nominee.address,
+        status: nominee.status,
         createdAt: nominee.created_at,
         updatedAt: nominee.updated_at,
         user: {

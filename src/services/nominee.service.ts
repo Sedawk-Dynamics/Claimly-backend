@@ -3,6 +3,90 @@ import { NotFoundError, ValidationError } from '../utils/errors';
 import { createActivityLog } from './userActivityLog.service';
 import { getFileUrl } from '../utils/fileUpload';
 import { updatePolicyStatusBasedOnCompleteness } from './policy.service';
+import logger from '../config/logger';
+
+/**
+ * Helper function to check if a nominee is complete (all required fields and documents filled)
+ * Returns true if complete, false otherwise
+ */
+const isNomineeComplete = async (nomineeId: bigint): Promise<boolean> => {
+  const nominee = await prisma.nominee.findUnique({
+    where: { id: nomineeId },
+    include: {
+      documents: true,
+    },
+  });
+
+  if (!nominee) {
+    return false;
+  }
+
+  // Check required nominee fields: name, relationship, mobile_number, dob
+  const hasRequiredFields = 
+    !!nominee.name &&
+    !!nominee.relationship &&
+    !!nominee.mobile_number &&
+    !!nominee.dob;
+
+  if (!hasRequiredFields) {
+    return false;
+  }
+
+  // Check if at least one document is uploaded
+  const hasDocuments = nominee.documents.length > 0;
+
+  if (!hasDocuments) {
+    return false;
+  }
+
+  return true;
+};
+
+/**
+ * Helper function to update nominee status based on completeness
+ * Only updates status for DRAFT and PENDING nominees, never for ACCEPTED or REJECTED
+ */
+export const updateNomineeStatusBasedOnCompleteness = async (nomineeId: string): Promise<void> => {
+  const nomineeIdBigInt = BigInt(nomineeId);
+  
+  // Get current nominee status
+  const nominee = await prisma.nominee.findUnique({
+    where: { id: nomineeIdBigInt },
+    select: { id: true, status: true },
+  });
+
+  if (!nominee) {
+    return;
+  }
+
+  // Only auto-update status for DRAFT and PENDING nominees
+  // Never change ACCEPTED or REJECTED statuses
+  if (nominee.status !== 'DRAFT' && nominee.status !== 'PENDING') {
+    return;
+  }
+
+  const isComplete = await isNomineeComplete(nomineeIdBigInt);
+
+  if (isComplete && nominee.status === 'DRAFT') {
+    // Move from DRAFT to PENDING when complete
+    await prisma.nominee.update({
+      where: { id: nomineeIdBigInt },
+      data: { status: 'PENDING' },
+    });
+    logger.info('Nominee status updated to PENDING (completed)', {
+      nomineeId,
+    });
+  } else if (!isComplete && nominee.status === 'PENDING') {
+    // Move from PENDING to DRAFT when incomplete
+    await prisma.nominee.update({
+      where: { id: nomineeIdBigInt },
+      data: { status: 'DRAFT' },
+    });
+    logger.info('Nominee status updated to DRAFT (incomplete)', {
+      nomineeId,
+    });
+  }
+};
 
 export interface CreateNomineeData {
   name: string;
@@ -77,6 +161,7 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
       dob: dobDate,
       email: data.email || null,
       address: data.address || null,
+      status: 'DRAFT', // New nominees start as DRAFT
     },
     include: {
       policy_links: {
@@ -121,6 +206,21 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
 
   // Alert creation removed - alerts now only come from mobile app SMS reading
 
+  // Check and update status based on completeness
+  await updateNomineeStatusBasedOnCompleteness(nominee.id.toString()).catch((err) => {
+    // Don't fail the request if status update fails
+    logger.error('Failed to update nominee status based on completeness', {
+      nomineeId: nominee.id.toString(),
+      error: err,
+    });
+  });
+
+  // Fetch the nominee again to get the updated status
+  const nomineeWithStatus = await prisma.nominee.findUnique({
+    where: { id: nominee.id },
+    select: { status: true },
+  });
+
   return {
     id: nominee.id.toString(),
     name: nominee.name,
@@ -129,6 +229,7 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
     dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
+    status: nomineeWithStatus?.status || nominee.status,
     createdAt: nominee.created_at,
     updatedAt: nominee.updated_at,
     policies: nominee.policy_links.map((link) => ({
@@ -189,6 +290,7 @@ export const getUserNominees = async (userId: string) => {
     dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
+    status: nominee.status,
     createdAt: nominee.created_at,
     updatedAt: nominee.updated_at,
     policies: nominee.policy_links.map((link) => ({
@@ -247,6 +349,7 @@ export const getNomineeById = async (userId: string, nomineeId: string) => {
     dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
+    status: nominee.status,
     createdAt: nominee.created_at,
     updatedAt: nominee.updated_at,
     policies: nominee.policy_links.map((link) => ({
@@ -461,6 +564,21 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     });
   }
 
+  // Check and update nominee status based on completeness
+  await updateNomineeStatusBasedOnCompleteness(nomineeId).catch((err) => {
+    // Don't fail the request if status update fails
+    logger.error('Failed to update nominee status based on completeness', {
+      nomineeId,
+      error: err,
+    });
+  });
+
+  // Fetch the nominee again to get the updated status
+  const nomineeWithStatus = await prisma.nominee.findUnique({
+    where: { id: BigInt(nomineeId) },
+    select: { status: true },
+  });
+
   return {
     id: updatedNominee.id.toString(),
     name: updatedNominee.name,
@@ -469,6 +587,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     dob: updatedNominee.dob ? updatedNominee.dob.toISOString().split('T')[0] : null,
     email: updatedNominee.email,
     address: updatedNominee.address,
+    status: nomineeWithStatus?.status || updatedNominee.status,
     createdAt: updatedNominee.created_at,
     updatedAt: updatedNominee.updated_at,
     documents: nomineeWithDocs?.documents.map((doc) => ({

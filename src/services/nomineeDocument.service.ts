@@ -2,6 +2,8 @@ import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { getFileUrl } from '../utils/fileUpload';
 import { createActivityLog } from './userActivityLog.service';
+import { updateNomineeStatusBasedOnCompleteness } from './nominee.service';
+import logger from '../config/logger';
 
 export interface UploadNomineeDocumentData {
   documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'OTHER';
@@ -56,6 +58,15 @@ export const uploadNomineeDocument = async (userId: string, nomineeId: string, d
   }).catch((err) => {
     // Don't fail the request if logging fails
     console.error('Failed to log activity:', err);
+  });
+
+  // Check and update nominee status based on completeness
+  await updateNomineeStatusBasedOnCompleteness(nomineeId).catch((err) => {
+    // Don't fail the request if status update fails
+    logger.error('Failed to update nominee status based on completeness', {
+      nomineeId,
+      error: err,
+    });
   });
 
   return {
@@ -195,6 +206,15 @@ export const updateNomineeDocument = async (
     },
   });
 
+  // Check and update nominee status based on completeness
+  await updateNomineeStatusBasedOnCompleteness(nomineeId).catch((err) => {
+    // Don't fail the request if status update fails
+    logger.error('Failed to update nominee status based on completeness', {
+      nomineeId,
+      error: err,
+    });
+  });
+
   return {
     id: updatedDocument.id.toString(),
     nomineeId: updatedDocument.nominee_id.toString(),
@@ -242,6 +262,15 @@ export const deleteNomineeDocument = async (userId: string, nomineeId: string, d
   // Delete from database
   await prisma.nomineeDocument.delete({
     where: { id: BigInt(documentId) },
+  });
+
+  // Check and update nominee status based on completeness
+  await updateNomineeStatusBasedOnCompleteness(nomineeId).catch((err) => {
+    // Don't fail the request if status update fails
+    logger.error('Failed to update nominee status based on completeness', {
+      nomineeId,
+      error: err,
+    });
   });
 
   return { message: 'Document deleted successfully' };
