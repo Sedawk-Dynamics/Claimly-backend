@@ -1,5 +1,6 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError, ConflictError } from '../utils/errors';
+import { updatePolicyStatusBasedOnCompleteness } from './policy.service';
 
 export interface LinkNomineeToPolicyData {
   nomineeId: string;
@@ -95,6 +96,12 @@ export const linkNomineeToPolicy = async (
     },
   });
 
+  // Check and update policy status based on completeness
+  await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
+    // Don't fail the request if status update fails
+    console.error('Failed to update policy status:', err);
+  });
+
   return {
     id: link.id.toString(),
     policy: {
@@ -184,6 +191,12 @@ export const updateNomineeShare = async (
     },
   });
 
+  // Check and update policy status based on completeness (share percentage change doesn't affect completeness, but check anyway)
+  await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
+    // Don't fail the request if status update fails
+    console.error('Failed to update policy status:', err);
+  });
+
   return {
     id: updatedLink.id.toString(),
     nominee: {
@@ -228,6 +241,12 @@ export const unlinkNomineeFromPolicy = async (
 
   await prisma.policyNominee.delete({
     where: { id: link.id },
+  });
+
+  // Check and update policy status based on completeness (after unlinking nominee)
+  await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
+    // Don't fail the request if status update fails
+    console.error('Failed to update policy status:', err);
   });
 
   return { message: 'Nominee unlinked from policy successfully' };

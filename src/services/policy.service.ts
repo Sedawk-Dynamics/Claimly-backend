@@ -4,6 +4,118 @@ import logger from '../config/logger';
 import { getUserKycStatus } from './user.service';
 import { createActivityLog } from './userActivityLog.service';
 
+/**
+ * Helper function to check if a policy is complete (all required fields, documents, and nominee details filled)
+ * Returns true if complete, false otherwise
+ */
+const isPolicyComplete = async (policyId: bigint): Promise<boolean> => {
+  const policy = await prisma.policy.findUnique({
+    where: { id: policyId },
+    include: {
+      policy_nominees: {
+        include: {
+          nominee: {
+            select: {
+              id: true,
+              name: true,
+              relationship: true,
+              mobile_number: true,
+              dob: true,
+            },
+          },
+        },
+      },
+      documents: true,
+    },
+  });
+
+  if (!policy) {
+    return false;
+  }
+
+  // Check required policy fields
+  const hasRequiredFields = 
+    !!policy.policy_number && 
+    !!policy.sum_assured && 
+    !!policy.insurance_company_id;
+
+  if (!hasRequiredFields) {
+    return false;
+  }
+
+  // Check if at least one document is uploaded
+  const hasDocuments = policy.documents.length > 0;
+
+  if (!hasDocuments) {
+    return false;
+  }
+
+  // Check if all linked nominees have complete details
+  // Required fields for nominees: name, relationship, mobile_number, dob
+  if (policy.policy_nominees.length > 0) {
+    for (const policyNominee of policy.policy_nominees) {
+      const nominee = policyNominee.nominee;
+      const hasCompleteNomineeDetails = 
+        !!nominee.name &&
+        !!nominee.relationship &&
+        !!nominee.mobile_number &&
+        !!nominee.dob;
+
+      if (!hasCompleteNomineeDetails) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+};
+
+/**
+ * Helper function to update policy status based on completeness
+ * Only updates status for DRAFT and PENDING policies, never for ACCEPTED or REJECTED
+ */
+export const updatePolicyStatusBasedOnCompleteness = async (policyId: string): Promise<void> => {
+  const policyIdBigInt = BigInt(policyId);
+  
+  // Get current policy status
+  const policy = await prisma.policy.findUnique({
+    where: { id: policyIdBigInt },
+    select: { id: true, status: true },
+  });
+
+  if (!policy) {
+    return;
+  }
+
+  // Only auto-update status for DRAFT and PENDING policies
+  // Never change ACCEPTED or REJECTED statuses
+  if (policy.status !== 'DRAFT' && policy.status !== 'PENDING') {
+    return;
+  }
+
+  const isComplete = await isPolicyComplete(policyIdBigInt);
+
+  if (isComplete && policy.status === 'DRAFT') {
+    // Move from DRAFT to PENDING when complete
+    await prisma.policy.update({
+      where: { id: policyIdBigInt },
+      data: { status: 'PENDING' },
+    });
+    logger.info('Policy status updated to PENDING (completed)', {
+      policyId,
+    });
+  } else if (!isComplete && policy.status === 'PENDING') {
+    // Move from PENDING to DRAFT when incomplete
+    await prisma.policy.update({
+      where: { id: policyIdBigInt },
+      data: { status: 'DRAFT' },
+    });
+    logger.info('Policy status updated to DRAFT (incomplete)', {
+      policyId,
+    });
+  }
+};
+
 export interface CreatePolicyData {
   insuranceCompanyId: string;
   policyNumber: string;
@@ -379,31 +491,21 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
     },
   });
 
-  // After updating basic fields, compute completeness to possibly move from DRAFT -> PENDING
-  // Fetch counts for nominees and documents
-  const policyWithCounts = await prisma.policy.findUnique({
-    where: { id: BigInt(policyId) },
-    include: {
-      policy_nominees: true,
-      documents: true,
-    },
+  // After updating basic fields, check completeness and update status accordingly
+  // This will update status from DRAFT to PENDING if complete, or PENDING to DRAFT if incomplete
+  await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
+    // Don't fail the request if status update fails
+    logger.error('Failed to update policy status based on completeness', {
+      policyId,
+      error: err,
+    });
   });
 
-  if (policyWithCounts) {
-    const hasRequiredFields = !!policyWithCounts.policy_number && !!policyWithCounts.sum_assured && !!policyWithCounts.insurance_company_id;
-    const hasNominees = policyWithCounts.policy_nominees.length > 0;
-    const hasDocuments = policyWithCounts.documents.length > 0;
-
-    // If all required fields, nominees and documents are present, move to PENDING
-    if (hasRequiredFields && hasNominees && hasDocuments && policyWithCounts.status === 'DRAFT') {
-      const promoted = await prisma.policy.update({
-        where: { id: BigInt(policyId) },
-        data: { status: 'PENDING' },
-      });
-      // reflect updated status in returned object
-      (updatedPolicy as any).status = promoted.status;
-    }
-  }
+  // Fetch the policy again to get the updated status
+  const policyWithStatus = await prisma.policy.findUnique({
+    where: { id: BigInt(policyId) },
+    select: { status: true },
+  });
 
   return {
     id: updatedPolicy.id.toString(),
@@ -415,7 +517,7 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
     },
     policyNumber: updatedPolicy.policy_number,
     sumAssured: updatedPolicy.sum_assured.toString(),
-    status: updatedPolicy.status,
+    status: policyWithStatus?.status || updatedPolicy.status,
     uploadedAt: updatedPolicy.uploaded_at,
   };
 };

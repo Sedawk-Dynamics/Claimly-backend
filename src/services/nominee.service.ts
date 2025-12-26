@@ -2,6 +2,7 @@ import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { createActivityLog } from './userActivityLog.service';
 import { getFileUrl } from '../utils/fileUpload';
+import { updatePolicyStatusBasedOnCompleteness } from './policy.service';
 
 export interface CreateNomineeData {
   name: string;
@@ -278,12 +279,20 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     },
     include: {
       documents: true,
+      policy_links: {
+        select: {
+          policy_id: true,
+        },
+      },
     },
   });
 
   if (!existingNominee) {
     throw new NotFoundError('Nominee not found');
   }
+
+  // Get list of policy IDs linked to this nominee (to update their status later)
+  const linkedPolicyIds = existingNominee.policy_links.map((link) => link.policy_id.toString());
 
   // Validate mobile number if being updated
   if (data.mobileNumber) {
@@ -442,6 +451,15 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     // Don't fail the request if logging fails
     console.error('Failed to log activity:', err);
   });
+
+  // Check and update status of all policies linked to this nominee
+  // This ensures that if nominee details changed, policies that depend on those details are re-evaluated
+  for (const policyId of linkedPolicyIds) {
+    await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
+      // Don't fail the request if status update fails
+      console.error(`Failed to update policy status for policy ${policyId}:`, err);
+    });
+  }
 
   return {
     id: updatedNominee.id.toString(),
