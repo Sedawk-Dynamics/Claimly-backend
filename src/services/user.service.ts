@@ -314,13 +314,19 @@ export const getUserKycStatus = async (userId: string): Promise<KycStatus> => {
 
   const hasAadhaar = documents.some((doc) => doc.document_type === 'AADHAAR');
   const hasPan = documents.some((doc) => doc.document_type === 'PAN');
+  const hasVerifiedAadhaar = documents.some(
+    (doc) => doc.document_type === 'AADHAAR' && doc.is_verified
+  );
+  const hasVerifiedPan = documents.some(
+    (doc) => doc.document_type === 'PAN' && doc.is_verified
+  );
 
   const missingDocuments: Array<'AADHAAR' | 'PAN'> = [];
   if (!hasAadhaar) missingDocuments.push('AADHAAR');
   if (!hasPan) missingDocuments.push('PAN');
 
   return {
-    status: hasAadhaar && hasPan ? 'COMPLETED' : 'PENDING',
+    status: hasVerifiedAadhaar && hasVerifiedPan ? 'COMPLETED' : 'PENDING',
     hasAadhaar,
     hasPan,
     missingDocuments,

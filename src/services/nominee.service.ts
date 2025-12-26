@@ -215,6 +215,8 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
           document_url: true,
           is_verified: true,
           uploaded_at: true,
+          verified_at: true,
+          rejected_at: true,
         },
       },
     },
@@ -277,6 +279,8 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
       documentUrl: doc.document_url,
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
+      verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     })),
   };
 };
@@ -338,6 +342,8 @@ export const createNomineeDraft = async (userId: string, data: CreateNomineeDraf
           document_url: true,
           is_verified: true,
           uploaded_at: true,
+          verified_at: true,
+          rejected_at: true,
         },
       },
     },
@@ -392,6 +398,8 @@ export const createNomineeDraft = async (userId: string, data: CreateNomineeDraf
       documentUrl: doc.document_url,
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
+      verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     })),
   };
 };
@@ -420,6 +428,7 @@ export const getUserNominees = async (userId: string) => {
           is_verified: true,
           uploaded_at: true,
           verified_at: true,
+          rejected_at: true,
         },
         orderBy: {
           uploaded_at: 'desc',
@@ -454,6 +463,7 @@ export const getUserNominees = async (userId: string) => {
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
       verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     })),
     documentsCount: nominee.documents.length,
     verifiedDocumentsCount: nominee.documents.filter((d) => d.is_verified).length,
@@ -516,6 +526,7 @@ export const getNomineeById = async (userId: string, nomineeId: string) => {
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
       verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     })),
   };
 };

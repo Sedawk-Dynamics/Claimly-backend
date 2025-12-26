@@ -301,6 +301,8 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
       documentUrl: doc.document_url,
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
+      verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     })),
   };
   
@@ -459,6 +461,8 @@ export const createPolicyDraft = async (userId: string, data: CreatePolicyDraftD
       documentUrl: doc.document_url,
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
+      verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     })),
   };
 };

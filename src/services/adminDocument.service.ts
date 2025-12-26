@@ -4,6 +4,12 @@ import logger from '../config/logger';
 import type { UserDocumentType } from '@prisma/client';
 import { sendAdminActionNotification } from './notification.service';
 
+const areAllDocumentsVerified = (documents: Array<{ is_verified: boolean }>) =>
+  documents.length > 0 && documents.every((doc) => doc.is_verified);
+
+const areAllDocumentsRejected = (documents: Array<{ rejected_at: Date | null }>) =>
+  documents.length > 0 && documents.every((doc) => doc.rejected_at !== null);
+
 export const verifyUserDocument = async (documentId: string, adminId: string) => {
   const document = await prisma.userDocument.findUnique({
     where: { id: BigInt(documentId) },
@@ -51,13 +57,6 @@ export const verifyUserDocument = async (documentId: string, adminId: string) =>
 export const verifyPolicyDocument = async (documentId: string, adminId: string) => {
   const document = await prisma.policyDocument.findUnique({
     where: { id: BigInt(documentId) },
-    include: { 
-      policy: {
-        include: {
-          documents: true,
-        },
-      },
-    },
   });
 
   if (!document) {
@@ -73,39 +72,56 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
     },
   });
 
-  // Check if all policy documents are now verified
-  const policy = await prisma.policy.findUnique({
+  const policyWithRelations = await prisma.policy.findUnique({
     where: { id: document.policy_id },
     include: {
       documents: true,
+      user: true,
     },
   });
 
-  if (policy) {
-    const totalDocuments = policy.documents.length;
-    const verifiedDocuments = policy.documents.filter((doc) => doc.is_verified).length;
+  if (policyWithRelations) {
+    const allVerified = areAllDocumentsVerified(policyWithRelations.documents);
+    let nextStatus: 'PENDING' | 'ACCEPTED' | null = null;
 
-    // If all documents are verified and policy is in DRAFT status, update to PENDING
-    if (totalDocuments > 0 && verifiedDocuments === totalDocuments && policy.status === 'DRAFT') {
+    if (allVerified) {
+      nextStatus = 'ACCEPTED';
+    } else if (policyWithRelations.status === 'DRAFT') {
+      nextStatus = 'PENDING';
+    }
+
+    if (nextStatus && nextStatus !== policyWithRelations.status) {
       await prisma.policy.update({
-        where: { id: document.policy_id },
-        data: {
-          status: 'PENDING',
-        },
+        where: { id: policyWithRelations.id },
+        data: { status: nextStatus },
       });
 
-      logger.info('Policy status updated to PENDING after all documents verified', {
-        policyId: document.policy_id.toString(),
+      const notificationType = nextStatus === 'ACCEPTED' ? 'POLICY_ACCEPTED' : 'POLICY_PENDING';
+      await sendAdminActionNotification(
         adminId,
-        totalDocuments,
-        verifiedDocuments,
-      });
+        policyWithRelations.user_id.toString(),
+        notificationType,
+        {
+          policyNumber: policyWithRelations.policy_number,
+        }
+      );
 
-      // Send notification when policy is moved to pending
-      await sendAdminActionNotification(adminId, policy.user_id.toString(), 'POLICY_PENDING', {
-        policyNumber: policy.policy_number,
+      logger.info('Policy status updated after verification', {
+        policyId: policyWithRelations.id.toString(),
+        adminId,
+        nextStatus,
       });
     }
+
+    await sendAdminActionNotification(
+      adminId,
+      policyWithRelations.user_id.toString(),
+      'POLICY_DOCUMENT_VERIFIED',
+      {
+        documentName: updatedDocument.document_name,
+        policyNumber: policyWithRelations.policy_number,
+      }
+    );
   }
 
   logger.info('Policy document verified', {
@@ -113,19 +129,6 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
     adminId,
     policyId: document.policy_id.toString(),
   });
-
-  // Send notification to user
-  const policyForNotification = await prisma.policy.findUnique({
-    where: { id: document.policy_id },
-    select: { user_id: true, policy_number: true },
-  });
-
-  if (policyForNotification) {
-    await sendAdminActionNotification(adminId, policyForNotification.user_id.toString(), 'POLICY_DOCUMENT_VERIFIED', {
-      documentName: updatedDocument.document_name,
-      policyNumber: policyForNotification.policy_number,
-    });
-  }
 
   return {
     id: updatedDocument.id.toString(),
@@ -143,7 +146,6 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
 export const verifyNomineeDocument = async (documentId: string, adminId: string) => {
   const document = await prisma.nomineeDocument.findUnique({
     where: { id: BigInt(documentId) },
-    include: { nominee: true },
   });
 
   if (!document) {
@@ -155,19 +157,67 @@ export const verifyNomineeDocument = async (documentId: string, adminId: string)
     data: {
       is_verified: true,
       verified_at: new Date(),
+      rejected_at: null,
     },
   });
+
+  const nomineeWithRelations = await prisma.nominee.findUnique({
+    where: { id: document.nominee_id },
+    include: {
+      documents: true,
+      user: true,
+    },
+  });
+
+  if (nomineeWithRelations) {
+    const allVerified = areAllDocumentsVerified(nomineeWithRelations.documents);
+    let nextStatus: 'PENDING' | 'ACCEPTED' | null = null;
+
+    if (allVerified) {
+      nextStatus = 'ACCEPTED';
+    } else if (nomineeWithRelations.status === 'DRAFT') {
+      nextStatus = 'PENDING';
+    }
+
+    if (nextStatus && nextStatus !== nomineeWithRelations.status) {
+      await prisma.nominee.update({
+        where: { id: nomineeWithRelations.id },
+        data: { status: nextStatus },
+      });
+
+      if (nextStatus === 'ACCEPTED') {
+        await sendAdminActionNotification(
+          adminId,
+          nomineeWithRelations.user_id.toString(),
+          'NOMINEE_ACCEPTED',
+          {
+            nomineeName: nomineeWithRelations.name,
+          }
+        );
+      }
+
+      logger.info('Nominee status updated after verification', {
+        nomineeId: nomineeWithRelations.id.toString(),
+        adminId,
+        nextStatus,
+      });
+    }
+
+    await sendAdminActionNotification(
+      adminId,
+      nomineeWithRelations.user_id.toString(),
+      'NOMINEE_DOCUMENT_VERIFIED',
+      {
+        nomineeName: nomineeWithRelations.name,
+        documentName: updatedDocument.document_name,
+      }
+    );
+  }
 
   logger.info('Nominee document verified', {
     documentId,
     adminId,
     nomineeId: document.nominee_id.toString(),
-  });
-
-  // Send notification to user
-  await sendAdminActionNotification(adminId, document.nominee.user_id.toString(), 'NOMINEE_DOCUMENT_VERIFIED', {
-    nomineeName: document.nominee.name,
-    documentName: updatedDocument.document_name,
   });
 
   return {
@@ -245,16 +295,62 @@ export const rejectPolicyDocument = async (documentId: string, adminId: string) 
     },
   });
 
+  const policyWithRelations = await prisma.policy.findUnique({
+    where: { id: document.policy_id },
+    include: {
+      documents: true,
+      user: true,
+    },
+  });
+
+  if (policyWithRelations) {
+    const allRejected = areAllDocumentsRejected(policyWithRelations.documents);
+    let nextStatus: 'REJECTED' | 'PENDING' | null = null;
+
+    if (allRejected) {
+      nextStatus = 'REJECTED';
+    } else if (policyWithRelations.status === 'ACCEPTED' || policyWithRelations.status === 'REJECTED') {
+      nextStatus = 'PENDING';
+    }
+
+    if (nextStatus && nextStatus !== policyWithRelations.status) {
+      await prisma.policy.update({
+        where: { id: policyWithRelations.id },
+        data: { status: nextStatus },
+      });
+
+      const notificationType = nextStatus === 'REJECTED' ? 'POLICY_REJECTED' : 'POLICY_PENDING';
+      await sendAdminActionNotification(
+        adminId,
+        policyWithRelations.user_id.toString(),
+        notificationType,
+        {
+          policyNumber: policyWithRelations.policy_number,
+        }
+      );
+
+      logger.info('Policy status updated after rejection', {
+        policyId: policyWithRelations.id.toString(),
+        adminId,
+        nextStatus,
+      });
+    }
+
+    await sendAdminActionNotification(
+      adminId,
+      policyWithRelations.user_id.toString(),
+      'POLICY_DOCUMENT_REJECTED',
+      {
+        documentName: updatedDocument.document_name,
+        policyNumber: policyWithRelations.policy_number,
+      }
+    );
+  }
+
   logger.info('Policy document rejected', {
     documentId,
     adminId,
     policyId: document.policy_id.toString(),
-  });
-
-  // Send notification to user
-  await sendAdminActionNotification(adminId, document.policy.user_id.toString(), 'POLICY_DOCUMENT_REJECTED', {
-    documentName: updatedDocument.document_name,
-    policyNumber: document.policy.policy_number,
   });
 
   return {
@@ -285,19 +381,67 @@ export const rejectNomineeDocument = async (documentId: string, adminId: string)
     data: {
       is_verified: false,
       verified_at: null,
+      rejected_at: new Date(),
     },
   });
+
+  const nomineeWithRelations = await prisma.nominee.findUnique({
+    where: { id: document.nominee_id },
+    include: {
+      documents: true,
+      user: true,
+    },
+  });
+
+  if (nomineeWithRelations) {
+    const allRejected = areAllDocumentsRejected(nomineeWithRelations.documents);
+    let nextStatus: 'REJECTED' | 'PENDING' | null = null;
+
+    if (allRejected) {
+      nextStatus = 'REJECTED';
+    } else if (nomineeWithRelations.status === 'ACCEPTED' || nomineeWithRelations.status === 'REJECTED') {
+      nextStatus = 'PENDING';
+    }
+
+    if (nextStatus && nextStatus !== nomineeWithRelations.status) {
+      await prisma.nominee.update({
+        where: { id: nomineeWithRelations.id },
+        data: { status: nextStatus },
+      });
+
+      if (nextStatus === 'REJECTED') {
+        await sendAdminActionNotification(
+          adminId,
+          nomineeWithRelations.user_id.toString(),
+          'NOMINEE_REJECTED',
+          {
+            nomineeName: nomineeWithRelations.name,
+          }
+        );
+      }
+
+      logger.info('Nominee status updated after rejection', {
+        nomineeId: nomineeWithRelations.id.toString(),
+        adminId,
+        nextStatus,
+      });
+    }
+
+    await sendAdminActionNotification(
+      adminId,
+      nomineeWithRelations.user_id.toString(),
+      'NOMINEE_DOCUMENT_REJECTED',
+      {
+        nomineeName: nomineeWithRelations.name,
+        documentName: updatedDocument.document_name,
+      }
+    );
+  }
 
   logger.info('Nominee document rejected/unverified', {
     documentId,
     adminId,
     nomineeId: document.nominee_id.toString(),
-  });
-
-  // Send notification to user
-  await sendAdminActionNotification(adminId, document.nominee.user_id.toString(), 'NOMINEE_DOCUMENT_REJECTED', {
-    nomineeName: document.nominee.name,
-    documentName: updatedDocument.document_name,
   });
 
   return {
