@@ -4,6 +4,14 @@ import logger from '../config/logger';
 import { getUserKycStatus } from './user.service';
 import { createActivityLog } from './userActivityLog.service';
 
+type PolicyStatusType = 'DRAFT' | 'PENDING' | 'ACCEPTED' | 'REJECTED';
+
+type PolicyNomineeWithStatus = {
+  nominee?: {
+    status?: PolicyStatusType | null;
+  } | null;
+} | null;
+
 /**
  * Helper function to check if a policy is complete (all required fields, documents, and nominee details filled)
  * Returns true if complete, false otherwise
@@ -68,6 +76,39 @@ const isPolicyComplete = async (policyId: bigint): Promise<boolean> => {
   }
 
   return true;
+};
+
+const derivePolicyStatusFromNominees = (
+  baseStatus: PolicyStatusType,
+  policyNominees?: PolicyNomineeWithStatus[]
+): PolicyStatusType => {
+  if (baseStatus === 'REJECTED') {
+    return 'REJECTED';
+  }
+
+  if (!policyNominees || policyNominees.length === 0) {
+    return baseStatus;
+  }
+
+  let hasPendingNominee = false;
+
+  for (const policyNominee of policyNominees) {
+    const nomineeStatus = policyNominee?.nominee?.status as PolicyStatusType | undefined;
+
+    if (nomineeStatus === 'REJECTED') {
+      return 'REJECTED';
+    }
+
+    if (nomineeStatus === 'PENDING') {
+      hasPendingNominee = true;
+    }
+  }
+
+  if (hasPendingNominee) {
+    return 'PENDING';
+  }
+
+  return baseStatus;
 };
 
 /**
@@ -221,6 +262,7 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
               id: true,
               name: true,
               relationship: true,
+              status: true,
             },
           },
         },
@@ -240,7 +282,7 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
     },
     policyNumber: policy.policy_number,
     sumAssured: policy.sum_assured.toString(),
-    status: policy.status,
+    status: derivePolicyStatusFromNominees(policy.status, policy.policy_nominees),
     uploadedAt: policy.uploaded_at,
     nominees: policy.policy_nominees.map((pn) => ({
       id: pn.id.toString(),
@@ -248,6 +290,7 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
         id: pn.nominee.id.toString(),
         name: pn.nominee.name,
         relationship: pn.nominee.relationship,
+        status: pn.nominee.status,
       },
       sharePercentage: pn.share_percentage.toString(),
     })),
@@ -348,6 +391,7 @@ export const createPolicyDraft = async (userId: string, data: CreatePolicyDraftD
               id: true,
               name: true,
               relationship: true,
+              status: true,
             },
           },
         },
@@ -393,7 +437,10 @@ export const createPolicyDraft = async (userId: string, data: CreatePolicyDraftD
     },
     policyNumber: policy.policy_number,
     sumAssured: policy.sum_assured.toString(),
-    status: policyWithStatus?.status || policy.status,
+    status: derivePolicyStatusFromNominees(
+      policyWithStatus?.status || policy.status,
+      policy.policy_nominees
+    ),
     uploadedAt: policy.uploaded_at,
     nominees: policy.policy_nominees.map((pn) => ({
       id: pn.id.toString(),
@@ -401,6 +448,7 @@ export const createPolicyDraft = async (userId: string, data: CreatePolicyDraftD
         id: pn.nominee.id.toString(),
         name: pn.nominee.name,
         relationship: pn.nominee.relationship,
+        status: pn.nominee.status,
       },
       sharePercentage: pn.share_percentage.toString(),
     })),
@@ -434,6 +482,7 @@ export const getUserPolicies = async (userId: string) => {
               id: true,
               name: true,
               relationship: true,
+              status: true,
             },
           },
         },
@@ -457,38 +506,43 @@ export const getUserPolicies = async (userId: string) => {
     orderBy: { uploaded_at: 'desc' },
   });
 
-  return policies.map((policy) => ({
-    id: policy.id.toString(),
-    insuranceCompany: {
-      id: policy.insurance_company.id.toString(),
-      name: policy.insurance_company.name,
-      contactEmail: policy.insurance_company.contact_email,
-      contactNumber: policy.insurance_company.contact_number,
-    },
-    policyNumber: policy.policy_number,
-    sumAssured: policy.sum_assured.toString(),
-    status: policy.status,
-    uploadedAt: policy.uploaded_at,
-    nominees: policy.policy_nominees.map((pn) => ({
-      id: pn.id.toString(),
-      nominee: {
-        id: pn.nominee.id.toString(),
-        name: pn.nominee.name,
-        relationship: pn.nominee.relationship,
+  return policies.map((policy) => {
+    const resolvedStatus = derivePolicyStatusFromNominees(policy.status, policy.policy_nominees);
+
+    return {
+      id: policy.id.toString(),
+      insuranceCompany: {
+        id: policy.insurance_company.id.toString(),
+        name: policy.insurance_company.name,
+        contactEmail: policy.insurance_company.contact_email,
+        contactNumber: policy.insurance_company.contact_number,
       },
-      sharePercentage: pn.share_percentage.toString(),
-    })),
-    documents: policy.documents.map((doc) => ({
-      id: doc.id.toString(),
-      documentType: doc.document_type,
-      documentName: doc.document_name,
-      documentUrl: doc.document_url,
-      isVerified: doc.is_verified,
-      uploadedAt: doc.uploaded_at,
-      verifiedAt: doc.verified_at,
-      rejectedAt: doc.rejected_at,
-    })),
-  }));
+      policyNumber: policy.policy_number,
+      sumAssured: policy.sum_assured.toString(),
+      status: resolvedStatus,
+      uploadedAt: policy.uploaded_at,
+      nominees: policy.policy_nominees.map((pn) => ({
+        id: pn.id.toString(),
+        nominee: {
+          id: pn.nominee.id.toString(),
+          name: pn.nominee.name,
+          relationship: pn.nominee.relationship,
+          status: pn.nominee.status,
+        },
+        sharePercentage: pn.share_percentage.toString(),
+      })),
+      documents: policy.documents.map((doc) => ({
+        id: doc.id.toString(),
+        documentType: doc.document_type,
+        documentName: doc.document_name,
+        documentUrl: doc.document_url,
+        isVerified: doc.is_verified,
+        uploadedAt: doc.uploaded_at,
+        verifiedAt: doc.verified_at,
+        rejectedAt: doc.rejected_at,
+      })),
+    };
+  });
 };
 
 export const getPolicyById = async (userId: string, policyId: string) => {
@@ -519,6 +573,7 @@ export const getPolicyById = async (userId: string, policyId: string) => {
               email: true,
               address: true,
               dob: true,
+              status: true,
             },
           },
         },
@@ -545,6 +600,8 @@ export const getPolicyById = async (userId: string, policyId: string) => {
     throw new NotFoundError('Policy not found');
   }
 
+  const resolvedStatus = derivePolicyStatusFromNominees(policy.status, policy.policy_nominees);
+
   return {
     id: policy.id.toString(),
     insuranceCompany: {
@@ -557,7 +614,7 @@ export const getPolicyById = async (userId: string, policyId: string) => {
     },
     policyNumber: policy.policy_number,
     sumAssured: policy.sum_assured.toString(),
-    status: policy.status,
+    status: resolvedStatus,
     uploadedAt: policy.uploaded_at,
     nominees: policy.policy_nominees.map((pn) => ({
       id: pn.id.toString(),
@@ -569,6 +626,7 @@ export const getPolicyById = async (userId: string, policyId: string) => {
         dob: pn.nominee.dob ? pn.nominee.dob.toISOString().split('T')[0] : null,
         email: pn.nominee.email,
         address: pn.nominee.address,
+        status: pn.nominee.status,
       },
       sharePercentage: pn.share_percentage.toString(),
       createdAt: pn.created_at,
@@ -665,8 +723,24 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
   // Fetch the policy again to get the updated status
   const policyWithStatus = await prisma.policy.findUnique({
     where: { id: BigInt(policyId) },
-    select: { status: true },
+    select: {
+      status: true,
+      policy_nominees: {
+        include: {
+          nominee: {
+            select: {
+              status: true,
+            },
+          },
+        },
+      },
+    },
   });
+
+  const resolvedStatus = derivePolicyStatusFromNominees(
+    policyWithStatus?.status || updatedPolicy.status,
+    policyWithStatus?.policy_nominees
+  );
 
   return {
     id: updatedPolicy.id.toString(),
@@ -678,7 +752,7 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
     },
     policyNumber: updatedPolicy.policy_number,
     sumAssured: updatedPolicy.sum_assured.toString(),
-    status: policyWithStatus?.status || updatedPolicy.status,
+    status: resolvedStatus,
     uploadedAt: updatedPolicy.uploaded_at,
   };
 };
