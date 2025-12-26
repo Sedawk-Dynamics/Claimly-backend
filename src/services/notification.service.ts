@@ -196,6 +196,8 @@ function getNotificationTitle(actionType: string, details?: Record<string, any>)
       return 'Policy Accepted';
     case 'POLICY_REJECTED':
       return 'Policy Rejected';
+    case 'POLICY_PENDING':
+      return 'Policy Pending Review';
     case 'POLICY_ACTIVATED':
       return 'Policy Activated';
     case 'NOMINEE_DOCUMENT_VERIFIED':
@@ -235,6 +237,8 @@ function getNotificationMessage(actionType: string, details?: Record<string, any
       return `Your policy ${details?.policyNumber || ''} has been accepted.`;
     case 'POLICY_REJECTED':
       return `Your policy ${details?.policyNumber || ''} has been rejected.`;
+    case 'POLICY_PENDING':
+      return `Your policy ${details?.policyNumber || ''} is now pending review. All documents have been verified.`;
     case 'POLICY_ACTIVATED':
       return `Your policy ${details?.policyNumber || ''} has been activated. All documents have been verified.`;
     case 'NOMINEE_DOCUMENT_VERIFIED':

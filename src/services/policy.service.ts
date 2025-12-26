@@ -14,7 +14,7 @@ export interface UpdatePolicyData {
   insuranceCompanyId?: string;
   policyNumber?: string;
   sumAssured?: string;
-  status?: 'ACTIVE' | 'INACTIVE' | 'DRAFT' | 'REJECTED';
+  status?: 'DRAFT' | 'PENDING' | 'ACCEPTED' | 'REJECTED';
 }
 
 export const createPolicy = async (userId: string, data: CreatePolicyData) => {
@@ -360,7 +360,9 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
   if (data.insuranceCompanyId) updateData.insurance_company_id = BigInt(data.insuranceCompanyId);
   if (data.policyNumber) updateData.policy_number = data.policyNumber;
   if (data.sumAssured) updateData.sum_assured = parseFloat(data.sumAssured);
-  if (data.status) updateData.status = data.status;
+  // Users should not be able to set ACCEPTED or REJECTED directly.
+  // Allow explicit DRAFT only; otherwise compute status based on completeness after update.
+  if (data.status === 'DRAFT') updateData.status = 'DRAFT';
 
   const updatedPolicy = await prisma.policy.update({
     where: { id: BigInt(policyId) },
@@ -376,6 +378,32 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
       },
     },
   });
+
+  // After updating basic fields, compute completeness to possibly move from DRAFT -> PENDING
+  // Fetch counts for nominees and documents
+  const policyWithCounts = await prisma.policy.findUnique({
+    where: { id: BigInt(policyId) },
+    include: {
+      policy_nominees: true,
+      documents: true,
+    },
+  });
+
+  if (policyWithCounts) {
+    const hasRequiredFields = !!policyWithCounts.policy_number && !!policyWithCounts.sum_assured && !!policyWithCounts.insurance_company_id;
+    const hasNominees = policyWithCounts.policy_nominees.length > 0;
+    const hasDocuments = policyWithCounts.documents.length > 0;
+
+    // If all required fields, nominees and documents are present, move to PENDING
+    if (hasRequiredFields && hasNominees && hasDocuments && policyWithCounts.status === 'DRAFT') {
+      const promoted = await prisma.policy.update({
+        where: { id: BigInt(policyId) },
+        data: { status: 'PENDING' },
+      });
+      // reflect updated status in returned object
+      (updatedPolicy as any).status = promoted.status;
+    }
+  }
 
   return {
     id: updatedPolicy.id.toString(),

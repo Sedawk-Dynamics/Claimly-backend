@@ -52,7 +52,7 @@ CREATE TABLE `Policy` (
     `insurance_company_id` BIGINT NOT NULL,
     `policy_number` VARCHAR(191) NOT NULL,
     `sum_assured` DECIMAL(15, 2) NOT NULL,
-    `status` ENUM('ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'ACTIVE',
+    `status` ENUM('DRAFT','PENDING','ACCEPTED','REJECTED') NOT NULL DEFAULT 'DRAFT',
     `uploaded_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     UNIQUE INDEX `Policy_policy_number_key`(`policy_number`),

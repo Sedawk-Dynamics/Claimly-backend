@@ -12,14 +12,14 @@ export const acceptPolicy = async (policyId: string, adminId: string) => {
     throw new NotFoundError('Policy not found');
   }
 
-  if (policy.status === 'ACTIVE') {
-    throw new ValidationError('Policy is already active');
+  if (policy.status === 'ACCEPTED') {
+    throw new ValidationError('Policy is already accepted');
   }
 
   const updatedPolicy = await prisma.policy.update({
     where: { id: BigInt(policyId) },
     data: {
-      status: 'ACTIVE',
+      status: 'ACCEPTED',
     },
     include: {
       insurance_company: {

@@ -85,24 +85,24 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
     const totalDocuments = policy.documents.length;
     const verifiedDocuments = policy.documents.filter((doc) => doc.is_verified).length;
 
-    // If all documents are verified and policy is in DRAFT status, update to ACTIVE
+    // If all documents are verified and policy is in DRAFT status, update to PENDING
     if (totalDocuments > 0 && verifiedDocuments === totalDocuments && policy.status === 'DRAFT') {
       await prisma.policy.update({
         where: { id: document.policy_id },
         data: {
-          status: 'ACTIVE',
+          status: 'PENDING',
         },
       });
 
-      logger.info('Policy status updated to ACTIVE after all documents verified', {
+      logger.info('Policy status updated to PENDING after all documents verified', {
         policyId: document.policy_id.toString(),
         adminId,
         totalDocuments,
         verifiedDocuments,
       });
 
-      // Send notification when policy is activated
-      await sendAdminActionNotification(adminId, policy.user_id.toString(), 'POLICY_ACTIVATED', {
+      // Send notification when policy is moved to pending
+      await sendAdminActionNotification(adminId, policy.user_id.toString(), 'POLICY_PENDING', {
         policyNumber: policy.policy_number,
       });
     }

@@ -73,7 +73,7 @@ model Policy {
   insurance_company_id  BigInt
   policy_number         String     @unique
   sum_assured           Decimal    @db.Decimal(13,2)
-  status                RecordStatus @default(DRAFT)
+  status                PolicyStatus @default(DRAFT)
   uploaded_at           DateTime   @default(now())
 
   user                  User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -263,6 +263,13 @@ enum RecordStatus {
   REJECTED
 }
 
+enum PolicyStatus {
+  DRAFT
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 enum Relationship {
   SPOUSE
   CHILD
@@ -287,7 +294,6 @@ enum PolicyDocumentType {
 enum NomineeDocumentType {
   NOMINEE_ID
   ADDRESS_PROOF
-  DEATH_CERTIFICATE
   OTHER
 }
 
