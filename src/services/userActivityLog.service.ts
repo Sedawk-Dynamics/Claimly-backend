@@ -10,7 +10,9 @@ export type ActivityType =
   | 'NOMINEE_UPDATED'
   | 'POLICY_ADDED'
   | 'POLICY_DOCUMENT_UPLOADED'
-  | 'NOMINEE_DOCUMENT_UPLOADED';
+  | 'NOMINEE_DOCUMENT_UPLOADED'
+  | 'NOMINEE_DRAFT_SAVED'
+  | 'POLICY_DRAFT_SAVED';
 
 export interface CreateActivityLogData {
   userId: string;

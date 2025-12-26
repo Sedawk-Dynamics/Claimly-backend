@@ -127,8 +127,8 @@ export const createNomineeSchema = z.object({
         'Invalid mobile number format. Must be 10 digits.'
       ),
     dob: z.string()
-      .optional()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be in YYYY-MM-DD format'),
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be in YYYY-MM-DD format')
+      .optional(),
     email: z.preprocess(
       (val) => {
         if (val === '' || val === null || val === undefined) {
