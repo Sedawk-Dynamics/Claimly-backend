@@ -166,10 +166,8 @@ export const updateNomineeShareSchema = z.object({
 // Alert validation schemas
 export const createAlertSchema = z.object({
   body: z.object({
-    userId: z.string().min(1, 'userId is required'),
-    detectedVia: z.enum(['SMS', 'MANUAL']),
+    smsText: z.string().min(1, 'SMS text is required'),
     detectionDate: z.string().datetime().optional(),
-    remarks: z.string().optional(),
   }),
 });
 

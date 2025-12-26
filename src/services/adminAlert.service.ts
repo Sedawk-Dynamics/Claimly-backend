@@ -137,6 +137,7 @@ export const getAllAlerts = async (
             email: alert.verified_admin?.email,
           }
         : null,
+      smsText: alert.sms_text,
       remarks: alert.remarks,
       createdAt: alert.created_at,
       alertType: getAlertType(alert.remarks || ''),
@@ -215,6 +216,7 @@ export const getAlertById = async (alertId: string) => {
           email: alert.verified_admin?.email,
         }
       : null,
+    smsText: alert.sms_text,
     remarks: alert.remarks,
     createdAt: alert.created_at,
     userPolicies: alert.user.policies.map((policy) => ({

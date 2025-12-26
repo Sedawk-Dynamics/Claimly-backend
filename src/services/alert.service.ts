@@ -4,9 +4,8 @@ import { sendAdminActionNotification } from './notification.service';
 
 export interface CreateAlertData {
   userId: string;
-  detectedVia: 'SMS' | 'MANUAL';
+  smsText: string;
   detectionDate?: string; // ISO date string, defaults to now
-  remarks?: string;
 }
 
 export const createAlert = async (data: CreateAlertData) => {
@@ -19,10 +18,9 @@ export const createAlert = async (data: CreateAlertData) => {
     throw new NotFoundError('User not found');
   }
 
-  // Validate detection method
-  const validMethods = ['SMS', 'MANUAL'];
-  if (!validMethods.includes(data.detectedVia)) {
-    throw new ValidationError(`detectedVia must be one of: ${validMethods.join(', ')}`);
+  // Validate SMS text is provided
+  if (!data.smsText || data.smsText.trim().length === 0) {
+    throw new ValidationError('SMS text is required');
   }
 
   // Parse detection date or use current date
@@ -36,14 +34,15 @@ export const createAlert = async (data: CreateAlertData) => {
     detectionDate = new Date();
   }
 
-  // Create alert
+  // Create alert - always SMS detection method from mobile app
   const alert = await prisma.deceasedAlert.create({
     data: {
       user_id: BigInt(data.userId),
-      detected_via: data.detectedVia,
+      detected_via: 'SMS',
       detection_date: detectionDate,
       verification_status: 'PENDING',
-      remarks: data.remarks || null,
+      sms_text: data.smsText.trim(),
+      remarks: null,
     },
     include: {
       user: {
@@ -68,6 +67,7 @@ export const createAlert = async (data: CreateAlertData) => {
     detectedVia: alert.detected_via,
     detectionDate: alert.detection_date,
     verificationStatus: alert.verification_status,
+    smsText: alert.sms_text,
     remarks: alert.remarks,
     createdAt: alert.created_at,
   };
@@ -191,6 +191,7 @@ export const getAlertById = async (alertId: string) => {
           email: alert.verified_admin.email,
         }
       : null,
+    smsText: alert.sms_text,
     remarks: alert.remarks,
     createdAt: alert.created_at,
   };

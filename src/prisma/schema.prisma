@@ -160,6 +160,7 @@ model DeceasedAlert {
   verification_status VerificationStatus @default(PENDING)
   verified_by         BigInt?
   remarks             String?
+  sms_text            String?    @db.Text
   created_at          DateTime   @default(now())
 
   user                User       @relation(fields: [user_id], references: [id], onDelete: Cascade)

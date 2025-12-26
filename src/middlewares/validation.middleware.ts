@@ -289,54 +289,7 @@ export const validateAdminLogin = (req: Request, res: Response, next: NextFuncti
   next();
 };
 
-export const validateCreateAlert = (req: Request, res: Response, next: NextFunction): void => {
-  const { userId, detectedVia, detectionDate } = req.body;
-
-  if (!userId || typeof userId !== 'string') {
-    res.status(400).json({
-      success: false,
-      error: 'userId is required and must be a string',
-    });
-    return;
-  }
-
-  const validMethods = ['SMS', 'MANUAL'];
-  if (!detectedVia || !validMethods.includes(detectedVia)) {
-    res.status(400).json({
-      success: false,
-      error: `detectedVia is required and must be one of: ${validMethods.join(', ')}`,
-    });
-    return;
-  }
-
-  if (detectionDate !== undefined) {
-    if (typeof detectionDate !== 'string') {
-      res.status(400).json({
-        success: false,
-        error: 'detectionDate must be a string in ISO format',
-      });
-      return;
-    }
-    const date = new Date(detectionDate);
-    if (isNaN(date.getTime())) {
-      res.status(400).json({
-        success: false,
-        error: 'Invalid detectionDate format. Use ISO date string.',
-      });
-      return;
-    }
-  }
-
-  if (req.body.remarks !== undefined && typeof req.body.remarks !== 'string') {
-    res.status(400).json({
-      success: false,
-      error: 'remarks must be a string',
-    });
-    return;
-  }
-
-  next();
-};
+// validateCreateAlert removed - using zod schema validation instead
 
 export const validateVerifyAlert = (req: Request, res: Response, next: NextFunction): void => {
   const { verificationStatus, remarks } = req.body;

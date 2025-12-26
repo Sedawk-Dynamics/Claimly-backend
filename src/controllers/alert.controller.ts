@@ -1,22 +1,26 @@
 import { Request, Response, NextFunction } from 'express';
 import { createAlert, verifyAlert, getAlertById } from '../services/alert.service';
 import { AdminRequest } from '../middlewares/adminAuth.middleware';
+import { AuthRequest } from '../middlewares/auth.middleware';
 
 export const createAlertController = async (
-  req: Request | AdminRequest,
+  req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { userId, detectedVia, detectionDate, remarks } = req.body;
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
-    // If called by admin (has admin property), allow manual creation
-    // If called by system, detectedVia should be SMS
+    const { smsText, detectionDate } = req.body;
+
+    // Use authenticated user's ID
     const alert = await createAlert({
-      userId,
-      detectedVia,
+      userId: req.user.userId,
+      smsText,
       detectionDate,
-      remarks,
     });
 
     res.status(201).json({
