@@ -209,6 +209,7 @@ export const getAllPolicies = async (page: number = 1, limit: number = 20, searc
                   name: true,
                   relationship: true,
                   dob: true,
+                  status: true,
                 },
               },
             },
