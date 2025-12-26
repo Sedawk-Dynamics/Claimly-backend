@@ -1392,7 +1392,7 @@
 											"key": "documentType",
 											"value": "NOMINEE_ID",
 											"type": "text",
-											"description": "NOMINEE_ID, ADDRESS_PROOF, DEATH_CERTIFICATE, or OTHER"
+											"description": "NOMINEE_ID, ADDRESS_PROOF, or OTHER"
 										},
 										{
 											"key": "documentName",
@@ -1418,7 +1418,7 @@
 										}
 									]
 								},
-								"description": "Upload a nominee document. Document types: NOMINEE_ID, ADDRESS_PROOF, DEATH_CERTIFICATE, OTHER. Max file size: 10MB"
+								"description": "Upload a nominee document. Document types: NOMINEE_ID, ADDRESS_PROOF, OTHER. Max file size: 10MB"
 							},
 							"response": []
 						},
@@ -1511,7 +1511,7 @@
 											"key": "documentType",
 											"value": "NOMINEE_ID",
 											"type": "text",
-											"description": "NOMINEE_ID, ADDRESS_PROOF, DEATH_CERTIFICATE, or OTHER"
+											"description": "NOMINEE_ID, ADDRESS_PROOF, or OTHER"
 										},
 										{
 											"key": "documentName",
@@ -1542,7 +1542,7 @@
 										}
 									]
 								},
-								"description": "Update a nominee document by ID. Document types: NOMINEE_ID, ADDRESS_PROOF, DEATH_CERTIFICATE, OTHER. Max file size: 10MB"
+								"description": "Update a nominee document by ID. Document types: NOMINEE_ID, ADDRESS_PROOF, OTHER. Max file size: 10MB"
 							},
 							"response": []
 						},

@@ -101,7 +101,7 @@ Three subfolders for different document types:
 
 #### Nominee Documents
 - Upload, Get All, Get by ID, Delete
-- **Document types:** `NOMINEE_ID`, `ADDRESS_PROOF`, `DEATH_CERTIFICATE`, `OTHER`
+- **Document types:** `NOMINEE_ID`, `ADDRESS_PROOF`, `OTHER`
 
 **Note:** File uploads use `multipart/form-data`. Maximum file size: 10MB.
 

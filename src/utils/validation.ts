@@ -227,7 +227,7 @@ export const createSubscriptionSchema = z.object({
 // Document validation schemas
 export const uploadDocumentSchema = z.object({
   body: z.object({
-    documentType: z.enum(['AADHAAR', 'PAN', 'OTHER']).or(z.enum(['POLICY_COPY', 'RECEIPT', 'OTHER'])).or(z.enum(['NOMINEE_ID', 'ADDRESS_PROOF', 'DEATH_CERTIFICATE', 'OTHER'])),
+    documentType: z.enum(['AADHAAR', 'PAN', 'OTHER']).or(z.enum(['POLICY_COPY', 'RECEIPT', 'OTHER'])).or(z.enum(['NOMINEE_ID', 'ADDRESS_PROOF', 'OTHER'])),
     documentName: z.string().min(1, 'documentName is required'),
   }),
 });
