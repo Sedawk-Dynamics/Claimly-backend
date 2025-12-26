@@ -7,7 +7,6 @@ import {
   updateNominee,
   deleteNominee,
   createNomineeDraft,
-  markNomineeAsDraft,
 } from '../services/nominee.service';
 
 export const createNomineeController = async (
@@ -41,36 +40,6 @@ export const createNomineeController = async (
           email,
           address,
         });
-
-    res.status(201).json({
-      success: true,
-      data: nominee,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const createNomineeDraftController = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const { name, relationship, mobileNumber, dob, email, address } = req.body;
-    const nominee = await createNomineeDraft(req.user.userId, {
-      name,
-      relationship,
-      mobileNumber,
-      dob,
-      email,
-      address,
-    });
 
     res.status(201).json({
       success: true,
@@ -136,7 +105,7 @@ export const updateNomineeController = async (
     }
 
     const { id } = req.params;
-    const { name, relationship, mobileNumber, dob, email, address, documentsToDelete } = req.body;
+    const { name, relationship, mobileNumber, dob, email, address, documentsToDelete, status } = req.body;
     
     // Parse documentsToDelete if it's a string (from form data)
     let documentsToDeleteArray: string[] = [];
@@ -198,6 +167,9 @@ export const updateNomineeController = async (
       }
     });
 
+    const normalizedStatus =
+      typeof status === 'string' && status.toUpperCase() === 'DRAFT' ? 'DRAFT' : undefined;
+
     const updatedNominee = await updateNominee(req.user.userId, id, {
       name,
       relationship,
@@ -205,6 +177,7 @@ export const updateNomineeController = async (
       dob,
       email,
       address,
+      status: normalizedStatus,
       documentsToAdd: documentsToAdd.length > 0 ? documentsToAdd : undefined,
       documentsToUpdate: documentsToUpdate.length > 0 ? documentsToUpdate : undefined,
       documentsToDelete: documentsToDeleteArray.length > 0 ? documentsToDeleteArray : undefined,
@@ -235,29 +208,6 @@ export const deleteNomineeController = async (
     res.status(200).json({
       success: true,
       data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const markNomineeDraftController = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const { id } = req.params;
-    const nominee = await markNomineeAsDraft(req.user.userId, id);
-
-    res.status(200).json({
-      success: true,
-      data: nominee,
     });
   } catch (error) {
     next(error);

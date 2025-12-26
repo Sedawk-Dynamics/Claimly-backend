@@ -277,22 +277,18 @@ All endpoints return JSON following the envelope `{ "success": boolean, "data"?:
 
 ### Policy Management (`/policies`)
 
-- **POST /policies/draft** – Requires completed KYC middleware but lenient schema to save partial data. Body `{ insuranceCompanyId, policyNumber?, sumAssured? }`. Response: `PolicyRecord` with `status: 'DRAFT'`.
-- **POST /policies** – Body requires both `policyNumber` and `sumAssured`. Response: `PolicyRecord`.
+- **POST /policies** – Body `{ insuranceCompanyId, policyNumber?, sumAssured? }`. When `policyNumber` or `sumAssured` is missing/blank the record remains `DRAFT`; once all required fields are provided the status auto-advances to `PENDING`.
 - **GET /policies** – Header required. Response: `PolicyRecord[]`.
 - **GET /policies/:id** – Header required. Response: `PolicyRecord` including insurer & docs.
-- **PUT /policies/:id/draft** – Header required. Marks policy as draft. Response: `PolicyRecord`.
-- **PUT /policies/:id** – Header required. Body `{ insuranceCompanyId?, policyNumber?, sumAssured?, status? }`. Response: updated `PolicyRecord`.
+- **PUT /policies/:id** – Header required. Body `{ insuranceCompanyId?, policyNumber?, sumAssured?, status? }`. Include `status: 'DRAFT'` to revert a submission for edits; otherwise omit and the backend will recalculate the appropriate status after updating.
 - **DELETE /policies/:id** – Header required. Response `{ message: 'Policy deleted successfully' }`.
 
 ### Nominee Management (`/nominees`)
 
-- **POST /nominees/draft** – Header required. Body allows partial nominee data (`name` mandatory). Response: `NomineeRecord` (`status: 'DRAFT'`).
-- **POST /nominees** – Header required. Body `{ name, relationship, mobileNumber?, dob?, email?, address? }`. Response: `NomineeRecord`.
+- **POST /nominees** – Header required. Body `{ name, relationship?, mobileNumber?, dob?, email?, address? }`. Missing contact/KYC fields keep the nominee in `DRAFT`; filling everything and uploading documents moves it to `PENDING`.
 - **GET /nominees** – Header required. Response: `NomineeRecord[]`.
 - **GET /nominees/:id** – Header required. Response: `NomineeRecord`.
-- **PUT /nominees/:id/draft** – Header required. Marks nominee as draft. Response: `NomineeRecord`.
-- **PUT /nominees/:id** – Header required. Body same as create. Response: updated `NomineeRecord`.
+- **PUT /nominees/:id** – Header required. Body same as create plus optional `status: 'DRAFT'` to force the record back into draft state. Response: updated `NomineeRecord`.
 - **DELETE /nominees/:id** – Header required. Response `{ message: 'Nominee deleted successfully' }`.
 
 ### Nominee Documents (`/nominee/:nomineeId/document`)

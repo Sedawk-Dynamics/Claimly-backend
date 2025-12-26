@@ -126,34 +126,11 @@ export interface UpdateNomineeData {
   dob?: string;
   email?: string;
   address?: string;
+  status?: 'DRAFT';
   documentsToAdd?: DocumentToAdd[];
   documentsToUpdate?: DocumentToUpdate[];
   documentsToDelete?: string[];
 }
-
-export const markNomineeAsDraft = async (userId: string, nomineeId: string) => {
-  const nominee = await prisma.nominee.findFirst({
-    where: {
-      id: BigInt(nomineeId),
-      user_id: BigInt(userId),
-    },
-  });
-
-  if (!nominee) {
-    throw new NotFoundError('Nominee not found');
-  }
-
-  const updated = await prisma.nominee.update({
-    where: { id: BigInt(nomineeId) },
-    data: { status: 'DRAFT' },
-  });
-
-  return {
-    id: updated.id.toString(),
-    status: updated.status,
-    updatedAt: updated.updated_at,
-  };
-};
 const parseDob = (dob?: string) => {
   if (!dob) {
     return null;
@@ -598,6 +575,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
   if (data.email !== undefined) updateData.email = data.email || null;
   if (data.address !== undefined) updateData.address = data.address || null;
   if (data.dob !== undefined) updateData.dob = data.dob ? parseDob(data.dob) : null;
+  if (data.status === 'DRAFT') updateData.status = 'DRAFT';
 
   const updatedNominee = await prisma.nominee.update({
     where: { id: BigInt(nomineeId) },

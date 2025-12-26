@@ -7,7 +7,6 @@ import {
   getPolicyById,
   updatePolicy,
   deletePolicy,
-  markPolicyAsDraft,
 } from '../services/policy.service';
 
 export const createPolicyController = async (
@@ -35,33 +34,6 @@ export const createPolicyController = async (
           policyNumber: policyNumber!,
           sumAssured: sumAssured!,
         });
-
-    res.status(201).json({
-      success: true,
-      data: policy,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const createPolicyDraftController = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const { insuranceCompanyId, policyNumber, sumAssured } = req.body;
-    const policy = await createPolicyDraft(req.user.userId, {
-      insuranceCompanyId,
-      policyNumber,
-      sumAssured,
-    });
 
     res.status(201).json({
       success: true,
@@ -160,28 +132,6 @@ export const deletePolicyController = async (
     res.status(200).json({
       success: true,
       data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const markPolicyDraftController = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    const { id } = req.params;
-    const policy = await markPolicyAsDraft(req.user.userId, id);
-    res.status(200).json({
-      success: true,
-      data: policy,
     });
   } catch (error) {
     next(error);

@@ -176,30 +176,6 @@ export interface UpdatePolicyData {
   status?: 'DRAFT' | 'PENDING' | 'ACCEPTED' | 'REJECTED';
 }
 
-export const markPolicyAsDraft = async (userId: string, policyId: string) => {
-  const policy = await prisma.policy.findFirst({
-    where: {
-      id: BigInt(policyId),
-      user_id: BigInt(userId),
-    },
-  });
-
-  if (!policy) {
-    throw new NotFoundError('Policy not found');
-  }
-
-  const updated = await prisma.policy.update({
-    where: { id: BigInt(policyId) },
-    data: { status: 'DRAFT' },
-  });
-
-  return {
-    id: updated.id.toString(),
-    status: updated.status,
-    updatedAt: updated.uploaded_at,
-  };
-};
-
 export const createPolicy = async (userId: string, data: CreatePolicyData) => {
   logger.info('Creating policy', { userId, policyNumber: data.policyNumber });
   

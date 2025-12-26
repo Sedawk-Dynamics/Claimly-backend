@@ -27,6 +27,25 @@
             "description": "Check if the server is running"
           },
           "response": []
+        },
+        {
+          "name": "Uploads Diagnostics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/diagnostics/uploads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "diagnostics",
+                "uploads"
+              ]
+            },
+            "description": "Inspect the `uploads/` directory structure (users, policies, nominees) to verify files are being written correctly. This endpoint returns counts plus a sample of up to 50 filenames per directory and does not require authentication. Helpful when debugging missing receipts/documents or validating that your local filesystem permissions are correct."
+          },
+          "response": []
         }
       ]
     },
@@ -473,7 +492,7 @@
                 "policies"
               ]
             },
-            "description": "Create a new insurance policy"
+            "description": "Create or update a policy record. If `policyNumber` or `sumAssured` is omitted/blank the policy is stored as `DRAFT`, allowing users to save progress mid-way. When both fields are provided, the policy automatically moves to `PENDING` after the completeness checks pass."
           },
           "response": []
         },
@@ -569,7 +588,7 @@
                 }
               ]
             },
-            "description": "Update a policy by ID"
+            "description": "Update a policy by ID. Set `status` to `\"DRAFT\"` if you need to revert a submission for edits; otherwise leave it out and the backend will auto-manage status based on completeness."
           },
           "response": []
         },
@@ -663,7 +682,7 @@
                 "nominees"
               ]
             },
-            "description": "Create a new nominee. Include the nominee's date of birth in YYYY-MM-DD format (required). Relationship can be: SPOUSE, CHILD, PARENT, SIBLING, FRIEND, OTHER."
+            "description": "Create a nominee. Provide full details to move the record toward `PENDING`, or omit/leave blank fields (relationship, mobile, dob, etc.) to save as a `DRAFT` that can be completed later."
           },
           "response": []
         },
@@ -759,7 +778,7 @@
                 }
               ]
             },
-            "description": "Update a nominee by ID. You can change any field, including `dob` (YYYY-MM-DD)."
+            "description": "Update a nominee by ID. Include `\"status\": \"DRAFT\"` in the body to roll the record back for edits; otherwise omit the field and the backend will auto-manage status based on completeness (documents + required fields)."
           },
           "response": []
         },
@@ -1583,6 +1602,43 @@
               "response": []
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Uploads",
+      "item": [
+        {
+          "name": "Download Uploaded File",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/uploads/:type/:filename",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "uploads",
+                ":type",
+                ":filename"
+              ],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "users",
+                  "description": "Allowed values: users | policies | nominees"
+                },
+                {
+                  "key": "filename",
+                  "value": "receipt_301.pdf",
+                  "description": "Exact filename as stored on disk (case-sensitive on Linux)"
+                }
+              ]
+            },
+            "description": "Serves the actual binary for uploaded receipts/documents. Use the filename returned by document/subscription APIs (for example `/uploads/policies/policy_copy.pdf`). No authentication is enforced, so only share URLs within trusted channels. Returns 400 if `type` is not one of `users|policies|nominees` or the filename looks unsafe, and 404 when the file cannot be found."
+          },
+          "response": []
         }
       ]
     },
