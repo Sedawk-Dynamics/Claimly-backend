@@ -75,10 +75,30 @@ export const updateUserByIdSchema = z.object({
 export const createPolicySchema = z.object({
   body: z.object({
     insuranceCompanyId: z.string().min(1, 'insuranceCompanyId is required'),
-    policyNumber: z.string().min(1, 'policyNumber is required'),
-    sumAssured: z.string().refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
-      message: 'sumAssured must be a positive number',
-    }),
+    policyNumber: z.string().optional(),
+    sumAssured: z.string()
+      .optional()
+      .refine(
+        (val) => val === undefined || (!isNaN(parseFloat(val)) && parseFloat(val) > 0),
+        {
+          message: 'sumAssured must be a positive number',
+        }
+      ),
+  }),
+});
+
+// Policy draft schema is lenient so users can save progress mid-way.
+export const createPolicyDraftSchema = z.object({
+  body: z.object({
+    insuranceCompanyId: z.string().min(1, 'insuranceCompanyId is required'),
+    policyNumber: z.string().optional(),
+    sumAssured: z
+      .string()
+      .optional()
+      .refine(
+        (val) => val === undefined || val === '' || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
+        { message: 'sumAssured must be zero or a positive number' }
+      ),
   }),
 });
 
@@ -98,11 +118,44 @@ export const updatePolicySchema = z.object({
 export const createNomineeSchema = z.object({
   body: z.object({
     name: z.string().min(1, 'Name is required'),
-    relationship: z.enum(['SPOUSE', 'CHILD', 'PARENT', 'SIBLING', 'FRIEND', 'OTHER']),
+    relationship: z.enum(['SPOUSE', 'CHILD', 'PARENT', 'SIBLING', 'FRIEND', 'OTHER']).optional(),
     mobileNumber: z.string()
-      .transform((val) => normalizePhoneNumber(val))
-      .pipe(z.string().regex(/^[0-9]{10}$/, 'Invalid mobile number format. Must be 10 digits.')),
-    dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be in YYYY-MM-DD format'),
+      .optional()
+      .transform((val) => (val === undefined ? undefined : normalizePhoneNumber(val)))
+      .refine(
+        (val) => val === undefined || /^[0-9]{10}$/.test(val),
+        'Invalid mobile number format. Must be 10 digits.'
+      ),
+    dob: z.string()
+      .optional()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be in YYYY-MM-DD format'),
+    email: z.preprocess(
+      (val) => {
+        if (val === '' || val === null || val === undefined) {
+          return null;
+        }
+        return typeof val === 'string' ? val.trim() : null;
+      },
+      z.string().email('Invalid email address').nullable().optional()
+    ),
+    address: z.string().nullable().optional(),
+  }),
+});
+
+// Allow users to park a nominee with partial details as a draft.
+export const createNomineeDraftSchema = z.object({
+  body: z.object({
+    name: z.string().min(1, 'Name is required'),
+    relationship: z.enum(['SPOUSE', 'CHILD', 'PARENT', 'SIBLING', 'FRIEND', 'OTHER']).optional(),
+    mobileNumber: z
+      .string()
+      .optional()
+      .transform((val) => (val === undefined ? undefined : normalizePhoneNumber(val)))
+      .refine(
+        (val) => val === undefined || val === '' || /^[0-9]{10}$/.test(val),
+        'Invalid mobile number format. Must be 10 digits.'
+      ),
+    dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of birth must be in YYYY-MM-DD format').optional(),
     email: z.preprocess(
       (val) => {
         if (val === '' || val === null || val === undefined) {

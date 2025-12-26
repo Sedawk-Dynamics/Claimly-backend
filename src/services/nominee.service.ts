@@ -97,6 +97,15 @@ export interface CreateNomineeData {
   address?: string;
 }
 
+export interface CreateNomineeDraftData {
+  name: string;
+  relationship?: 'SPOUSE' | 'CHILD' | 'PARENT' | 'SIBLING' | 'FRIEND' | 'OTHER';
+  mobileNumber?: string;
+  dob?: string;
+  email?: string;
+  address?: string;
+}
+
 export interface DocumentToAdd {
   documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'OTHER';
   documentName: string;
@@ -216,6 +225,121 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
   });
 
   // Fetch the nominee again to get the updated status
+  const nomineeWithStatus = await prisma.nominee.findUnique({
+    where: { id: nominee.id },
+    select: { status: true },
+  });
+
+  return {
+    id: nominee.id.toString(),
+    name: nominee.name,
+    relationship: nominee.relationship,
+    mobileNumber: nominee.mobile_number,
+    dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
+    email: nominee.email,
+    address: nominee.address,
+    status: nomineeWithStatus?.status || nominee.status,
+    createdAt: nominee.created_at,
+    updatedAt: nominee.updated_at,
+    policies: nominee.policy_links.map((link) => ({
+      policyId: link.policy.id.toString(),
+      policyNumber: link.policy.policy_number,
+      sumAssured: link.policy.sum_assured.toString(),
+      sharePercentage: link.share_percentage.toString(),
+    })),
+    documents: nominee.documents.map((doc) => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      documentUrl: doc.document_url,
+      isVerified: doc.is_verified,
+      uploadedAt: doc.uploaded_at,
+    })),
+  };
+};
+
+export const createNomineeDraft = async (userId: string, data: CreateNomineeDraftData) => {
+  const mobileRegex = /^[0-9]{10}$/;
+
+  const trimmedName = data.name?.trim();
+  if (!trimmedName) {
+    throw new ValidationError('Name is required to save a nominee draft');
+  }
+
+  const mobileNumber =
+    data.mobileNumber && data.mobileNumber !== ''
+      ? data.mobileNumber.replace(/[^0-9]/g, '')
+      : '';
+
+  if (mobileNumber && !mobileRegex.test(mobileNumber)) {
+    throw new ValidationError('Invalid mobile number format');
+  }
+
+  if (data.email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(data.email)) {
+      throw new ValidationError('Invalid email format');
+    }
+  }
+
+  const dobDate = parseDob(data.dob);
+
+  const nominee = await prisma.nominee.create({
+    data: {
+      user_id: BigInt(userId),
+      name: trimmedName,
+      relationship: data.relationship || 'OTHER',
+      mobile_number: mobileNumber,
+      dob: dobDate,
+      email: data.email || null,
+      address: data.address || null,
+      status: 'DRAFT',
+    },
+    include: {
+      policy_links: {
+        include: {
+          policy: {
+            select: {
+              id: true,
+              policy_number: true,
+              sum_assured: true,
+            },
+          },
+        },
+      },
+      documents: {
+        select: {
+          id: true,
+          document_type: true,
+          document_name: true,
+          document_url: true,
+          is_verified: true,
+          uploaded_at: true,
+        },
+      },
+    },
+  });
+
+  await createActivityLog({
+    userId,
+    activityType: 'NOMINEE_DRAFT_SAVED',
+    description: `Saved nominee draft: ${trimmedName}`,
+    metadata: {
+      nomineeId: nominee.id.toString(),
+      nomineeName: trimmedName,
+      relationship: data.relationship || 'OTHER',
+    },
+  }).catch((err) => {
+    console.error('Failed to log draft nominee activity:', err);
+  });
+
+  await updateNomineeStatusBasedOnCompleteness(nominee.id.toString()).catch((err) => {
+    logger.error('Failed to update nominee status based on completeness', {
+      nomineeId: nominee.id.toString(),
+      error: err,
+    });
+  });
+
   const nomineeWithStatus = await prisma.nominee.findUnique({
     where: { id: nominee.id },
     select: { status: true },

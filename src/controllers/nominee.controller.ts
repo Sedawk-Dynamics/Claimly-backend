@@ -6,6 +6,7 @@ import {
   getNomineeById,
   updateNominee,
   deleteNominee,
+  createNomineeDraft,
 } from '../services/nominee.service';
 
 export const createNomineeController = async (
@@ -20,7 +21,48 @@ export const createNomineeController = async (
     }
 
     const { name, relationship, mobileNumber, dob, email, address } = req.body;
-    const nominee = await createNominee(req.user.userId, {
+    const isDraft = !relationship || !mobileNumber || !dob;
+
+    const nominee = isDraft
+      ? await createNomineeDraft(req.user.userId, {
+          name,
+          relationship,
+          mobileNumber,
+          dob,
+          email,
+          address,
+        })
+      : await createNominee(req.user.userId, {
+          name,
+          relationship: relationship!,
+          mobileNumber: mobileNumber!,
+          dob: dob!,
+          email,
+          address,
+        });
+
+    res.status(201).json({
+      success: true,
+      data: nominee,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createNomineeDraftController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { name, relationship, mobileNumber, dob, email, address } = req.body;
+    const nominee = await createNomineeDraft(req.user.userId, {
       name,
       relationship,
       mobileNumber,

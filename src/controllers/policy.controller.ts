@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import {
   createPolicy,
+  createPolicyDraft,
   getUserPolicies,
   getPolicyById,
   updatePolicy,
@@ -20,7 +21,42 @@ export const createPolicyController = async (
     }
 
     const { insuranceCompanyId, policyNumber, sumAssured } = req.body;
-    const policy = await createPolicy(req.user.userId, {
+    const isDraft = !policyNumber || !sumAssured;
+
+    const policy = isDraft
+      ? await createPolicyDraft(req.user.userId, {
+          insuranceCompanyId,
+          policyNumber,
+          sumAssured,
+        })
+      : await createPolicy(req.user.userId, {
+          insuranceCompanyId,
+          policyNumber: policyNumber!,
+          sumAssured: sumAssured!,
+        });
+
+    res.status(201).json({
+      success: true,
+      data: policy,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createPolicyDraftController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { insuranceCompanyId, policyNumber, sumAssured } = req.body;
+    const policy = await createPolicyDraft(req.user.userId, {
       insuranceCompanyId,
       policyNumber,
       sumAssured,

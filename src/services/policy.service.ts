@@ -122,6 +122,12 @@ export interface CreatePolicyData {
   sumAssured: string;
 }
 
+export interface CreatePolicyDraftData {
+  insuranceCompanyId: string;
+  policyNumber?: string;
+  sumAssured?: string;
+}
+
 export interface UpdatePolicyData {
   insuranceCompanyId?: string;
   policyNumber?: string;
@@ -252,6 +258,137 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
   // Alert creation removed - alerts now only come from mobile app SMS reading
 
   return result;
+};
+
+export const createPolicyDraft = async (userId: string, data: CreatePolicyDraftData) => {
+  logger.info('Saving policy draft', { userId, policyNumber: data.policyNumber });
+
+  if (!data.insuranceCompanyId) {
+    throw new ValidationError('insuranceCompanyId is required to save a draft policy');
+  }
+
+  // Verify insurance company exists
+  const insuranceCompany = await prisma.insuranceCompany.findUnique({
+    where: { id: BigInt(data.insuranceCompanyId) },
+  });
+
+  if (!insuranceCompany) {
+    throw new NotFoundError('Insurance company not found');
+  }
+
+  // Validate provided policy number if present
+  let policyNumber = data.policyNumber?.trim();
+  if (policyNumber) {
+    const existingPolicy = await prisma.policy.findUnique({
+      where: { policy_number: policyNumber },
+    });
+
+    if (existingPolicy) {
+      throw new ConflictError('Policy number already exists');
+    }
+  } else {
+    policyNumber = `DRAFT-${userId}-${Date.now()}`;
+  }
+
+  // Validate sum assured if provided, otherwise default to 0 for draft
+  let sumAssured = 0;
+  if (data.sumAssured !== undefined && data.sumAssured !== '') {
+    const parsed = parseFloat(data.sumAssured);
+    if (isNaN(parsed) || parsed < 0) {
+      throw new ValidationError('Sum assured must be zero or a positive number');
+    }
+    sumAssured = parsed;
+  }
+
+  const policy = await prisma.policy.create({
+    data: {
+      user_id: BigInt(userId),
+      insurance_company_id: BigInt(data.insuranceCompanyId),
+      policy_number: policyNumber,
+      sum_assured: sumAssured,
+      status: 'DRAFT',
+    },
+    include: {
+      insurance_company: {
+        select: {
+          id: true,
+          name: true,
+          contact_email: true,
+          contact_number: true,
+        },
+      },
+      policy_nominees: {
+        include: {
+          nominee: {
+            select: {
+              id: true,
+              name: true,
+              relationship: true,
+            },
+          },
+        },
+      },
+      documents: true,
+    },
+  });
+
+  await createActivityLog({
+    userId,
+    activityType: 'POLICY_DRAFT_SAVED',
+    description: `Saved policy draft: ${policy.policy_number}`,
+    metadata: {
+      policyId: policy.id.toString(),
+      policyNumber: policy.policy_number,
+      insuranceCompany: insuranceCompany.name,
+      sumAssured: policy.sum_assured.toString(),
+    },
+  }).catch((err) => {
+    console.error('Failed to log policy draft activity:', err);
+  });
+
+  await updatePolicyStatusBasedOnCompleteness(policy.id.toString()).catch((err) => {
+    logger.error('Failed to update policy status based on completeness', {
+      policyId: policy.id.toString(),
+      error: err,
+    });
+  });
+
+  const policyWithStatus = await prisma.policy.findUnique({
+    where: { id: policy.id },
+    select: { status: true },
+  });
+
+  return {
+    id: policy.id.toString(),
+    userId: policy.user_id.toString(),
+    insuranceCompany: {
+      id: policy.insurance_company.id.toString(),
+      name: policy.insurance_company.name,
+      contactEmail: policy.insurance_company.contact_email,
+      contactNumber: policy.insurance_company.contact_number,
+    },
+    policyNumber: policy.policy_number,
+    sumAssured: policy.sum_assured.toString(),
+    status: policyWithStatus?.status || policy.status,
+    uploadedAt: policy.uploaded_at,
+    nominees: policy.policy_nominees.map((pn) => ({
+      id: pn.id.toString(),
+      nominee: {
+        id: pn.nominee.id.toString(),
+        name: pn.nominee.name,
+        relationship: pn.nominee.relationship,
+      },
+      sharePercentage: pn.share_percentage.toString(),
+    })),
+    documents: policy.documents.map((doc) => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      documentUrl: doc.document_url,
+      isVerified: doc.is_verified,
+      uploadedAt: doc.uploaded_at,
+    })),
+  };
 };
 
 export const getUserPolicies = async (userId: string) => {
