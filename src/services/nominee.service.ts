@@ -131,6 +131,29 @@ export interface UpdateNomineeData {
   documentsToDelete?: string[];
 }
 
+export const markNomineeAsDraft = async (userId: string, nomineeId: string) => {
+  const nominee = await prisma.nominee.findFirst({
+    where: {
+      id: BigInt(nomineeId),
+      user_id: BigInt(userId),
+    },
+  });
+
+  if (!nominee) {
+    throw new NotFoundError('Nominee not found');
+  }
+
+  const updated = await prisma.nominee.update({
+    where: { id: BigInt(nomineeId) },
+    data: { status: 'DRAFT' },
+  });
+
+  return {
+    id: updated.id.toString(),
+    status: updated.status,
+    updatedAt: updated.updated_at,
+  };
+};
 const parseDob = (dob?: string) => {
   if (!dob) {
     return null;

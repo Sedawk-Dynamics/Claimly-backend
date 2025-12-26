@@ -9,6 +9,7 @@ import {
   getPolicyByIdController,
   updatePolicyController,
   deletePolicyController,
+  markPolicyDraftController,
 } from '../controllers/policy.controller';
 
 const router = Router();
@@ -21,6 +22,7 @@ router.post('/draft', requireCompletedKyc, validate(createPolicyDraftSchema), cr
 router.post('/', requireCompletedKyc, validate(createPolicySchema), createPolicyController);
 router.get('/', getPoliciesController);
 router.get('/:id', getPolicyByIdController);
+router.put('/:id/draft', markPolicyDraftController);
 router.put('/:id', validate(updatePolicySchema), updatePolicyController);
 router.delete('/:id', deletePolicyController);
 

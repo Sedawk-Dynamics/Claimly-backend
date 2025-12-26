@@ -7,6 +7,7 @@ import {
   updateNominee,
   deleteNominee,
   createNomineeDraft,
+  markNomineeAsDraft,
 } from '../services/nominee.service';
 
 export const createNomineeController = async (
@@ -234,6 +235,29 @@ export const deleteNomineeController = async (
     res.status(200).json({
       success: true,
       data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const markNomineeDraftController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const nominee = await markNomineeAsDraft(req.user.userId, id);
+
+    res.status(200).json({
+      success: true,
+      data: nominee,
     });
   } catch (error) {
     next(error);

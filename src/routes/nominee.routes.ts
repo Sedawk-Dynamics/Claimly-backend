@@ -10,6 +10,7 @@ import {
   getNomineeByIdController,
   updateNomineeController,
   deleteNomineeController,
+  markNomineeDraftController,
 } from '../controllers/nominee.controller';
 
 const router = Router();
@@ -22,6 +23,7 @@ router.post('/draft', validate(createNomineeDraftSchema), createNomineeDraftCont
 router.post('/', validate(createNomineeSchema), createNomineeController);
 router.get('/', getNomineesController);
 router.get('/:id', getNomineeByIdController);
+router.put('/:id/draft', markNomineeDraftController);
 router.put('/:id', multipleNomineeFileUpload, updateNomineeController);
 router.delete('/:id', deleteNomineeController);
 
