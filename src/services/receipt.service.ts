@@ -214,20 +214,6 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
     const rightCol = 300;
     
     doc.fontSize(11).fillColor('#64748b');
-    doc.text('Order ID:', leftCol, yPos);
-    doc.text(data.orderId, leftCol + 80, yPos);
-    doc.text('Payment ID:', rightCol, yPos);
-    doc.text(data.paymentId, rightCol + 80, yPos);
-    yPos += 20;
-
-    doc.text('Payment Status:', leftCol, yPos);
-    doc.fontSize(11).fillColor(data.paymentStatus === 'SUCCESS' ? '#10b981' : '#f59e0b');
-    doc.text(data.paymentStatus, leftCol + 100, yPos);
-    doc.fontSize(11).fillColor('#64748b');
-    doc.text('Payment Method:', rightCol, yPos);
-    doc.text('Razorpay', rightCol + 100, yPos);
-    yPos += 20;
-
     doc.text('Currency:', leftCol, yPos);
     doc.text(data.currency, leftCol + 80, yPos);
     doc.text('Date & Time:', rightCol, yPos);

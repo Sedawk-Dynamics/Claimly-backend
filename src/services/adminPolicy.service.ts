@@ -1,6 +1,7 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import logger from '../config/logger';
+import { derivePolicyStatusFromNominees } from './policy.service';
 
 export const acceptPolicy = async (policyId: string, adminId: string) => {
   const policy = await prisma.policy.findUnique({
@@ -236,47 +237,55 @@ export const getAllPolicies = async (page: number = 1, limit: number = 20, searc
     return {
       policies: policies
         .filter((policy) => policy.user !== null) // Filter out policies with null users
-        .map((policy) => ({
-          id: policy.id.toString(),
-          userId: policy.user_id.toString(),
-          user: policy.user ? {
-            id: policy.user.id.toString(),
-            name: policy.user.name,
-            mobileNumber: policy.user.mobile_number,
-            email: policy.user.email,
-          } : null,
-        insuranceCompany: {
-          id: policy.insurance_company.id.toString(),
-          name: policy.insurance_company.name,
-          contactEmail: policy.insurance_company.contact_email,
-          contactNumber: policy.insurance_company.contact_number,
-        },
-        policyNumber: policy.policy_number,
-        sumAssured: policy.sum_assured.toString(),
-        status: policy.status,
-        uploadedAt: policy.uploaded_at,
-        nominees: policy.policy_nominees.map((pn) => ({
-          id: pn.id.toString(),
-          nominee: {
-            id: pn.nominee.id.toString(),
-            name: pn.nominee.name,
-            relationship: pn.nominee.relationship,
-            dob: pn.nominee.dob ? pn.nominee.dob.toISOString().split('T')[0] : null,
-            status: pn.nominee.status,
+        .map((policy) => {
+          // Derive status based on nominees - policies without nominees should show as DRAFT
+          const resolvedStatus = derivePolicyStatusFromNominees(
+            policy.status,
+            policy.policy_nominees
+          );
+
+          return {
+            id: policy.id.toString(),
+            userId: policy.user_id.toString(),
+            user: policy.user ? {
+              id: policy.user.id.toString(),
+              name: policy.user.name,
+              mobileNumber: policy.user.mobile_number,
+              email: policy.user.email,
+            } : null,
+          insuranceCompany: {
+            id: policy.insurance_company.id.toString(),
+            name: policy.insurance_company.name,
+            contactEmail: policy.insurance_company.contact_email,
+            contactNumber: policy.insurance_company.contact_number,
           },
-          sharePercentage: pn.share_percentage.toString(),
-        })),
-        documents: policy.documents.map((doc) => ({
-          id: doc.id.toString(),
-          documentType: doc.document_type,
-          documentName: doc.document_name,
-          isVerified: doc.is_verified,
-        })),
-        stats: {
-          nomineesCount: policy._count.policy_nominees,
-          documentsCount: policy._count.documents,
-        },
-      })),
+          policyNumber: policy.policy_number,
+          sumAssured: policy.sum_assured.toString(),
+          status: resolvedStatus,
+          uploadedAt: policy.uploaded_at,
+          nominees: policy.policy_nominees.map((pn) => ({
+            id: pn.id.toString(),
+            nominee: {
+              id: pn.nominee.id.toString(),
+              name: pn.nominee.name,
+              relationship: pn.nominee.relationship,
+              dob: pn.nominee.dob ? pn.nominee.dob.toISOString().split('T')[0] : null,
+              status: pn.nominee.status,
+            },
+            sharePercentage: pn.share_percentage.toString(),
+          })),
+          documents: policy.documents.map((doc) => ({
+            id: doc.id.toString(),
+            documentType: doc.document_type,
+            documentName: doc.document_name,
+            isVerified: doc.is_verified,
+          })),
+          stats: {
+            nomineesCount: policy._count.policy_nominees,
+            documentsCount: policy._count.documents,
+          },
+        };
+        }),
       pagination: {
         page,
         limit,

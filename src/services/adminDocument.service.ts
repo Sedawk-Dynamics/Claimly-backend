@@ -3,6 +3,7 @@ import { NotFoundError } from '../utils/errors';
 import logger from '../config/logger';
 import type { UserDocumentType } from '@prisma/client';
 import { sendAdminActionNotification } from './notification.service';
+import { derivePolicyStatusFromNominees } from './policy.service';
 
 const areAllDocumentsVerified = (documents: Array<{ is_verified: boolean }>) =>
   documents.length > 0 && documents.every((doc) => doc.is_verified);
@@ -1544,11 +1545,17 @@ export const getPolicyDocuments = async (
           };
         });
 
+        // Derive status based on nominees - policies without nominees should show as DRAFT
+        const resolvedStatus = derivePolicyStatusFromNominees(
+          policy.status,
+          policy.policy_nominees
+        );
+
         return {
           id: policy.id.toString(),
           policyNumber: policy.policy_number,
           sumAssured: policy.sum_assured.toString(),
-          status: policy.status,
+          status: resolvedStatus,
           uploadedAt: policy.uploaded_at,
           user: {
             id: policy.user.id.toString(),

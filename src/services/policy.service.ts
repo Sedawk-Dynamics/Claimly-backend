@@ -31,7 +31,8 @@ const isPolicyComplete = async (policyId: bigint): Promise<boolean> => {
               dob: true,
             },
           },
-        }
+        },
+      },
       documents: true,
     },
   });
@@ -80,7 +81,7 @@ const isPolicyComplete = async (policyId: bigint): Promise<boolean> => {
   return true;
 };
 
-const derivePolicyStatusFromNominees = (
+export const derivePolicyStatusFromNominees = (
   baseStatus: PolicyStatusType,
   policyNominees?: PolicyNomineeWithStatus[]
 ): PolicyStatusType => {
@@ -117,17 +118,40 @@ const derivePolicyStatusFromNominees = (
 /**
  * Helper function to update policy status based on completeness
  * Only updates status for DRAFT and PENDING policies, never for ACCEPTED or REJECTED
+ * Ensures policies without nominees are always set to DRAFT
  */
 export const updatePolicyStatusBasedOnCompleteness = async (policyId: string): Promise<void> => {
   const policyIdBigInt = BigInt(policyId);
   
-  // Get current policy status
+  // Get current policy status and nominee count
   const policy = await prisma.policy.findUnique({
     where: { id: policyIdBigInt },
-    select: { id: true, status: true },
+    select: { 
+      id: true, 
+      status: true,
+      _count: {
+        select: {
+          policy_nominees: true,
+        },
+      },
+    },
   });
 
   if (!policy) {
+    return;
+  }
+
+  // If policy has no nominees, always set to DRAFT (unless ACCEPTED or REJECTED)
+  if (policy._count.policy_nominees === 0) {
+    if (policy.status !== 'ACCEPTED' && policy.status !== 'REJECTED') {
+      await prisma.policy.update({
+        where: { id: policyIdBigInt },
+        data: { status: 'DRAFT' },
+      });
+      logger.info('Policy status updated to DRAFT (no nominees)', {
+        policyId,
+      });
+    }
     return;
   }
 
@@ -284,6 +308,8 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
       rejectedAt: doc.rejected_at,
     })),
   };
+
+}
 
   logger.info('Policy created successfully', { policyId: policy.id.toString(), userId });
 
