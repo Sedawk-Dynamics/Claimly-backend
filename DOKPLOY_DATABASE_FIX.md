@@ -39,7 +39,7 @@ postgresql://username:password@hostname:5432/database
 
 ### ❌ Wrong Formats
 ```
-# Missing port (will default to wrong port)
+# Missing port (backend will default to 5432, but it's safer to specify explicitly)
 postgresql://username:password@hostname/database
 
 # Wrong port (MySQL port)
@@ -81,10 +81,12 @@ After updating and restarting:
 
 ## Why This Happened
 
-Prisma/PostgreSQL defaults to port 3306 when no port is specified in some configurations, which is incorrect. The fix ensures:
-1. Port 5432 is explicitly set if missing
-2. Error is thrown if port 3306 is detected
-3. Clear error messages guide you to fix it
+Some platforms/services provide a `DATABASE_URL` without an explicit port. In older builds, passing that raw value through could lead Prisma to attempt the wrong default port (seen as `:3306` in logs).
+
+The backend now prevents this by:
+1. Normalizing missing ports to **5432**
+2. Failing fast if **3306** is detected (prevents accidental MySQL connections)
+3. Logging clear, actionable error messages
 
 ## Still Having Issues?
 

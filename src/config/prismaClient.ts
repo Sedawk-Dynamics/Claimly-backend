@@ -5,7 +5,7 @@ import { env } from './env';
 const prismaClientSingleton = () => {
   // CRITICAL: Force Prisma to use runtime DATABASE_URL from environment
   // This ensures Prisma doesn't use a cached/compiled connection string
-  const databaseUrl = process.env.DATABASE_URL || env.DATABASE_URL;
+  const databaseUrl = env.DATABASE_URL;
   
   if (!databaseUrl) {
     throw new Error('DATABASE_URL environment variable is not set');
@@ -85,7 +85,7 @@ const prisma = (env.NODE_ENV === 'production')
 export const testDatabaseConnection = async (): Promise<boolean> => {
   try {
     // Log what URL we're trying to connect to
-    const currentUrl = process.env.DATABASE_URL || env.DATABASE_URL;
+    const currentUrl = env.DATABASE_URL;
     let urlInfo = 'unknown';
     try {
       const url = new URL(currentUrl);

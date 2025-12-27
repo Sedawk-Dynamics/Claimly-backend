@@ -83,35 +83,55 @@ function validateEnv(): EnvConfig {
 
   // Validate and fix DATABASE_URL
   let databaseUrl = process.env.DATABASE_URL!;
+  databaseUrl = databaseUrl.trim();
+  // Support values wrapped in quotes (common in some dashboards)
+  if (
+    (databaseUrl.startsWith('"') && databaseUrl.endsWith('"')) ||
+    (databaseUrl.startsWith("'") && databaseUrl.endsWith("'"))
+  ) {
+    databaseUrl = databaseUrl.slice(1, -1);
+  }
   
-  // Check if DATABASE_URL is missing port (PostgreSQL default is 5432)
+  // Parse DATABASE_URL (and normalize port)
+  let url: URL;
   try {
-    const url = new URL(databaseUrl);
-    if (!url.port) {
-      // If no port specified, add PostgreSQL default port
-      url.port = '5432';
-      databaseUrl = url.toString();
-      logger.warn('DATABASE_URL missing port, defaulting to 5432 (PostgreSQL)');
-    } else if (url.port === '3306') {
-      // If MySQL port detected, warn and suggest PostgreSQL port
-      logger.error('DATABASE_URL uses port 3306 (MySQL). PostgreSQL uses port 5432. Please update your DATABASE_URL.');
-      console.error('❌ ERROR: DATABASE_URL uses MySQL port (3306). PostgreSQL requires port 5432.');
-      console.error('   Current URL:', databaseUrl.replace(/:[^:@]+@/, ':***@')); // Mask password
-      console.error('   Fix: Update DATABASE_URL to use port 5432');
-    }
-    
-    // Validate it's a PostgreSQL URL
-    if (!url.protocol.includes('postgres')) {
-      logger.error('DATABASE_URL protocol is not PostgreSQL. Expected postgresql:// or postgres://');
-      console.error('❌ ERROR: DATABASE_URL must use postgresql:// or postgres:// protocol');
-    }
+    url = new URL(databaseUrl);
   } catch (urlError) {
     logger.error('Invalid DATABASE_URL format', {
       error: urlError instanceof Error ? urlError.message : 'Unknown error',
     });
     console.error('❌ ERROR: DATABASE_URL format is invalid');
     console.error('   Expected format: postgresql://user:password@host:port/database');
+    throw new Error(
+      urlError instanceof Error ? urlError.message : 'Invalid DATABASE_URL format'
+    );
   }
+
+  // If no port specified, add PostgreSQL default port
+  if (!url.port) {
+    url.port = '5432';
+    databaseUrl = url.toString();
+    logger.warn('DATABASE_URL missing port, defaulting to 5432 (PostgreSQL)');
+  }
+
+  // If MySQL port detected, block startup (prevents connecting to wrong DB)
+  if (url.port === '3306') {
+    logger.error('DATABASE_URL uses port 3306 (MySQL). PostgreSQL uses port 5432. Please update your DATABASE_URL.');
+    console.error('❌ ERROR: DATABASE_URL uses MySQL port (3306). PostgreSQL requires port 5432.');
+    console.error('   Current URL:', databaseUrl.replace(/:[^:@]+@/, ':***@')); // Mask password
+    console.error('   Fix: Update DATABASE_URL to use port 5432');
+    throw new Error('DATABASE_URL must not use port 3306 (MySQL). Use 5432 for PostgreSQL.');
+  }
+
+  // Validate it's a PostgreSQL URL
+  if (!url.protocol.includes('postgres')) {
+    logger.error('DATABASE_URL protocol is not PostgreSQL. Expected postgresql:// or postgres://');
+    console.error('❌ ERROR: DATABASE_URL must use postgresql:// or postgres:// protocol');
+    throw new Error('DATABASE_URL must use postgresql:// or postgres:// protocol');
+  }
+
+  // Ensure the normalized URL is used everywhere (including Prisma CLI subprocesses)
+  process.env.DATABASE_URL = databaseUrl;
 
   return {
     DATABASE_URL: databaseUrl,

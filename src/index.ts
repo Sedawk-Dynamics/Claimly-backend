@@ -712,7 +712,7 @@ const server = app.listen(PORT, async () => {
   
   // Log DATABASE_URL for debugging (without password)
   try {
-    const dbUrl = process.env.DATABASE_URL || env.DATABASE_URL;
+    const dbUrl = env.DATABASE_URL;
     if (dbUrl) {
       const url = new URL(dbUrl);
       const safeUrl = `${url.protocol}//${url.username}:***@${url.hostname}:${url.port || '5432'}${url.pathname}`;
