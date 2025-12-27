@@ -122,6 +122,15 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
     include: {
       documents: true,
       user: true,
+      policy_nominees: {
+        include: {
+          nominee: {
+            include: {
+              documents: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -129,8 +138,30 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
     const allVerified = areAllDocumentsVerified(policyWithRelations.documents);
     let nextStatus: 'PENDING' | 'ACCEPTED' | null = null;
 
+    // Check if all nominees are verified before allowing policy to be ACCEPTED
     if (allVerified) {
-      nextStatus = 'ACCEPTED';
+      // Check if there are any nominees linked to this policy
+      if (policyWithRelations.policy_nominees.length > 0) {
+        // Check if all nominees have all their documents verified
+        const allNomineesVerified = policyWithRelations.policy_nominees.every((pn) => {
+          const nomineeDocs = pn.nominee.documents;
+          return nomineeDocs.length > 0 && nomineeDocs.every((doc) => doc.is_verified);
+        });
+
+        if (allNomineesVerified) {
+          nextStatus = 'ACCEPTED';
+        } else {
+          // Policy documents are verified but nominees are not - keep as PENDING
+          nextStatus = policyWithRelations.status === 'DRAFT' ? 'PENDING' : null;
+          logger.info('Policy documents verified but nominees not verified', {
+            policyId: policyWithRelations.id.toString(),
+            nomineesCount: policyWithRelations.policy_nominees.length,
+          });
+        }
+      } else {
+        // No nominees linked - can accept policy
+        nextStatus = 'ACCEPTED';
+      }
     } else if (policyWithRelations.status === 'DRAFT') {
       nextStatus = 'PENDING';
     }
@@ -1389,6 +1420,16 @@ export const getPolicyDocuments = async (
               isVerified,
               documentsCount: nomineeDocs.length,
               verifiedDocumentsCount: nomineeDocs.filter((doc) => doc.is_verified).length,
+              documents: nomineeDocs.map((doc) => ({
+                id: doc.id.toString(),
+                documentType: doc.document_type,
+                documentName: doc.document_name,
+                documentUrl: doc.document_url,
+                isVerified: doc.is_verified,
+                uploadedAt: doc.uploaded_at,
+                verifiedAt: doc.verified_at,
+                rejectedAt: doc.rejected_at,
+              })),
             },
             sharePercentage: pn.share_percentage.toString(),
           };
