@@ -189,7 +189,6 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
     const brandLogoAvailable = fs.existsSync(CLAIMLY_LOGO_PATH);
     if (brandLogoAvailable) {
       doc.image(CLAIMLY_LOGO_PATH, 50, yPos, { fit: [90, 90] });
-    } else {
     }
     doc
       .fontSize(20)

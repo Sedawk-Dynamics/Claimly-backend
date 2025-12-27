@@ -58,20 +58,23 @@ const isPolicyComplete = async (policyId: bigint): Promise<boolean> => {
     return false;
   }
 
+  // Check if at least one nominee is added - REQUIRED for policy to be complete
+  if (policy.policy_nominees.length === 0) {
+    return false;
+  }
+
   // Check if all linked nominees have complete details
   // Required fields for nominees: name, relationship, mobile_number, dob
-  if (policy.policy_nominees.length > 0) {
-    for (const policyNominee of policy.policy_nominees) {
-      const nominee = policyNominee.nominee;
-      const hasCompleteNomineeDetails = 
-        !!nominee.name &&
-        !!nominee.relationship &&
-        !!nominee.mobile_number &&
-        !!nominee.dob;
+  for (const policyNominee of policy.policy_nominees) {
+    const nominee = policyNominee.nominee;
+    const hasCompleteNomineeDetails = 
+      !!nominee.name &&
+      !!nominee.relationship &&
+      !!nominee.mobile_number &&
+      !!nominee.dob;
 
-      if (!hasCompleteNomineeDetails) {
-        return false;
-      }
+    if (!hasCompleteNomineeDetails) {
+      return false;
     }
   }
 
