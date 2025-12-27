@@ -4,12 +4,12 @@ import { z } from 'zod';
 function normalizePhoneNumber(phoneNumber: string): string {
   // Remove all non-digit characters
   const digitsOnly = phoneNumber.replace(/\D/g, '');
-  
+
   // Take the last 10 digits (handles country codes like +91)
   if (digitsOnly.length >= 10) {
     return digitsOnly.slice(-10);
   }
-  
+
   // If less than 10 digits, return as is (will be caught by validation)
   return digitsOnly;
 }
@@ -24,7 +24,7 @@ export const verifyOTPSchema = z.object({
     name: z.string().optional(),
     dob: z.preprocess(
       (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
-      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional()
+      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of Birth is required and must be in YYYY-MM-DD format')
     ),
     email: z.preprocess(
       (val) => {
