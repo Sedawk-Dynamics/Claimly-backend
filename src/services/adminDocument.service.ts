@@ -1063,11 +1063,8 @@ export const getKycDocuments = async (
       include: {
         documents: {
           where: {
-            // Show all documents of required types for all statuses
+            // Fetch ALL documents for status calculation
             document_type: { in: documentTypes },
-            // For pending status, exclude rejected documents
-            // For draft status, show all documents
-            ...(status === 'pending' ? { rejected_at: null } : {}),
           },
           orderBy: { uploaded_at: 'desc' },
         },
@@ -1079,8 +1076,13 @@ export const getKycDocuments = async (
 
     return {
       users: users.map((user) => {
-        // Calculate KYC status based on documents
+        // Calculate KYC status based on ALL documents (not filtered)
         const kycStatus = calculateKycStatus(user.documents, documentTypes);
+        
+        // Filter documents for response based on status filter
+        const filteredDocuments = status === 'pending' 
+          ? user.documents.filter((doc) => doc.rejected_at === null)
+          : user.documents;
         
         return {
           id: user.id.toString(),
@@ -1088,7 +1090,7 @@ export const getKycDocuments = async (
           email: user.email,
           mobileNumber: user.mobile_number,
           status: kycStatus,
-          documents: user.documents.map((doc) => ({
+          documents: filteredDocuments.map((doc) => ({
             id: doc.id.toString(),
             documentType: doc.document_type,
             documentName: doc.document_name,
