@@ -135,8 +135,16 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           const parsed = new Date(data.dob);
           if (!isNaN(parsed.getTime())) {
             updateData.dob = parsed;
+          } else {
+            logger.warn('Invalid DOB provided for existing mobile user', { dob: data.dob });
           }
         }
+
+        logger.info('Updating existing mobile user', {
+          foundUserId: existingUser.id.toString(),
+          hasDobInRequest: !!data.dob,
+          updateDataKeys: Object.keys(updateData)
+        });
 
         user = await prisma.user.update({
           where: { id: existingUser.id },
@@ -145,7 +153,8 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
 
         logger.info('Linked Firebase ID to existing user and updated details', {
           userId: user.id.toString(),
-          mobileNumber: normalizedMobileNumber
+          mobileNumber: normalizedMobileNumber,
+          userDobAfterUpdate: user.dob
         });
       } else {
         // User doesn't exist at all - require name and email for new user
@@ -264,6 +273,8 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
             throw new ValidationError('Invalid dob format. Use YYYY-MM-DD');
           }
           userData.dob = parsed;
+        } else {
+          logger.warn('NO DOB provided for NEW USER creation');
         }
 
         // Only add referral code fields if column exists
@@ -276,6 +287,12 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           }
         }
 
+        logger.info('Creating NEW USER', {
+          mobileNumber: normalizedMobileNumber,
+          hasDobInRequest: !!data.dob,
+          dobInUserData: userData.dob
+        });
+
         user = await prisma.user.create({
           data: userData,
         });
@@ -285,6 +302,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           mobileNumber: normalizedMobileNumber,
           referralCode: referralCode || 'N/A (column not available)',
           referredBy: referredById?.toString() || null,
+          createdDob: user.dob
         });
 
         // Alert creation removed - alerts now only come from mobile app SMS reading
