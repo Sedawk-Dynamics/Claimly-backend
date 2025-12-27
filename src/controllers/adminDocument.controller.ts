@@ -120,6 +120,7 @@ export const getKycDocumentsController = async (
     const statusQuery = ((req.query.status as string) || 'pending').toLowerCase();
     const status = statusQuery === 'verified' ? 'verified' 
       : statusQuery === 'rejected' ? 'rejected'
+      : statusQuery === 'draft' ? 'draft'
       : 'pending';
     const search = (req.query.search as string)?.trim() || undefined;
 

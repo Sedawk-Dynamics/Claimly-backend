@@ -10,6 +10,51 @@ const areAllDocumentsVerified = (documents: Array<{ is_verified: boolean }>) =>
 const areAllDocumentsRejected = (documents: Array<{ rejected_at: Date | null }>) =>
   documents.length > 0 && documents.every((doc) => doc.rejected_at !== null);
 
+/**
+ * Calculate KYC verification status based on documents
+ * @param documents Array of user documents (AADHAAR and PAN)
+ * @param documentTypes Required document types (AADHAAR, PAN)
+ * @returns Status: 'REJECTED' | 'ACCEPTED' | 'PENDING' | 'DRAFT'
+ */
+const calculateKycStatus = (
+  documents: Array<{
+    document_type: string;
+    is_verified: boolean;
+    rejected_at: Date | null;
+  }>,
+  documentTypes: UserDocumentType[]
+): 'REJECTED' | 'ACCEPTED' | 'PENDING' | 'DRAFT' => {
+  // Filter documents to only required types
+  const kycDocuments = documents.filter((doc) => documentTypes.includes(doc.document_type as UserDocumentType));
+  
+  // Check which document types are present
+  const hasAadhaar = kycDocuments.some((doc) => doc.document_type === 'AADHAAR');
+  const hasPan = kycDocuments.some((doc) => doc.document_type === 'PAN');
+  
+  // DRAFT: Only 1 document uploaded and 1 not uploaded, or no documents at all
+  if (!hasAadhaar || !hasPan) {
+    return 'DRAFT';
+  }
+  
+  // Get verified and rejected counts
+  const verifiedDocs = kycDocuments.filter((doc) => doc.is_verified);
+  const rejectedDocs = kycDocuments.filter((doc) => doc.rejected_at !== null);
+  const totalDocs = kycDocuments.length;
+  
+  // REJECTED: All documents are rejected
+  if (rejectedDocs.length === totalDocs && totalDocs > 0) {
+    return 'REJECTED';
+  }
+  
+  // ACCEPTED: All documents are verified
+  if (verifiedDocs.length === totalDocs && totalDocs > 0) {
+    return 'ACCEPTED';
+  }
+  
+  // PENDING: Any other case (includes 1 accepted and 1 rejected, or partially verified)
+  return 'PENDING';
+};
+
 export const verifyUserDocument = async (documentId: string, adminId: string) => {
   const document = await prisma.userDocument.findUnique({
     where: { id: BigInt(documentId) },
@@ -790,7 +835,7 @@ export const rejectNomineeWithoutDocuments = async (nomineeId: string, adminId: 
 export const getKycDocuments = async (
   page: number,
   limit: number,
-  status: 'pending' | 'verified' | 'rejected',
+  status: 'pending' | 'verified' | 'rejected' | 'draft',
   search?: string
 ) => {
   const offset = (page - 1) * limit;
@@ -864,6 +909,58 @@ export const getKycDocuments = async (
             none: {
               document_type: { in: documentTypes },
               is_verified: false,
+            },
+          },
+        },
+      ],
+    };
+  } else if (status === 'draft') {
+    // Draft: Users who have only 1 document uploaded (1 document missing)
+    statusConditions = {
+      OR: [
+        // User has AADHAAR but not PAN
+        {
+          AND: [
+            {
+              documents: {
+                some: {
+                  document_type: 'AADHAAR',
+                },
+              },
+            },
+            {
+              documents: {
+                none: {
+                  document_type: 'PAN',
+                },
+              },
+            },
+          ],
+        },
+        // User has PAN but not AADHAAR
+        {
+          AND: [
+            {
+              documents: {
+                some: {
+                  document_type: 'PAN',
+                },
+              },
+            },
+            {
+              documents: {
+                none: {
+                  document_type: 'AADHAAR',
+                },
+              },
+            },
+          ],
+        },
+        // User has no documents at all
+        {
+          documents: {
+            none: {
+              document_type: { in: documentTypes },
             },
           },
         },
@@ -969,6 +1066,7 @@ export const getKycDocuments = async (
             // Show all documents of required types for all statuses
             document_type: { in: documentTypes },
             // For pending status, exclude rejected documents
+            // For draft status, show all documents
             ...(status === 'pending' ? { rejected_at: null } : {}),
           },
           orderBy: { uploaded_at: 'desc' },
@@ -980,26 +1078,32 @@ export const getKycDocuments = async (
     });
 
     return {
-      users: users.map((user) => ({
-        id: user.id.toString(),
-        name: user.name,
-        email: user.email,
-        mobileNumber: user.mobile_number,
-        documents: user.documents.map((doc) => ({
-          id: doc.id.toString(),
-          documentType: doc.document_type,
-          documentName: doc.document_name,
-          documentUrl: doc.document_url,
-          isVerified: doc.is_verified,
-          uploadedAt: doc.uploaded_at,
-          verifiedAt: doc.verified_at,
-          rejectedAt: doc.rejected_at,
-        })),
-        pendingDocuments: documentTypes.filter(
-          (type) => !user.documents.some((doc) => doc.document_type === type)
-        ),
-        verifiedDocuments: user.documents.filter((doc) => doc.is_verified).map((doc) => doc.document_type),
-      })),
+      users: users.map((user) => {
+        // Calculate KYC status based on documents
+        const kycStatus = calculateKycStatus(user.documents, documentTypes);
+        
+        return {
+          id: user.id.toString(),
+          name: user.name,
+          email: user.email,
+          mobileNumber: user.mobile_number,
+          status: kycStatus,
+          documents: user.documents.map((doc) => ({
+            id: doc.id.toString(),
+            documentType: doc.document_type,
+            documentName: doc.document_name,
+            documentUrl: doc.document_url,
+            isVerified: doc.is_verified,
+            uploadedAt: doc.uploaded_at,
+            verifiedAt: doc.verified_at,
+            rejectedAt: doc.rejected_at,
+          })),
+          pendingDocuments: documentTypes.filter(
+            (type) => !user.documents.some((doc) => doc.document_type === type)
+          ),
+          verifiedDocuments: user.documents.filter((doc) => doc.is_verified).map((doc) => doc.document_type),
+        };
+      }),
       pagination: {
         page,
         limit,
