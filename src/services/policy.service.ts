@@ -31,8 +31,7 @@ const isPolicyComplete = async (policyId: bigint): Promise<boolean> => {
               dob: true,
             },
           },
-        },
-      },
+        }
       documents: true,
     },
   });
@@ -286,8 +285,6 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
     })),
   };
 
-}
-  
   logger.info('Policy created successfully', { policyId: policy.id.toString(), userId });
 
   // Log activity
