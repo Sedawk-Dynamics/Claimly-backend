@@ -1353,6 +1353,15 @@ export const getPolicyDocuments = async (
         documents: {
           orderBy: { uploaded_at: 'desc' },
         },
+        policy_nominees: {
+          include: {
+            nominee: {
+              include: {
+                documents: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { uploaded_at: 'desc' },
       skip: offset,
@@ -1360,34 +1369,61 @@ export const getPolicyDocuments = async (
     });
 
     return {
-      policies: policies.map((policy) => ({
-        id: policy.id.toString(),
-        policyNumber: policy.policy_number,
-        sumAssured: policy.sum_assured.toString(),
-        status: policy.status,
-        uploadedAt: policy.uploaded_at,
-        user: {
-          id: policy.user.id.toString(),
-          name: policy.user.name,
-          email: policy.user.email,
-          mobileNumber: policy.user.mobile_number,
-        },
-        insuranceCompany: {
-          id: policy.insurance_company.id.toString(),
-          name: policy.insurance_company.name,
-        },
-        documents: policy.documents.map((doc) => ({
-          id: doc.id.toString(),
-          documentType: doc.document_type,
-          documentName: doc.document_name,
-          documentUrl: doc.document_url,
-          isVerified: doc.is_verified,
-          uploadedAt: doc.uploaded_at,
-          verifiedAt: doc.verified_at,
-          rejectedAt: doc.rejected_at,
-        })),
-        verifiedDocuments: policy.documents.filter((doc) => doc.is_verified).map((doc) => doc.id.toString()),
-      })),
+      policies: policies.map((policy) => {
+        // Calculate if nominee is verified (has documents and all are verified)
+        const nominees = policy.policy_nominees.map((pn) => {
+          const nomineeDocs = pn.nominee.documents;
+          const isVerified = nomineeDocs.length > 0 && nomineeDocs.every((doc) => doc.is_verified);
+          
+          return {
+            id: pn.id.toString(),
+            nominee: {
+              id: pn.nominee.id.toString(),
+              name: pn.nominee.name,
+              relationship: pn.nominee.relationship,
+              mobileNumber: pn.nominee.mobile_number,
+              email: pn.nominee.email,
+              dob: pn.nominee.dob ? pn.nominee.dob.toISOString().split('T')[0] : null,
+              address: pn.nominee.address,
+              status: pn.nominee.status,
+              isVerified,
+              documentsCount: nomineeDocs.length,
+              verifiedDocumentsCount: nomineeDocs.filter((doc) => doc.is_verified).length,
+            },
+            sharePercentage: pn.share_percentage.toString(),
+          };
+        });
+
+        return {
+          id: policy.id.toString(),
+          policyNumber: policy.policy_number,
+          sumAssured: policy.sum_assured.toString(),
+          status: policy.status,
+          uploadedAt: policy.uploaded_at,
+          user: {
+            id: policy.user.id.toString(),
+            name: policy.user.name,
+            email: policy.user.email,
+            mobileNumber: policy.user.mobile_number,
+          },
+          insuranceCompany: {
+            id: policy.insurance_company.id.toString(),
+            name: policy.insurance_company.name,
+          },
+          documents: policy.documents.map((doc) => ({
+            id: doc.id.toString(),
+            documentType: doc.document_type,
+            documentName: doc.document_name,
+            documentUrl: doc.document_url,
+            isVerified: doc.is_verified,
+            uploadedAt: doc.uploaded_at,
+            verifiedAt: doc.verified_at,
+            rejectedAt: doc.rejected_at,
+          })),
+          verifiedDocuments: policy.documents.filter((doc) => doc.is_verified).map((doc) => doc.id.toString()),
+          nominees,
+        };
+      }),
       pagination: {
         page,
         limit,
