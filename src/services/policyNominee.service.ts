@@ -1,6 +1,7 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError, ConflictError } from '../utils/errors';
 import { updatePolicyStatusBasedOnCompleteness } from './policy.service';
+import logger from '../config/logger';
 
 export interface LinkNomineeToPolicyData {
   nomineeId: string;
@@ -95,6 +96,19 @@ export const linkNomineeToPolicy = async (
       },
     },
   });
+
+  // If policy is ACCEPTED, change it to PENDING when a new nominee is added
+  if (policy.status === 'ACCEPTED') {
+    await prisma.policy.update({
+      where: { id: BigInt(policyId) },
+      data: { status: 'PENDING' },
+    });
+    logger.info('Policy status changed from ACCEPTED to PENDING due to new nominee', {
+      policyId,
+      nomineeId: data.nomineeId,
+      userId,
+    });
+  }
 
   // Check and update policy status based on completeness
   await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
@@ -191,6 +205,19 @@ export const updateNomineeShare = async (
     },
   });
 
+  // If policy is ACCEPTED, change it to PENDING when nominee share is changed
+  if (policy.status === 'ACCEPTED') {
+    await prisma.policy.update({
+      where: { id: BigInt(policyId) },
+      data: { status: 'PENDING' },
+    });
+    logger.info('Policy status changed from ACCEPTED to PENDING due to nominee share change', {
+      policyId,
+      nomineeId,
+      userId,
+    });
+  }
+
   // Check and update policy status based on completeness (share percentage change doesn't affect completeness, but check anyway)
   await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
     // Don't fail the request if status update fails
@@ -242,6 +269,19 @@ export const unlinkNomineeFromPolicy = async (
   await prisma.policyNominee.delete({
     where: { id: link.id },
   });
+
+  // If policy is ACCEPTED, change it to PENDING when a nominee is unlinked
+  if (policy.status === 'ACCEPTED') {
+    await prisma.policy.update({
+      where: { id: BigInt(policyId) },
+      data: { status: 'PENDING' },
+    });
+    logger.info('Policy status changed from ACCEPTED to PENDING due to nominee unlink', {
+      policyId,
+      nomineeId,
+      userId,
+    });
+  }
 
   // Check and update policy status based on completeness (after unlinking nominee)
   await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
