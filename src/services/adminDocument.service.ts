@@ -783,6 +783,48 @@ export const acceptNomineeWithoutDocuments = async (nomineeId: string, adminId: 
   };
 };
 
+export const deleteUserDocumentByAdmin = async (documentId: string, adminId: string) => {
+  const document = await prisma.userDocument.findUnique({
+    where: { id: BigInt(documentId) },
+    include: { user: true },
+  });
+
+  if (!document) {
+    throw new NotFoundError('User document not found');
+  }
+
+  // Extract filename from URL
+  const urlParts = document.document_url.split('/');
+  const filename = urlParts[urlParts.length - 1];
+
+  // Delete file from filesystem
+  const { deleteFile } = await import('../utils/fileUpload');
+  try {
+    deleteFile(filename, 'users');
+  } catch (error) {
+    logger.warn('Failed to delete file from filesystem', { filename, error });
+    // Continue with database deletion even if file deletion fails
+  }
+
+  // Delete from database
+  await prisma.userDocument.delete({
+    where: { id: BigInt(documentId) },
+  });
+
+  logger.info('User document deleted by admin', {
+    documentId,
+    adminId,
+    userId: document.user_id.toString(),
+    documentType: document.document_type,
+  });
+
+  return {
+    message: 'Document deleted successfully',
+    documentId: document.id.toString(),
+    userId: document.user_id.toString(),
+  };
+};
+
 export const rejectNomineeWithoutDocuments = async (nomineeId: string, adminId: string) => {
   const nominee = await prisma.nominee.findUnique({
     where: { id: BigInt(nomineeId) },

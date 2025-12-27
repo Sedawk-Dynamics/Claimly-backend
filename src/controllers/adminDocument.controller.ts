@@ -16,6 +16,7 @@ import {
   rejectPolicyWithoutDocuments,
   acceptNomineeWithoutDocuments,
   rejectNomineeWithoutDocuments,
+  deleteUserDocumentByAdmin,
 } from '../services/adminDocument.service';
 
 export const verifyDocumentController = async (
@@ -268,6 +269,43 @@ export const rejectEntityWithoutDocumentsController = async (
         res.status(400).json({
           success: false,
           error: 'Invalid entityType. Must be one of: user, policy, nominee',
+        });
+        return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteDocumentByAdminController = async (
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.admin) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const { documentType } = req.body; // 'user', 'policy', or 'nominee'
+
+    let result;
+
+    switch (documentType) {
+      case 'user':
+        result = await deleteUserDocumentByAdmin(id, req.admin.adminId);
+        break;
+      default:
+        res.status(400).json({
+          success: false,
+          error: 'Invalid documentType. Currently only "user" documents can be deleted by admin.',
         });
         return;
     }

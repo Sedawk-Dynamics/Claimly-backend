@@ -22,6 +22,7 @@ export interface KycDocumentStatus {
 
 export interface KycStatus {
   status: 'COMPLETED' | 'PENDING';
+  kycStatus?: 'REJECTED' | 'ACCEPTED' | 'PENDING' | 'DRAFT';
   hasAadhaar: boolean;
   hasPan: boolean;
   missingDocuments: Array<'AADHAAR' | 'PAN'>;
@@ -325,8 +326,45 @@ export const getUserKycStatus = async (userId: string): Promise<KycStatus> => {
   if (!hasAadhaar) missingDocuments.push('AADHAAR');
   if (!hasPan) missingDocuments.push('PAN');
 
+  // Calculate KYC status using the same logic as admin
+  const documentTypes: Array<'AADHAAR' | 'PAN'> = ['AADHAAR', 'PAN'];
+  const kycDocuments = documents.filter((doc) => 
+    documentTypes.includes(doc.document_type as 'AADHAAR' | 'PAN')
+  );
+  
+  // Check which document types are present
+  const hasAadhaarDoc = kycDocuments.some((doc) => doc.document_type === 'AADHAAR');
+  const hasPanDoc = kycDocuments.some((doc) => doc.document_type === 'PAN');
+  
+  // DRAFT: Only 1 document uploaded and 1 not uploaded, or no documents at all
+  let kycStatus: 'REJECTED' | 'ACCEPTED' | 'PENDING' | 'DRAFT' = 'DRAFT';
+  
+  if (hasAadhaarDoc && hasPanDoc) {
+    // Get verified and rejected counts
+    const verifiedDocs = kycDocuments.filter((doc) => doc.is_verified);
+    const rejectedDocs = kycDocuments.filter((doc) => doc.rejected_at !== null);
+    const totalDocs = kycDocuments.length;
+    
+    // REJECTED: All documents are rejected
+    if (rejectedDocs.length === totalDocs && totalDocs > 0) {
+      kycStatus = 'REJECTED';
+    }
+    // ACCEPTED: All documents are verified
+    else if (verifiedDocs.length === totalDocs && totalDocs > 0) {
+      kycStatus = 'ACCEPTED';
+    }
+    // PENDING: Any other case (includes 1 accepted and 1 rejected, or partially verified)
+    else {
+      kycStatus = 'PENDING';
+    }
+  }
+
+  // Map status to COMPLETED/PENDING for backward compatibility
+  const status = kycStatus === 'ACCEPTED' ? 'COMPLETED' : 'PENDING';
+
   return {
-    status: hasVerifiedAadhaar && hasVerifiedPan ? 'COMPLETED' : 'PENDING',
+    status,
+    kycStatus,
     hasAadhaar,
     hasPan,
     missingDocuments,
