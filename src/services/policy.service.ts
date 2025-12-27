@@ -89,8 +89,9 @@ const derivePolicyStatusFromNominees = (
     return 'REJECTED';
   }
 
+  // If no nominees are added, always return DRAFT regardless of baseStatus
   if (!policyNominees || policyNominees.length === 0) {
-    return baseStatus;
+    return 'DRAFT';
   }
 
   let hasPendingNominee = false;
