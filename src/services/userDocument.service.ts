@@ -89,6 +89,7 @@ export const getUserDocuments = async (userId: string) => {
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
       verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     }));
   } catch (error) {
     // Log the error for debugging
