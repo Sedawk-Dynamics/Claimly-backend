@@ -129,7 +129,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idToken\": \"firebase-id-token-from-client\",\n  \"mobileNumber\": \"9876543210\",\n  \"name\": \"John Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"deviceId\": \"device-12345\",\n  \"referralCode\": \"ABC123XYZ\"\n}",
+              "raw": "{\n  \"idToken\": \"firebase-id-token-from-client\",\n  \"mobileNumber\": \"9876543210\",\n  \"name\": \"John Doe\",\n  \"dob\": \"1990-01-15\",\n  \"email\": \"john.doe@example.com\",\n  \"deviceId\": \"device-12345\",\n  \"referralCode\": \"ABC123XYZ\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

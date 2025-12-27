@@ -97,6 +97,46 @@ docker run -d \
   claimly-backend
 ```
 
+### Persistent uploads (important)
+
+By default the Docker image contains whatever `uploads/` directory existed at build time. Files uploaded at runtime are stored inside the container filesystem and will be lost on container restart or redeploy unless you persist them.
+
+Recommended options:
+
+- Mount a host volume (simple, works for single-instance deploys):
+
+```bash
+docker run -d \
+  --name claimly-backend \
+  -p 3000:3000 \
+  --env-file .env \
+  -v $(pwd)/uploads:/app/uploads \
+  claimly-backend
+```
+
+- Use Docker Compose with a named volume:
+
+```yaml
+version: '3.8'
+services:
+  claimly-backend:
+    image: claimly-backend
+    ports:
+      - "3000:3000"
+    env_file: .env
+    volumes:
+      - uploads-data:/app/uploads
+
+volumes:
+  uploads-data:
+```
+
+- For production scale or multi-replica setups, use external object storage (recommended):
+  - Store uploads in S3/GCS and serve them via signed URLs or a CDN.
+  - Update application logic to upload/read from S3 (or use a proxy service) rather than relying on the container filesystem.
+
+If you continue to see `File not found` with an empty uploads directory in production, ensure your deployment mounts the volume correctly or switch to object storage. The server now logs a warning at startup when it detects empty/missing `uploads` directories in production.
+
 ## Health Check
 
 The application includes a health check endpoint:

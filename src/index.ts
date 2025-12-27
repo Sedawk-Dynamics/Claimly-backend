@@ -118,6 +118,37 @@ try {
   });
 }
 
+// In production warn if uploads appear ephemeral or empty — common misconfiguration
+try {
+  if (env.NODE_ENV === 'production') {
+    ['users', 'policies', 'nominees'].forEach((subdir) => {
+      const subdirPath = path.join(uploadsPath, subdir);
+      if (fs.existsSync(subdirPath)) {
+        const files = fs.readdirSync(subdirPath);
+        if (files.length === 0) {
+          logger.warn('Uploads subdirectory exists but is empty in production - verify persistent storage', {
+            subdir,
+            path: subdirPath,
+            uploadsPath,
+            suggestion: 'Mount a persistent volume for /app/uploads or use external object storage (S3/GCS).',
+          });
+        }
+      } else {
+        logger.warn('Uploads subdirectory missing in production - consider creating/mounting persistent storage', {
+          subdir,
+          path: subdirPath,
+          uploadsPath,
+          suggestion: 'Mount a persistent volume for /app/uploads or use external object storage (S3/GCS).',
+        });
+      }
+    });
+  }
+} catch (err) {
+  logger.error('Error while checking uploads persistence hints', {
+    error: err instanceof Error ? err.message : 'Unknown error',
+  });
+}
+
 // Serve static files from uploads directory
 app.use('/uploads', express.static(uploadsPath, {
   setHeaders: (res, filePath) => {
