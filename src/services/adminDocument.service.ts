@@ -1121,18 +1121,15 @@ export const getKycDocuments = async (
         // Calculate KYC status based on ALL documents (not filtered)
         const kycStatus = calculateKycStatus(user.documents, documentTypes);
         
-        // Filter documents for response based on status filter
-        const filteredDocuments = status === 'pending' 
-          ? user.documents.filter((doc) => doc.rejected_at === null)
-          : user.documents;
-        
+        // Always return ALL documents so admin can see the complete picture
+        // This allows admin to see rejected documents even when one is accepted
         return {
           id: user.id.toString(),
           name: user.name,
           email: user.email,
           mobileNumber: user.mobile_number,
           status: kycStatus,
-          documents: filteredDocuments.map((doc) => ({
+          documents: user.documents.map((doc) => ({
             id: doc.id.toString(),
             documentType: doc.document_type,
             documentName: doc.document_name,
