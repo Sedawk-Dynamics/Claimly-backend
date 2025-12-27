@@ -308,6 +308,8 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         const parsed = new Date(data.dob);
         if (!isNaN(parsed.getTime())) {
           updateData.dob = parsed;
+        } else {
+          logger.warn('Invalid DOB provided in update', { dob: data.dob });
         }
       }
 
@@ -325,11 +327,20 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         }
       }
 
+      logger.info('Updating existing user details', {
+        userId: user.id.toString(),
+        updateDataKeys: Object.keys(updateData),
+        hasDob: !!updateData.dob
+      });
+
       if (Object.keys(updateData).length > 0) {
         user = await prisma.user.update({
           where: { id: user.id },
           data: updateData,
         });
+        logger.info('User updated successfully', { dob: user.dob });
+      } else {
+        logger.info('No updates required for user');
       }
     }
 
