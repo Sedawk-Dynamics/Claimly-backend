@@ -3438,6 +3438,146 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Admin Documents: Verify Entity Details",
+      "item": [
+        {
+          "name": "Verify Entity Details (policy)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entityType\": \"policy\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/documents/verify-details/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "documents",
+                "verify-details",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "policy-id-here"
+                }
+              ]
+            },
+            "description": "Mark a policy as 'details verified' via admin action. Body: { entityType: 'policy' }. This endpoint also supports 'nominee' and 'user' as entityType. When used for policies it will mark the policy details as accepted and may change policy status to ACCEPTED if all documents/nominees are verified."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Entity Details (nominee)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entityType\": \"nominee\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/documents/verify-details/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "documents",
+                "verify-details",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "nominee-id-here"
+                }
+              ]
+            },
+            "description": "Admin verifies nominee details (sets nominee status to ACCEPTED). Use entityType 'nominee'."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Entity Details (user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entityType\": \"user\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/documents/verify-details/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "documents",
+                "verify-details",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "user-id-here"
+                }
+              ]
+            },
+            "description": "Admin verifies user details (accepts user without requiring additional documents). Use entityType 'user'."
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [

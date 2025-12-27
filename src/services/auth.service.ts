@@ -12,6 +12,7 @@ export interface VerifyOTPRequest {
   email?: string;
   deviceId?: string;
   referralCode?: string;
+  dob?: string;
 }
 
 export interface AuthResponse {
@@ -22,6 +23,7 @@ export interface AuthResponse {
     email: string | null;
     mobileNumber: string;
     subscriptionStatus: string;
+    dob?: string | null;
   };
 }
 
@@ -223,6 +225,15 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           subscription_status: 'INACTIVE',
         };
 
+        // If date of birth provided, validate and include it
+        if (data.dob) {
+          const parsed = new Date(data.dob);
+          if (isNaN(parsed.getTime())) {
+            throw new ValidationError('Invalid dob format. Use YYYY-MM-DD');
+          }
+          userData.dob = parsed;
+        }
+
         // Only add referral code fields if column exists
         if (referralCodeColumnExists) {
           if (referralCode) {
@@ -273,6 +284,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         email: user.email,
         mobileNumber: user.mobile_number,
         subscriptionStatus: user.subscription_status,
+        dob: user.dob ? user.dob.toISOString().split('T')[0] : undefined,
       },
     };
   } catch (error) {

@@ -3,7 +3,7 @@ import { verifyOTP } from '../services/auth.service';
 
 export const verifyOTPController = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { idToken, mobileNumber, name, email, deviceId, referralCode } = req.body;
+    const { idToken, mobileNumber, name, email, deviceId, referralCode, dob } = req.body;
 
     // Clean up email - convert empty string to undefined
     const cleanedEmail = email && email.trim() !== '' ? email.trim() : undefined;
@@ -23,6 +23,7 @@ export const verifyOTPController = async (req: Request, res: Response, next: Nex
       email: cleanedEmail,
       deviceId,
       referralCode,
+      dob,
     });
 
     res.status(200).json({
