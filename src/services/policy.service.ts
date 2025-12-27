@@ -285,6 +285,8 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
       rejectedAt: doc.rejected_at,
     })),
   };
+
+}
   
   logger.info('Policy created successfully', { policyId: policy.id.toString(), userId });
 
