@@ -22,6 +22,10 @@ export const verifyOTPSchema = z.object({
       .transform((val) => normalizePhoneNumber(val))
       .pipe(z.string().regex(/^[0-9]{10}$/, 'Invalid mobile number format. Must be 10 digits.')),
     name: z.string().optional(),
+    dob: z.preprocess(
+      (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
+      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional()
+    ),
     email: z.preprocess(
       (val) => {
         if (val === '' || val === null || val === undefined) {
