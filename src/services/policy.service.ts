@@ -635,6 +635,29 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
       id: BigInt(policyId),
       user_id: BigInt(userId),
     },
+    include: {
+      insurance_company: {
+        select: {
+          id: true,
+          name: true,
+          contact_email: true,
+          contact_number: true,
+        },
+      },
+      policy_nominees: {
+        include: {
+          nominee: {
+            select: {
+              id: true,
+              name: true,
+              relationship: true,
+              status: true,
+            },
+          },
+        },
+      },
+      documents: true,
+    },
   });
 
   if (!existingPolicy) {
@@ -679,19 +702,9 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
   // Allow explicit DRAFT only; otherwise compute status based on completeness after update.
   if (data.status === 'DRAFT') updateData.status = 'DRAFT';
 
-  const updatedPolicy = await prisma.policy.update({
+  await prisma.policy.update({
     where: { id: BigInt(policyId) },
     data: updateData,
-    include: {
-      insurance_company: {
-        select: {
-          id: true,
-          name: true,
-          contact_email: true,
-          contact_number: true,
-        },
-      },
-    },
   });
 
   // After updating basic fields, check completeness and update status accordingly
@@ -704,42 +717,76 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
     });
   });
 
-  // Fetch the policy again to get the updated status
+  // Fetch the policy again to get the updated status and nominees
   const policyWithStatus = await prisma.policy.findUnique({
     where: { id: BigInt(policyId) },
-    select: {
-      status: true,
+    include: {
+      insurance_company: {
+        select: {
+          id: true,
+          name: true,
+          contact_email: true,
+          contact_number: true,
+        },
+      },
       policy_nominees: {
         include: {
           nominee: {
             select: {
+              id: true,
+              name: true,
+              relationship: true,
               status: true,
             },
           },
         },
       },
+      documents: true,
     },
   });
 
+  if (!policyWithStatus) {
+    throw new NotFoundError('Policy not found after update');
+  }
+
   const resolvedStatus = derivePolicyStatusFromNominees(
-    policyWithStatus?.status || updatedPolicy.status,
-    policyWithStatus?.policy_nominees
+    policyWithStatus.status || 'DRAFT',
+    policyWithStatus.policy_nominees
   );
 
   return {
-    id: updatedPolicy.id.toString(),
+    id: policyWithStatus.id.toString(),
     insuranceCompany: {
-      id: updatedPolicy.insurance_company.id.toString(),
-      name: updatedPolicy.insurance_company.name,
-      contactEmail: updatedPolicy.insurance_company.contact_email,
-      contactNumber: updatedPolicy.insurance_company.contact_number,
+      id: policyWithStatus.insurance_company.id.toString(),
+      name: policyWithStatus.insurance_company.name,
+      contactEmail: policyWithStatus.insurance_company.contact_email,
+      contactNumber: policyWithStatus.insurance_company.contact_number,
     },
-    policyNumber: updatedPolicy.policy_number,
-    sumAssured: updatedPolicy.sum_assured.toString(),
+    policyNumber: policyWithStatus.policy_number,
+    sumAssured: policyWithStatus.sum_assured.toString(),
     status: resolvedStatus,
-    uploadedAt: updatedPolicy.uploaded_at,
+    uploadedAt: policyWithStatus.uploaded_at,
+    nominees: policyWithStatus.policy_nominees.map((pn) => ({
+      id: pn.id.toString(),
+      nominee: {
+        id: pn.nominee.id.toString(),
+        name: pn.nominee.name,
+        relationship: pn.nominee.relationship,
+        status: pn.nominee.status,
+      },
+      sharePercentage: pn.share_percentage?.toString?.() ?? '',
+    })),
+    documents: policyWithStatus.documents.map((doc) => ({
+      id: doc.id.toString(),
+      documentType: doc.document_type,
+      documentName: doc.document_name,
+      documentUrl: doc.document_url,
+      isVerified: doc.is_verified,
+      uploadedAt: doc.uploaded_at,
+      verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
+    })),
   };
-};
 
 export const deletePolicy = async (userId: string, policyId: string) => {
   const policy = await prisma.policy.findFirst({
