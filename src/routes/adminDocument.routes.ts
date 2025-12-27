@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticateAdmin } from '../middlewares/adminAuth.middleware';
 import { validate, verifyDocumentSchema, rejectDocumentSchema } from '../utils/validation';
-import { verifyDocumentController, rejectDocumentController, getKycDocumentsController, getPolicyDocumentsController, getNomineeDocumentsController, acceptEntityWithoutDocumentsController, rejectEntityWithoutDocumentsController, deleteDocumentByAdminController, deleteKycDocumentsByAdminController, deleteUserByAdminController, deletePolicyByAdminController, deleteNomineeByAdminController } from '../controllers/adminDocument.controller';
+import { verifyDocumentController, rejectDocumentController, getKycDocumentsController, getPolicyDocumentsController, getNomineeDocumentsController, acceptEntityWithoutDocumentsController, rejectEntityWithoutDocumentsController, deleteDocumentByAdminController, deleteKycDocumentsByAdminController, deleteUserByAdminController, deletePolicyByAdminController, deleteNomineeByAdminController, verifyEntityDetailsController } from '../controllers/adminDocument.controller';
 
 const router = Router();
 
