@@ -189,11 +189,7 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
     const brandLogoAvailable = fs.existsSync(CLAIMLY_LOGO_PATH);
     if (brandLogoAvailable) {
       doc.image(CLAIMLY_LOGO_PATH, 50, yPos, { fit: [90, 90] });
-      doc.fontSize(22).fillColor('#0f172a').text('Claimly', 160, yPos + 10);
-      doc.fontSize(12).fillColor('#0ea5e9').text('Settle Your Claim Easily!', 160, yPos + 35);
     } else {
-      doc.fontSize(28).fillColor('#0ea5e9').text('Claimly', 50, yPos, { align: 'left' });
-      doc.fontSize(12).fillColor('#0ea5e9').text('Settle Your Claim Easily!', 50, yPos + 35);
     }
     doc
       .fontSize(20)
