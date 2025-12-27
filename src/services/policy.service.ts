@@ -85,16 +85,18 @@ export const derivePolicyStatusFromNominees = (
   baseStatus: PolicyStatusType,
   policyNominees?: PolicyNomineeWithStatus[]
 ): PolicyStatusType => {
-  if (baseStatus === 'REJECTED') {
-    return 'REJECTED';
+  // Always preserve REJECTED and ACCEPTED statuses regardless of nominees
+  if (baseStatus === 'REJECTED' || baseStatus === 'ACCEPTED') {
+    return baseStatus;
   }
 
-  // If no nominees are added, always return DRAFT regardless of baseStatus
   // Check for null, undefined, empty array, or array with only null/undefined entries
   const hasNominees = policyNominees && 
     policyNominees.length > 0 && 
     policyNominees.some(pn => pn && pn.nominee);
   
+  // If no nominees are added and status is DRAFT or PENDING, return DRAFT
+  // But preserve ACCEPTED and REJECTED statuses (handled above)
   if (!hasNominees) {
     return 'DRAFT';
   }

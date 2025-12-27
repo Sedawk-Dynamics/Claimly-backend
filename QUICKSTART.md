@@ -6,7 +6,7 @@
 
 Make sure you have installed:
 - **Node.js** (v18 or higher) - [Download](https://nodejs.org/)
-- **MySQL** database server - [Download](https://dev.mysql.com/downloads/)
+- **PostgreSQL** database server - [Download](https://www.postgresql.org/download/)
 - **Firebase project** with Authentication enabled
 
 Check Node.js version:
@@ -39,13 +39,13 @@ Then add the following content to `.env`:
 
 ```env
 # Database Configuration
-DATABASE_URL="mysql://user:password@localhost:3306/claimly"
+DATABASE_URL="postgresql://user:password@localhost:5432/claimly"
 
-# Replace with your actual MySQL credentials:
-# - user: your MySQL username (usually 'root')
-# - password: your MySQL password
-# - localhost: your MySQL host (or '127.0.0.1')
-# - 3306: MySQL port (default is 3306)
+# Replace with your actual PostgreSQL credentials:
+# - user: your PostgreSQL username (usually 'postgres')
+# - password: your PostgreSQL password
+# - localhost: your PostgreSQL host (or '127.0.0.1')
+# - 5432: PostgreSQL port (default is 5432)
 # - claimly: your database name
 
 # JWT Configuration
@@ -64,25 +64,25 @@ LOG_LEVEL=info
 ```
 
 **Important Notes:**
-- Replace `user:password` in `DATABASE_URL` with your actual MySQL credentials
+- Replace `user:password` in `DATABASE_URL` with your actual PostgreSQL credentials
 - Generate a strong random string for `JWT_SECRET` (you can use: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
 - For Firebase, download the service account JSON from Firebase Console and copy the values
 
-### 4. Set Up MySQL Database
+### 4. Set Up PostgreSQL Database
 
-**Option A: Using MySQL Command Line**
+**Option A: Using PostgreSQL Command Line (psql)**
 ```bash
-# Login to MySQL
-mysql -u root -p
+# Login to PostgreSQL
+psql -U postgres
 
 # Create database
 CREATE DATABASE claimly;
 
-# Exit MySQL
-exit;
+# Exit PostgreSQL
+\q
 ```
 
-**Option B: Using MySQL Workbench or phpMyAdmin**
+**Option B: Using pgAdmin or another PostgreSQL client**
 - Create a new database named `claimly`
 
 ### 5. Run Database Migrations
@@ -93,7 +93,7 @@ npm run migrate
 ```
 
 **Note:** If you get a connection error, make sure:
-- MySQL server is running
+- PostgreSQL server is running
 - Your `.env` file has correct `DATABASE_URL`
 - The database `claimly` exists
 
@@ -161,9 +161,9 @@ npm start
 
 ### Error: Can't reach database server
 **Solution:**
-- Make sure MySQL server is running
+- Make sure PostgreSQL server is running
 - Check your `DATABASE_URL` in `.env`
-- Verify MySQL is accessible: `mysql -u root -p`
+- Verify PostgreSQL is accessible: `psql -U postgres -d claimly`
 
 ### Error: Module not found
 **Solution:**

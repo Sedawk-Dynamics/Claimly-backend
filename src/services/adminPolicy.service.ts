@@ -2,6 +2,7 @@ import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import logger from '../config/logger';
 import { derivePolicyStatusFromNominees } from './policy.service';
+import { sendAdminActionNotification } from './notification.service';
 
 export const acceptPolicy = async (policyId: string, adminId: string) => {
   const policy = await prisma.policy.findUnique({
@@ -40,6 +41,13 @@ export const acceptPolicy = async (policyId: string, adminId: string) => {
         },
       },
     },
+  });
+
+  // Send notification to user
+  await sendAdminActionNotification(adminId, policy.user_id.toString(), 'POLICY_ACCEPTED', {
+    policyNumber: policy.policy_number,
+  }).catch((err) => {
+    logger.warn('Failed to send POLICY_ACCEPTED notification', { policyId, err });
   });
 
   logger.info('Policy accepted', {

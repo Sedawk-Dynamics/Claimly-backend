@@ -184,7 +184,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         let referralCodeColumnExists = false;
         try {
           // Try to query referral_code to see if column exists
-          await prisma.$queryRaw`SELECT referral_code FROM \`User\` LIMIT 1`;
+          await prisma.$queryRaw`SELECT referral_code FROM "User" LIMIT 1`;
           referralCodeColumnExists = true;
         } catch (error: any) {
           // Column doesn't exist, skip referral code logic

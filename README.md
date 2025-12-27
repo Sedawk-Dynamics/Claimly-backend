@@ -7,7 +7,7 @@ Node.js + Express + Prisma + TypeScript backend for Claimley application.
 ### Prerequisites
 
 - Node.js (v18 or higher)
-- MySQL database
+- PostgreSQL database
 - Firebase project with Authentication enabled
 
 ### Installation
@@ -22,7 +22,7 @@ Create a `.env` file in the root directory with the following variables:
 
 ```env
 # Database Configuration
-DATABASE_URL="mysql://user:password@localhost:3306/claimly"
+DATABASE_URL="postgresql://user:password@localhost:5432/claimly"
 
 # JWT Configuration
 JWT_SECRET="your_jwt_secret_change_this_in_production"
@@ -244,7 +244,7 @@ src/
 - **Express** - Web framework
 - **TypeScript** - Type safety
 - **Prisma** - ORM and database toolkit
-- **MySQL** - Database
+- **PostgreSQL** - Database
 - **Firebase Admin SDK** - OTP verification
 - **JWT** - Token-based authentication
 

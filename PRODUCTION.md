@@ -5,7 +5,7 @@ This guide covers deploying the Claimly backend to production.
 ## Prerequisites
 
 - Node.js 20+ installed
-- MySQL database (production-ready instance)
+- PostgreSQL database (production-ready instance)
 - Firebase project with service account configured
 - Environment variables configured
 
@@ -15,7 +15,7 @@ Create a `.env` file in the root directory with the following variables:
 
 ```env
 # Database Configuration
-DATABASE_URL="mysql://user:password@host:3306/claimly"
+DATABASE_URL="postgresql://user:password@host:5432/claimly"
 
 # JWT Configuration
 # Generate a strong secret: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -218,7 +218,7 @@ Expected response:
 ### Database Backups
 Set up regular database backups using your database provider's tools or:
 ```bash
-mysqldump -u user -p claimly > backup_$(date +%Y%m%d).sql
+pg_dump -U user -d claimly > backup_$(date +%Y%m%d).sql
 ```
 
 ### Application Logs

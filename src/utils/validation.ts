@@ -24,7 +24,7 @@ export const verifyOTPSchema = z.object({
     name: z.string().optional(),
     dob: z.preprocess(
       (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
-      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of Birth is required and must be in YYYY-MM-DD format')
+      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date of Birth must be in YYYY-MM-DD format').optional()
     ),
     email: z.preprocess(
       (val) => {

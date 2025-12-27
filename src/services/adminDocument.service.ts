@@ -1030,7 +1030,7 @@ export const getKycDocuments = async (
   let whereClause: any;
   
   // Base search filter for user name, email, or mobile number
-  // MySQL's default collation (utf8mb4_unicode_ci) is case-insensitive, so contains works without mode
+  // PostgreSQL's default collation is case-sensitive, but Prisma's contains performs case-insensitive search
   // Handle email as nullable field - only search if email is not null
   const searchFilter = search && search.trim()
     ? {

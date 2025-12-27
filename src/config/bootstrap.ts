@@ -11,10 +11,11 @@ const DEFAULT_ADMIN_ROLE = 'SUPER_ADMIN';
 const ensureAdminTableExists = async (): Promise<void> => {
   try {
     const result = await prisma.$queryRaw<Array<{ tableName: string }>>`
-      SELECT TABLE_NAME as tableName
-      FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'Admin'
+      SELECT relname as "tableName"
+      FROM pg_catalog.pg_class
+      WHERE relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'public')
+        AND relname = 'Admin'
+        AND relkind = 'r'
     `;
 
     if (result.length > 0) {
@@ -23,40 +24,67 @@ const ensureAdminTableExists = async (): Promise<void> => {
 
     logger.warn('Admin table missing. Creating table automatically.');
 
+    // Create AdminRole enum type if it doesn't exist
     await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS \`Admin\` (
-        \`id\` BIGINT NOT NULL AUTO_INCREMENT,
-        \`name\` VARCHAR(191) NOT NULL,
-        \`email\` VARCHAR(191) NOT NULL,
-        \`password_hash\` VARCHAR(191) NOT NULL,
-        \`role\` ENUM('SUPER_ADMIN', 'STAFF') NOT NULL DEFAULT 'STAFF',
-        \`created_at\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-        \`updated_at\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-        UNIQUE INDEX \`Admin_email_key\`(\`email\`),
-        PRIMARY KEY (\`id\`)
-      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+      DO $$ BEGIN
+        CREATE TYPE "AdminRole" AS ENUM ('SUPER_ADMIN', 'STAFF');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "Admin" (
+        "id" BIGSERIAL NOT NULL,
+        "name" VARCHAR(191) NOT NULL,
+        "email" VARCHAR(191) NOT NULL,
+        "password_hash" VARCHAR(191) NOT NULL,
+        "role" "AdminRole" NOT NULL DEFAULT 'STAFF',
+        "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "Admin_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "Admin_email_key" UNIQUE ("email")
+      );
+    `);
+
+    // Create trigger to update updated_at timestamp
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION update_updated_at_column()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW."updated_at" = CURRENT_TIMESTAMP;
+        RETURN NEW;
+      END;
+      $$ language 'plpgsql';
+
+      DROP TRIGGER IF EXISTS update_admin_updated_at ON "Admin";
+      CREATE TRIGGER update_admin_updated_at
+        BEFORE UPDATE ON "Admin"
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
     `);
 
     const adminActionTable = await prisma.$queryRaw<Array<{ tableName: string }>>`
-      SELECT TABLE_NAME as tableName
-      FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'AdminAction'
+      SELECT relname as "tableName"
+      FROM pg_catalog.pg_class
+      WHERE relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'public')
+        AND relname = 'AdminAction'
+        AND relkind = 'r'
     `;
 
     if (adminActionTable.length > 0) {
       const adminActionConstraint = await prisma.$queryRaw<Array<{ constraintName: string }>>`
-        SELECT CONSTRAINT_NAME as constraintName
-        FROM information_schema.REFERENTIAL_CONSTRAINTS
-        WHERE CONSTRAINT_SCHEMA = DATABASE()
-          AND CONSTRAINT_NAME = 'AdminAction_admin_id_fkey'
+        SELECT conname as "constraintName"
+        FROM pg_catalog.pg_constraint
+        WHERE connamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'public')
+          AND conname = 'AdminAction_admin_id_fkey'
       `;
 
       if (adminActionConstraint.length === 0) {
       await prisma.$executeRawUnsafe(`
-        ALTER TABLE \`AdminAction\`
-        ADD CONSTRAINT \`AdminAction_admin_id_fkey\`
-        FOREIGN KEY (\`admin_id\`) REFERENCES \`Admin\`(\`id\`)
+        ALTER TABLE "AdminAction"
+        ADD CONSTRAINT "AdminAction_admin_id_fkey"
+        FOREIGN KEY ("admin_id") REFERENCES "Admin"("id")
         ON DELETE RESTRICT
         ON UPDATE CASCADE
       `);
@@ -64,25 +92,26 @@ const ensureAdminTableExists = async (): Promise<void> => {
     }
 
     const deceasedAlertTable = await prisma.$queryRaw<Array<{ tableName: string }>>`
-      SELECT TABLE_NAME as tableName
-      FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'DeceasedAlert'
+      SELECT relname as "tableName"
+      FROM pg_catalog.pg_class
+      WHERE relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'public')
+        AND relname = 'DeceasedAlert'
+        AND relkind = 'r'
     `;
 
     if (deceasedAlertTable.length > 0) {
       const deceasedConstraint = await prisma.$queryRaw<Array<{ constraintName: string }>>`
-        SELECT CONSTRAINT_NAME as constraintName
-        FROM information_schema.REFERENTIAL_CONSTRAINTS
-        WHERE CONSTRAINT_SCHEMA = DATABASE()
-          AND CONSTRAINT_NAME = 'DeceasedAlert_verified_by_fkey'
+        SELECT conname as "constraintName"
+        FROM pg_catalog.pg_constraint
+        WHERE connamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'public')
+          AND conname = 'DeceasedAlert_verified_by_fkey'
       `;
 
       if (deceasedConstraint.length === 0) {
       await prisma.$executeRawUnsafe(`
-        ALTER TABLE \`DeceasedAlert\`
-        ADD CONSTRAINT \`DeceasedAlert_verified_by_fkey\`
-        FOREIGN KEY (\`verified_by\`) REFERENCES \`Admin\`(\`id\`)
+        ALTER TABLE "DeceasedAlert"
+        ADD CONSTRAINT "DeceasedAlert_verified_by_fkey"
+        FOREIGN KEY ("verified_by") REFERENCES "Admin"("id")
         ON DELETE SET NULL
         ON UPDATE CASCADE
       `);

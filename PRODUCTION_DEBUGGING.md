@@ -45,7 +45,7 @@ FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.c
 ### 2. **Database Connection**
 Check that `DATABASE_URL` is correctly set:
 ```env
-DATABASE_URL="mysql://user:password@host:3306/database"
+DATABASE_URL="postgresql://user:password@host:5432/database"
 ```
 
 **Common Issues:**
