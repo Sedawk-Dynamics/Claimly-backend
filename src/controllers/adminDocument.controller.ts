@@ -66,6 +66,43 @@ export const verifyDocumentController = async (
   }
 };
 
+export const verifyEntityDetailsController = async (
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.admin) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const { entityType } = req.body; // 'user', 'policy', or 'nominee'
+
+    let result;
+
+    switch (entityType) {
+      case 'policy':
+        result = await verifyPolicyDetails(id, req.admin.adminId);
+        break;
+      default:
+        res.status(400).json({
+          success: false,
+          error: 'Invalid entityType. Currently only "policy" is supported for details verification.',
+        });
+        return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const rejectDocumentController = async (
   req: AdminRequest,
   res: Response,

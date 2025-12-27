@@ -869,6 +869,50 @@ export const acceptNomineeWithoutDocuments = async (nomineeId: string, adminId: 
   };
 };
 
+/**
+ * Admin verifies policy details (non-document verification) via button in admin panel.
+ * This marks the policy ACCEPTED regardless of document placeholders. Useful when admin
+ * validates fields like policy number, sum assured, company etc.
+ */
+export const verifyPolicyDetails = async (policyId: string, adminId: string) => {
+  const policy = await prisma.policy.findUnique({
+    where: { id: BigInt(policyId) },
+    include: { user: true },
+  });
+
+  if (!policy) {
+    throw new NotFoundError('Policy not found');
+  }
+
+  if (policy.status === 'ACCEPTED') {
+    return {
+      message: 'Policy already accepted',
+      policyId: policy.id.toString(),
+      status: policy.status,
+    };
+  }
+
+  await prisma.policy.update({
+    where: { id: BigInt(policyId) },
+    data: { status: 'ACCEPTED' },
+  });
+
+  // Notify user
+  await sendAdminActionNotification(adminId, policy.user_id.toString(), 'POLICY_ACCEPTED', {
+    policyNumber: policy.policy_number,
+  }).catch((err) => {
+    logger.warn('Failed to send POLICY_ACCEPTED notification after details verification', { policyId, err });
+  });
+
+  logger.info('Policy details verified by admin', { policyId, adminId });
+
+  return {
+    message: 'Policy details verified and policy accepted',
+    policyId: policy.id.toString(),
+    status: 'ACCEPTED',
+  };
+};
+
 export const deleteUserDocumentByAdmin = async (documentId: string, adminId: string) => {
   const document = await prisma.userDocument.findUnique({
     where: { id: BigInt(documentId) },

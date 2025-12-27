@@ -14,6 +14,7 @@ router.get('/policy-documents', getPolicyDocumentsController);
 router.get('/nominee-documents', getNomineeDocumentsController);
 router.patch('/verify-document/:id', validate(verifyDocumentSchema), verifyDocumentController);
 router.patch('/reject-document/:id', validate(rejectDocumentSchema), rejectDocumentController);
+router.post('/verify-details/:id', verifyEntityDetailsController);
 router.delete('/document/:id', deleteDocumentByAdminController);
 router.delete('/kyc/:id', deleteKycDocumentsByAdminController);
 router.delete('/user/:id', deleteUserByAdminController);
