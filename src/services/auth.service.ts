@@ -34,12 +34,12 @@ export interface AuthResponse {
 function normalizePhoneNumber(phoneNumber: string): string {
   // Remove all non-digit characters
   const digitsOnly = phoneNumber.replace(/\D/g, '');
-  
+
   // Take the last 10 digits (handles country codes like +91)
   if (digitsOnly.length >= 10) {
     return digitsOnly.slice(-10);
   }
-  
+
   // If less than 10 digits, return as is (will be caught by validation)
   return digitsOnly;
 }
@@ -50,21 +50,21 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
     if (!data.idToken) {
       throw new ValidationError('Firebase ID token is required');
     }
-    
+
     if (!data.mobileNumber) {
       throw new ValidationError('Mobile number is required');
     }
 
     // Normalize phone number to ensure consistent format
     const normalizedMobileNumber = normalizePhoneNumber(data.mobileNumber);
-    
+
     // Validate phone number format (should be exactly 10 digits after normalization)
     if (normalizedMobileNumber.length !== 10 || !/^\d{10}$/.test(normalizedMobileNumber)) {
       throw new ValidationError('Invalid mobile number format. Must be 10 digits.');
     }
-    
+
     logger.info('OTP verification attempt', { mobileNumber: normalizedMobileNumber });
-    
+
     // Verify the Firebase ID token
     let decodedToken;
     try {
@@ -86,7 +86,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
       }
       throw new ValidationError('Invalid or expired Firebase token');
     }
-    
+
     const firebaseUid = decodedToken.uid;
     logger.debug('Firebase token verified', { firebaseUid });
 
@@ -104,16 +104,48 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
 
       // If user exists by mobile number, link the firebase_id to existing user
       if (existingUser) {
+        // Update user details if provided (handling potential undefined values)
+        const updateData: any = {
+          firebase_id: firebaseUid,
+          device_id: data.deviceId || existingUser.device_id,
+        };
+
+        // If name is provided and different (or missing in DB), update it
+        if (data.name) {
+          updateData.name = data.name;
+        }
+
+        // If email is provided, check uniqueness and update
+        if (data.email && data.email !== existingUser.email) {
+          // Check if email is already taken by another user
+          const emailExists = await prisma.user.findFirst({
+            where: {
+              email: data.email,
+              id: { not: existingUser.id }
+            },
+          });
+
+          if (!emailExists) {
+            updateData.email = data.email;
+          }
+        }
+
+        // If DOB is provided, update it
+        if (data.dob) {
+          const parsed = new Date(data.dob);
+          if (!isNaN(parsed.getTime())) {
+            updateData.dob = parsed;
+          }
+        }
+
         user = await prisma.user.update({
           where: { id: existingUser.id },
-          data: {
-            firebase_id: firebaseUid,
-            device_id: data.deviceId || existingUser.device_id,
-          },
+          data: updateData,
         });
-        logger.info('Linked Firebase ID to existing user', { 
-          userId: user.id.toString(), 
-          mobileNumber: normalizedMobileNumber 
+
+        logger.info('Linked Firebase ID to existing user and updated details', {
+          userId: user.id.toString(),
+          mobileNumber: normalizedMobileNumber
         });
       } else {
         // User doesn't exist at all - require name and email for new user
@@ -133,7 +165,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         // Validate and find referrer if referral code is provided
         let referredById: bigint | null = null;
         let referralCode: string | undefined;
-        
+
         // Check if referral_code column exists by trying a simple query
         let referralCodeColumnExists = false;
         try {
@@ -167,9 +199,9 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
             }
 
             referredById = referrer.id;
-            logger.info('Referral code validated', { 
-              referralCode: data.referralCode, 
-              referrerId: referrer.id.toString() 
+            logger.info('Referral code validated', {
+              referralCode: data.referralCode,
+              referrerId: referrer.id.toString()
             });
           } catch (error: any) {
             // If error is about missing column, skip referral validation
@@ -248,8 +280,8 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           data: userData,
         });
         const newUserId = user.id.toString();
-        logger.info('New user created', { 
-          userId: newUserId, 
+        logger.info('New user created', {
+          userId: newUserId,
           mobileNumber: normalizedMobileNumber,
           referralCode: referralCode || 'N/A (column not available)',
           referredBy: referredById?.toString() || null,
@@ -258,11 +290,45 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         // Alert creation removed - alerts now only come from mobile app SMS reading
       }
     } else {
+      // User exists by Firebase ID - check if we need to update details (e.g. if missing)
+      const updateData: any = {};
+
       // Update device ID if provided
       if (data.deviceId) {
+        updateData.device_id = data.deviceId;
+      }
+
+      // Update name if provided
+      if (data.name) {
+        updateData.name = data.name;
+      }
+
+      // Update DOB if provided
+      if (data.dob) {
+        const parsed = new Date(data.dob);
+        if (!isNaN(parsed.getTime())) {
+          updateData.dob = parsed;
+        }
+      }
+
+      // Update email if provided and different
+      if (data.email && data.email !== user.email) {
+        const emailExists = await prisma.user.findFirst({
+          where: {
+            email: data.email,
+            id: { not: user.id }
+          },
+        });
+
+        if (!emailExists) {
+          updateData.email = data.email;
+        }
+      }
+
+      if (Object.keys(updateData).length > 0) {
         user = await prisma.user.update({
           where: { id: user.id },
-          data: { device_id: data.deviceId },
+          data: updateData,
         });
       }
     }
