@@ -90,14 +90,24 @@ export const derivePolicyStatusFromNominees = (
   }
 
   // If no nominees are added, always return DRAFT regardless of baseStatus
-  if (!policyNominees || policyNominees.length === 0) {
+  // Check for null, undefined, empty array, or array with only null/undefined entries
+  const hasNominees = policyNominees && 
+    policyNominees.length > 0 && 
+    policyNominees.some(pn => pn && pn.nominee);
+  
+  if (!hasNominees) {
     return 'DRAFT';
   }
 
   let hasPendingNominee = false;
 
   for (const policyNominee of policyNominees) {
-    const nomineeStatus = policyNominee?.nominee?.status as PolicyStatusType | undefined;
+    // Skip null/undefined entries
+    if (!policyNominee || !policyNominee.nominee) {
+      continue;
+    }
+
+    const nomineeStatus = policyNominee.nominee.status as PolicyStatusType | undefined;
 
     if (nomineeStatus === 'REJECTED') {
       return 'REJECTED';
@@ -513,8 +523,30 @@ export const getUserPolicies = async (userId: string) => {
     orderBy: { uploaded_at: 'desc' },
   });
 
+  // Update status for policies without nominees - fix database status if needed
+  const statusUpdatePromises = policies
+    .filter((policy) => policy.policy_nominees.length === 0 && policy.status === 'PENDING')
+    .map((policy) => 
+      prisma.policy.update({
+        where: { id: policy.id },
+        data: { status: 'DRAFT' },
+      }).catch((err) => {
+        logger.error('Failed to update policy status on retrieval', {
+          policyId: policy.id.toString(),
+          error: err,
+        });
+      })
+    );
+  
+  // Wait for status updates to complete (but don't block if they fail)
+  await Promise.allSettled(statusUpdatePromises);
+
   return policies.map((policy) => {
-    const resolvedStatus = derivePolicyStatusFromNominees(policy.status, policy.policy_nominees);
+    // If policy has no nominees, status should always be DRAFT
+    const baseStatus = policy.policy_nominees.length === 0 && policy.status === 'PENDING' 
+      ? 'DRAFT' 
+      : policy.status;
+    const resolvedStatus = derivePolicyStatusFromNominees(baseStatus, policy.policy_nominees);
 
     return {
       id: policy.id.toString(),
@@ -605,6 +637,21 @@ export const getPolicyById = async (userId: string, policyId: string) => {
 
   if (!policy) {
     throw new NotFoundError('Policy not found');
+  }
+
+  // Update status if policy has no nominees and status is PENDING
+  if (policy.policy_nominees.length === 0 && policy.status === 'PENDING') {
+    await prisma.policy.update({
+      where: { id: BigInt(policyId) },
+      data: { status: 'DRAFT' },
+    }).catch((err) => {
+      logger.error('Failed to update policy status on retrieval', {
+        policyId,
+        error: err,
+      });
+    });
+    // Update the local policy object to reflect the change
+    policy.status = 'DRAFT';
   }
 
   const resolvedStatus = derivePolicyStatusFromNominees(policy.status, policy.policy_nominees);
