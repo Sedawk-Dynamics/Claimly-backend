@@ -14,6 +14,8 @@ export const verifyOTPController = async (req: Request, res: Response, next: Nex
       mobileNumber: mobileNumber?.substring(0, 3) + '****',
       hasName: !!name,
       hasEmail: !!cleanedEmail,
+      hasDob: !!dob,
+      dobValue: dob, // Log the actual value to debug format issues
     });
 
     const result = await verifyOTP({

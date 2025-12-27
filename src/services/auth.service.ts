@@ -136,9 +136,14 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           if (!isNaN(parsed.getTime())) {
             updateData.dob = parsed;
           } else {
-            logger.warn('Invalid DOB provided for existing mobile user', { dob: data.dob });
+            throw new ValidationError('Invalid DOB format. Use YYYY-MM-DD');
           }
+        } else if (!existingUser.dob) {
+          throw new ValidationError('Date of Birth is required to complete registration');
         }
+
+        // Force DOB requirement if it's missing in DB and also missing in request?
+        // Let's at least make sure we don't silently ignore invalid DOBs as before.
 
         logger.info('Updating existing mobile user', {
           foundUserId: existingUser.id.toString(),
