@@ -296,6 +296,61 @@ export const verifyNomineeDocument = async (documentId: string, adminId: string)
     nomineeId: document.nominee_id.toString(),
   });
 
+  // After nominee document verification, re-evaluate policies linked to this nominee.
+  // If a policy has all its documents verified and all its nominees' documents are verified,
+  // mark the policy as ACCEPTED.
+  try {
+    const links = await prisma.policyNominee.findMany({
+      where: { nominee_id: document.nominee_id },
+      include: {
+        policy: {
+          include: {
+            documents: true,
+            policy_nominees: {
+              include: {
+                nominee: {
+                  include: { documents: true },
+                },
+              },
+            },
+            user: true,
+          },
+        },
+      },
+    });
+
+    for (const link of links) {
+      const policy = link.policy;
+      if (!policy) continue;
+
+      const policyDocsAllVerified = areAllDocumentsVerified(policy.documents);
+
+      let allNomineesDocsVerified = true;
+      if (policy.policy_nominees.length > 0) {
+        allNomineesDocsVerified = policy.policy_nominees.every((pn) => {
+          const ndocs = pn.nominee.documents || [];
+          return ndocs.length > 0 && ndocs.every((d) => d.is_verified);
+        });
+      }
+
+      if (policyDocsAllVerified && allNomineesDocsVerified && policy.status !== 'ACCEPTED') {
+        await prisma.policy.update({
+          where: { id: policy.id },
+          data: { status: 'ACCEPTED' },
+        });
+
+        await sendAdminActionNotification(adminId, policy.user_id.toString(), 'POLICY_ACCEPTED', {
+          policyNumber: policy.policy_number,
+        }).catch((err) => {
+          logger.warn('Failed to send POLICY_ACCEPTED notification', { policyId: policy.id.toString(), err });
+        });
+
+        logger.info('Policy accepted after nominee verification', { policyId: policy.id.toString(), nomineeId: document.nominee_id.toString(), adminId });
+      }
+    }
+  } catch (err) {
+    logger.error('Failed to re-evaluate policies after nominee verification', { error: err });
+  }
   return {
     id: updatedDocument.id.toString(),
     nomineeId: updatedDocument.nominee_id.toString(),
