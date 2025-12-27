@@ -309,8 +309,6 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
     })),
   };
 
-}
-
   logger.info('Policy created successfully', { policyId: policy.id.toString(), userId });
 
   // Log activity
@@ -812,6 +810,7 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
       rejectedAt: doc.rejected_at,
     })),
   };
+};
 
 export const deletePolicy = async (userId: string, policyId: string) => {
   const policy = await prisma.policy.findFirst({
