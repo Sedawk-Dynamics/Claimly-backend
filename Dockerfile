@@ -5,17 +5,25 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Install dependencies
+# Install dependencies (including dev dependencies needed for Prisma generation)
 RUN npm ci --only=production=false
 
-# Copy source files
+# Copy Prisma schema first (needed for generation)
+COPY src/prisma ./src/prisma
 COPY tsconfig.json ./
+
+# Generate Prisma Client with placeholder URL to avoid caching wrong connection
+# Prisma Client will use runtime DATABASE_URL via datasources config in prismaClient.ts
+RUN DATABASE_URL="postgresql://placeholder:placeholder@placeholder:5432/placeholder" \
+    npm run prisma:generate
+
+# Copy remaining source files
 COPY src ./src
 
 # Build the TypeScript project
 RUN npm run build
 
-# Remove dev dependencies
+# Remove dev dependencies (Prisma CLI will be kept as it's needed for migrations)
 RUN npm prune --omit=dev
 
 FROM node:20-alpine AS runner
@@ -59,5 +67,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
+# Start the application
+# Prisma Client will use runtime DATABASE_URL from environment via datasources config
+# See src/config/prismaClient.ts for how runtime DATABASE_URL is used
 CMD ["node", "dist/index.js"]
-

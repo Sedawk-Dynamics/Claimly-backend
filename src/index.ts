@@ -710,6 +710,31 @@ const server = app.listen(PORT, async () => {
   console.log(`📦 Environment: ${env.NODE_ENV}`);
   console.log(`🌐 CORS: All origins allowed (web and mobile apps)`);
   
+  // Log DATABASE_URL for debugging (without password)
+  try {
+    const dbUrl = process.env.DATABASE_URL || env.DATABASE_URL;
+    if (dbUrl) {
+      const url = new URL(dbUrl);
+      const safeUrl = `${url.protocol}//${url.username}:***@${url.hostname}:${url.port || '5432'}${url.pathname}`;
+      console.log('📊 DATABASE_URL configured:', safeUrl);
+      logger.info('DATABASE_URL at startup', {
+        hostname: url.hostname,
+        port: url.port || '5432',
+        database: url.pathname.replace('/', ''),
+      });
+      
+      // Warn if wrong port
+      if (url.port === '3306') {
+        console.error('❌ ERROR: DATABASE_URL uses port 3306 (MySQL). PostgreSQL requires port 5432.');
+        console.error('   Please update DATABASE_URL in your environment variables.');
+      }
+    }
+  } catch (urlError) {
+    logger.warn('Could not parse DATABASE_URL for logging', {
+      error: urlError instanceof Error ? urlError.message : 'Unknown error',
+    });
+  }
+
   // Test database connection
   try {
     await ensurePrismaClientGenerated();
