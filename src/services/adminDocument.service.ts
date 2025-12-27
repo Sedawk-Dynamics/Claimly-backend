@@ -1641,3 +1641,177 @@ export const getNomineeDocuments = async (
 };
 
 
+
+
+/**
+ * Delete User (KYC) by admin
+ * This will cascade delete all related records (policies, nominees, documents, etc.)
+ */
+export const deleteUserByAdmin = async (userId: string, adminId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+    include: {
+      documents: true,
+    },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  // Delete all user document files from filesystem
+  const { deleteFile } = await import('../utils/fileUpload');
+  for (const document of user.documents) {
+    try {
+      const urlParts = document.document_url.split('/');
+      const filename = urlParts[urlParts.length - 1];
+      deleteFile(filename, 'users');
+    } catch (error) {
+      logger.warn('Failed to delete user document file', {
+        documentId: document.id.toString(),
+        filename: document.document_url,
+        error,
+      });
+    }
+  }
+
+  // Delete user (cascades to policies, nominees, documents, etc.)
+  await prisma.user.delete({
+    where: { id: BigInt(userId) },
+  });
+
+  logger.info('User deleted by admin', {
+    userId,
+    adminId,
+    userName: user.name,
+    email: user.email,
+  });
+
+  // Send notification (if notification service supports user deletion)
+  await sendAdminActionNotification(adminId, userId, 'USER_DELETED', {
+    userName: user.name,
+  }).catch((err) => {
+    logger.warn('Failed to send user deletion notification', { error: err });
+  });
+
+  return {
+    message: 'User deleted successfully',
+    userId: user.id.toString(),
+  };
+};
+
+/**
+ * Delete Policy by admin
+ */
+export const deletePolicyByAdmin = async (policyId: string, adminId: string) => {
+  const policy = await prisma.policy.findUnique({
+    where: { id: BigInt(policyId) },
+    include: {
+      documents: true,
+      user: true,
+    },
+  });
+
+  if (!policy) {
+    throw new NotFoundError('Policy not found');
+  }
+
+  // Delete all policy document files from filesystem
+  const { deleteFile } = await import('../utils/fileUpload');
+  for (const document of policy.documents) {
+    try {
+      const urlParts = document.document_url.split('/');
+      const filename = urlParts[urlParts.length - 1];
+      deleteFile(filename, 'policies');
+    } catch (error) {
+      logger.warn('Failed to delete policy document file', {
+        documentId: document.id.toString(),
+        filename: document.document_url,
+        error,
+      });
+    }
+  }
+
+  // Delete policy (cascades to policy documents and policy nominees)
+  await prisma.policy.delete({
+    where: { id: BigInt(policyId) },
+  });
+
+  logger.info('Policy deleted by admin', {
+    policyId,
+    adminId,
+    userId: policy.user_id.toString(),
+    policyNumber: policy.policy_number,
+  });
+
+  // Send notification to user
+  await sendAdminActionNotification(adminId, policy.user_id.toString(), 'POLICY_DELETED', {
+    policyNumber: policy.policy_number,
+  }).catch((err) => {
+    logger.warn('Failed to send policy deletion notification', { error: err });
+  });
+
+  return {
+    message: 'Policy deleted successfully',
+    policyId: policy.id.toString(),
+    userId: policy.user_id.toString(),
+  };
+};
+
+/**
+ * Delete Nominee by admin
+ */
+export const deleteNomineeByAdmin = async (nomineeId: string, adminId: string) => {
+  const nominee = await prisma.nominee.findUnique({
+    where: { id: BigInt(nomineeId) },
+    include: {
+      documents: true,
+      user: true,
+    },
+  });
+
+  if (!nominee) {
+    throw new NotFoundError('Nominee not found');
+  }
+
+  // Delete all nominee document files from filesystem
+  const { deleteFile } = await import('../utils/fileUpload');
+  for (const document of nominee.documents) {
+    try {
+      const urlParts = document.document_url.split('/');
+      const filename = urlParts[urlParts.length - 1];
+      deleteFile(filename, 'nominees');
+    } catch (error) {
+      logger.warn('Failed to delete nominee document file', {
+        documentId: document.id.toString(),
+        filename: document.document_url,
+        error,
+      });
+    }
+  }
+
+  // Delete nominee (cascades to nominee documents and policy nominees)
+  await prisma.nominee.delete({
+    where: { id: BigInt(nomineeId) },
+  });
+
+  logger.info('Nominee deleted by admin', {
+    nomineeId,
+    adminId,
+    userId: nominee.user_id.toString(),
+    nomineeName: nominee.name,
+  });
+
+  // Send notification to user
+  await sendAdminActionNotification(adminId, nominee.user_id.toString(), 'NOMINEE_DELETED', {
+    nomineeName: nominee.name,
+  }).catch((err) => {
+    logger.warn('Failed to send nominee deletion notification', { error: err });
+  });
+
+  return {
+    message: 'Nominee deleted successfully',
+    nomineeId: nominee.id.toString(),
+    userId: nominee.user_id.toString(),
+  };
+};

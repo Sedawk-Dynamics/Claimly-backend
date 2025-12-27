@@ -17,6 +17,9 @@ import {
   acceptNomineeWithoutDocuments,
   rejectNomineeWithoutDocuments,
   deleteUserDocumentByAdmin,
+  deleteUserByAdmin,
+  deletePolicyByAdmin,
+  deleteNomineeByAdmin,
 } from '../services/adminDocument.service';
 
 export const verifyDocumentController = async (
@@ -328,3 +331,72 @@ export const deleteDocumentByAdminController = async (
 };
 
 
+
+export const deleteUserByAdminController = async (
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.admin) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const result = await deleteUserByAdmin(id, req.admin.adminId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deletePolicyByAdminController = async (
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.admin) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const result = await deletePolicyByAdmin(id, req.admin.adminId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteNomineeByAdminController = async (
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.admin) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const result = await deleteNomineeByAdmin(id, req.admin.adminId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
