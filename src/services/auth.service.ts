@@ -157,9 +157,9 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           userDobAfterUpdate: user.dob
         });
       } else {
-        // User doesn't exist at all - require name and email for new user
-        if (!data.name || !data.email) {
-          throw new ValidationError('Name and email are required for new users');
+        // User doesn't exist at all - require name, email AND dob for new user
+        if (!data.name || !data.email || !data.dob) {
+          throw new ValidationError('Name, email and DOB are required for new users');
         }
 
         // Check if email already exists
@@ -273,8 +273,6 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
             throw new ValidationError('Invalid dob format. Use YYYY-MM-DD');
           }
           userData.dob = parsed;
-        } else {
-          logger.warn('NO DOB provided for NEW USER creation');
         }
 
         // Only add referral code fields if column exists
@@ -287,12 +285,6 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           }
         }
 
-        logger.info('Creating NEW USER', {
-          mobileNumber: normalizedMobileNumber,
-          hasDobInRequest: !!data.dob,
-          dobInUserData: userData.dob
-        });
-
         user = await prisma.user.create({
           data: userData,
         });
@@ -302,7 +294,6 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           mobileNumber: normalizedMobileNumber,
           referralCode: referralCode || 'N/A (column not available)',
           referredBy: referredById?.toString() || null,
-          createdDob: user.dob
         });
 
         // Alert creation removed - alerts now only come from mobile app SMS reading
