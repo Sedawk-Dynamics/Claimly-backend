@@ -1644,7 +1644,79 @@ export const getNomineeDocuments = async (
 
 
 /**
- * Delete User (KYC) by admin
+ * Delete KYC documents (AADHAAR and PAN) for a user by admin
+ * This only deletes KYC documents, not the user account
+ */
+export const deleteKycDocumentsByAdmin = async (userId: string, adminId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+    include: {
+      documents: {
+        where: {
+          document_type: { in: ['AADHAAR', 'PAN'] },
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  // Delete all KYC document files from filesystem
+  const { deleteFile } = await import('../utils/fileUpload');
+  const deletedDocuments = [];
+  
+  for (const document of user.documents) {
+    try {
+      if (document.document_url) {
+        const urlParts = document.document_url.split('/');
+        const filename = urlParts[urlParts.length - 1];
+        if (filename) {
+          deleteFile(filename, 'users');
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to delete KYC document file', {
+        documentId: document.id.toString(),
+        filename: document.document_url,
+        error,
+      });
+    }
+    
+    // Delete document from database
+    await prisma.userDocument.delete({
+      where: { id: document.id },
+    });
+    
+    deletedDocuments.push(document.id.toString());
+  }
+
+  logger.info('KYC documents deleted by admin', {
+    userId,
+    adminId,
+    userName: user.name,
+    email: user.email,
+    documentsDeleted: deletedDocuments.length,
+    documentIds: deletedDocuments,
+  });
+
+  // Send notification to user
+  await sendAdminActionNotification(adminId, userId, 'KYC_DELETED', {
+    userName: user.name,
+  }).catch((err) => {
+    logger.warn('Failed to send KYC deletion notification', { error: err });
+  });
+
+  return {
+    message: 'KYC documents deleted successfully',
+    userId: user.id.toString(),
+    documentsDeleted: deletedDocuments.length,
+  };
+};
+
+/**
+ * Delete User account by admin
  * This will cascade delete all related records (policies, nominees, documents, etc.)
  */
 export const deleteUserByAdmin = async (userId: string, adminId: string) => {
