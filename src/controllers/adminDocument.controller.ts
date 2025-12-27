@@ -21,6 +21,9 @@ import {
   deleteUserByAdmin,
   deletePolicyByAdmin,
   deleteNomineeByAdmin,
+  verifyPolicyDetails,
+  verifyNomineeDetails,
+  verifyUserDetails,
 } from '../services/adminDocument.service';
 
 export const verifyDocumentController = async (
@@ -85,6 +88,12 @@ export const verifyEntityDetailsController = async (
     switch (entityType) {
       case 'policy':
         result = await verifyPolicyDetails(id, req.admin.adminId);
+        break;
+      case 'nominee':
+        result = await verifyNomineeDetails(id, req.admin.adminId);
+        break;
+      case 'user':
+        result = await verifyUserDetails(id, req.admin.adminId);
         break;
       default:
         res.status(400).json({

@@ -660,6 +660,16 @@ export const acceptUserWithoutDocuments = async (userId: string, adminId: string
   };
 };
 
+export const verifyUserDetails = async (userId: string, adminId: string) => {
+  // Reuse acceptUserWithoutDocuments to mark user KYC accepted when admin verifies details
+  return await acceptUserWithoutDocuments(userId, adminId);
+};
+
+export const verifyNomineeDetails = async (nomineeId: string, adminId: string) => {
+  // Reuse acceptNomineeWithoutDocuments to accept nominee when admin verifies details
+  return await acceptNomineeWithoutDocuments(nomineeId, adminId);
+};
+
 export const rejectUserWithoutDocuments = async (userId: string, adminId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: BigInt(userId) },
