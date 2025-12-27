@@ -453,9 +453,14 @@ app.get('/health', async (req, res) => {
   };
 
   try {
-    // Test database connection
+    // Test database connection with timeout
     const dbStart = Date.now();
-    await prisma.$queryRaw`SELECT 1`;
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database query timeout')), 5000)
+      ),
+    ]);
     const dbLatency = Date.now() - dbStart;
     
     healthCheck.database = {
