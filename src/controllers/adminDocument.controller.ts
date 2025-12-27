@@ -118,10 +118,12 @@ export const getKycDocumentsController = async (
 
     const page = Math.max(parseInt((req.query.page as string) || '1', 10), 1);
     const limit = Math.min(Math.max(parseInt((req.query.limit as string) || '25', 10), 1), 100);
-    const statusQuery = ((req.query.status as string) || 'pending').toLowerCase();
+    // Convert to lowercase for case-insensitive matching (e.g., "ALL", "All", "all" all treated as "all")
+    const statusQuery = ((req.query.status as string) || 'all').toLowerCase();
     const status = statusQuery === 'verified' ? 'verified' 
       : statusQuery === 'rejected' ? 'rejected'
       : statusQuery === 'draft' ? 'draft'
+      : statusQuery === 'all' ? 'all'
       : 'pending';
     const search = (req.query.search as string)?.trim() || undefined;
 
@@ -149,9 +151,12 @@ export const getPolicyDocumentsController = async (
 
     const page = Math.max(parseInt((req.query.page as string) || '1', 10), 1);
     const limit = Math.min(Math.max(parseInt((req.query.limit as string) || '25', 10), 1), 100);
-    const statusQuery = ((req.query.status as string) || 'pending').toLowerCase();
+    // Convert to lowercase for case-insensitive matching (e.g., "ALL", "All", "all" all treated as "all")
+    const statusQuery = ((req.query.status as string) || 'all').toLowerCase();
     const status = statusQuery === 'verified' ? 'verified' 
       : statusQuery === 'rejected' ? 'rejected'
+      : statusQuery === 'draft' ? 'draft'
+      : statusQuery === 'all' ? 'all'
       : 'pending';
     const search = (req.query.search as string)?.trim() || undefined;
 
@@ -179,9 +184,12 @@ export const getNomineeDocumentsController = async (
 
     const page = Math.max(parseInt((req.query.page as string) || '1', 10), 1);
     const limit = Math.min(Math.max(parseInt((req.query.limit as string) || '25', 10), 1), 100);
-    const statusQuery = ((req.query.status as string) || 'pending').toLowerCase();
+    // Convert to lowercase for case-insensitive matching (e.g., "ALL", "All", "all" all treated as "all")
+    const statusQuery = ((req.query.status as string) || 'all').toLowerCase();
     const status = statusQuery === 'verified' ? 'verified' 
       : statusQuery === 'rejected' ? 'rejected'
+      : statusQuery === 'draft' ? 'draft'
+      : statusQuery === 'all' ? 'all'
       : 'pending';
     const search = (req.query.search as string)?.trim() || undefined;
 

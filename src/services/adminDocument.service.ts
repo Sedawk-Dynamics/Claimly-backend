@@ -877,7 +877,7 @@ export const rejectNomineeWithoutDocuments = async (nomineeId: string, adminId: 
 export const getKycDocuments = async (
   page: number,
   limit: number,
-  status: 'pending' | 'verified' | 'rejected' | 'draft',
+  status: 'pending' | 'verified' | 'rejected' | 'draft' | 'all',
   search?: string
 ) => {
   const offset = (page - 1) * limit;
@@ -909,7 +909,10 @@ export const getKycDocuments = async (
   // Build base status conditions
   let statusConditions: any;
   
-  if (status === 'rejected') {
+  if (status === 'all') {
+    // All: Return all users regardless of status (only exclude inactive users)
+    statusConditions = {};
+  } else if (status === 'rejected') {
     // Rejected: Users who have ALL documents rejected
     statusConditions = {
       AND: [
@@ -1073,10 +1076,14 @@ export const getKycDocuments = async (
   }
 
   // Combine status conditions with search filter and exclude inactive users
-  const baseConditions = [
-    statusConditions,
+  const baseConditions: any[] = [
     { subscription_status: { not: 'INACTIVE' } }, // Exclude inactive users
   ];
+  
+  // Only add statusConditions if not 'all' (for 'all', we want all statuses)
+  if (status !== 'all') {
+    baseConditions.push(statusConditions);
+  }
   
   if (searchFilter) {
     baseConditions.push(searchFilter);
@@ -1168,7 +1175,7 @@ export const getKycDocuments = async (
 export const getPolicyDocuments = async (
   page: number,
   limit: number,
-  status: 'pending' | 'verified' | 'rejected' | 'draft',
+  status: 'pending' | 'verified' | 'rejected' | 'draft' | 'all',
   search?: string
 ) => {
   const offset = (page - 1) * limit;
@@ -1196,7 +1203,10 @@ export const getPolicyDocuments = async (
   // Build status conditions
   let statusConditions: any;
 
-  if (status === 'draft') {
+  if (status === 'all') {
+    // All: Return all policies regardless of status (only exclude inactive users)
+    statusConditions = {};
+  } else if (status === 'draft') {
     // Draft: Policies with DRAFT status
     statusConditions = {
       status: 'DRAFT',
@@ -1301,10 +1311,14 @@ export const getPolicyDocuments = async (
   }
 
   // Combine status conditions with search filter and exclude inactive users
-  const baseConditions = [
-    statusConditions,
+  const baseConditions: any[] = [
     { user: { subscription_status: { not: 'INACTIVE' } } }, // Exclude policies from inactive users
   ];
+  
+  // Only add statusConditions if not 'all' (for 'all', we want all statuses)
+  if (status !== 'all') {
+    baseConditions.push(statusConditions);
+  }
   
   if (searchFilter) {
     baseConditions.push(searchFilter);
@@ -1397,7 +1411,7 @@ export const getPolicyDocuments = async (
 export const getNomineeDocuments = async (
   page: number,
   limit: number,
-  status: 'pending' | 'verified' | 'rejected' | 'draft',
+  status: 'pending' | 'verified' | 'rejected' | 'draft' | 'all',
   search?: string
 ) => {
   const offset = (page - 1) * limit;
@@ -1425,7 +1439,10 @@ export const getNomineeDocuments = async (
   // Build status conditions
   let statusConditions: any;
 
-  if (status === 'draft') {
+  if (status === 'all') {
+    // All: Return all nominees regardless of status (only exclude inactive users)
+    statusConditions = {};
+  } else if (status === 'draft') {
     // Draft: Nominees with DRAFT status
     statusConditions = {
       status: 'DRAFT',
@@ -1531,10 +1548,14 @@ export const getNomineeDocuments = async (
   }
 
   // Combine status conditions with search filter and exclude inactive users
-  const baseConditions = [
-    statusConditions,
+  const baseConditions: any[] = [
     { user: { subscription_status: { not: 'INACTIVE' } } }, // Exclude nominees from inactive users
   ];
+  
+  // Only add statusConditions if not 'all' (for 'all', we want all statuses)
+  if (status !== 'all') {
+    baseConditions.push(statusConditions);
+  }
   
   if (searchFilter) {
     baseConditions.push(searchFilter);
