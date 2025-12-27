@@ -81,8 +81,40 @@ function validateEnv(): EnvConfig {
   // CORS is now open to all origins (web and mobile apps)
   // No validation needed as all origins are allowed
 
+  // Validate and fix DATABASE_URL
+  let databaseUrl = process.env.DATABASE_URL!;
+  
+  // Check if DATABASE_URL is missing port (PostgreSQL default is 5432)
+  try {
+    const url = new URL(databaseUrl);
+    if (!url.port) {
+      // If no port specified, add PostgreSQL default port
+      url.port = '5432';
+      databaseUrl = url.toString();
+      logger.warn('DATABASE_URL missing port, defaulting to 5432 (PostgreSQL)');
+    } else if (url.port === '3306') {
+      // If MySQL port detected, warn and suggest PostgreSQL port
+      logger.error('DATABASE_URL uses port 3306 (MySQL). PostgreSQL uses port 5432. Please update your DATABASE_URL.');
+      console.error('❌ ERROR: DATABASE_URL uses MySQL port (3306). PostgreSQL requires port 5432.');
+      console.error('   Current URL:', databaseUrl.replace(/:[^:@]+@/, ':***@')); // Mask password
+      console.error('   Fix: Update DATABASE_URL to use port 5432');
+    }
+    
+    // Validate it's a PostgreSQL URL
+    if (!url.protocol.includes('postgres')) {
+      logger.error('DATABASE_URL protocol is not PostgreSQL. Expected postgresql:// or postgres://');
+      console.error('❌ ERROR: DATABASE_URL must use postgresql:// or postgres:// protocol');
+    }
+  } catch (urlError) {
+    logger.error('Invalid DATABASE_URL format', {
+      error: urlError instanceof Error ? urlError.message : 'Unknown error',
+    });
+    console.error('❌ ERROR: DATABASE_URL format is invalid');
+    console.error('   Expected format: postgresql://user:password@host:port/database');
+  }
+
   return {
-    DATABASE_URL: process.env.DATABASE_URL!,
+    DATABASE_URL: databaseUrl,
     JWT_SECRET: process.env.JWT_SECRET!,
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID!,
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY!,
