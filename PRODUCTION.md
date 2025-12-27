@@ -31,9 +31,10 @@ PORT=3000
 NODE_ENV=production
 LOG_LEVEL=info
 
-# CORS Configuration (comma-separated list of allowed origins)
-# Include all frontend domains that will make requests to this API
-CORS_ORIGIN="https://web.claimly.co.in,https://admin.claimly.co.in"
+# CORS Configuration
+# Note: CORS is currently open to all origins to support web and mobile apps
+# CORS_ORIGIN is no longer used - all origins are allowed
+# CORS_ORIGIN="https://web.claimly.co.in,https://admin.claimly.co.in"  # Optional, not enforced
 
 # Security Configuration
 DISABLE_TEST_AUTH=true
@@ -43,11 +44,11 @@ DISABLE_TEST_AUTH=true
 
 - [ ] JWT_SECRET is at least 32 characters long
 - [ ] Database credentials are secure and not default
-- [ ] CORS_ORIGIN is set to your production frontend domain(s)
 - [ ] DISABLE_TEST_AUTH is set to `true`
 - [ ] Firebase service account has minimal required permissions
 - [ ] Database connection uses SSL/TLS
 - [ ] All environment variables are set and validated
+- [ ] Note: CORS is open to all origins (web and mobile apps)
 
 ## Build and Deploy
 

@@ -65,7 +65,22 @@ function validateEnv(): EnvConfig {
   if (nodeEnv === 'production' && process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
     logger.warn('JWT_SECRET is too short for production. Use at least 32 characters.');
   }
+
+  // Validate Razorpay configuration (warn if missing in production, but don't fail)
+  const razorpayKeyId = process.env.RAZORPAY_KEY_ID || '';
+  const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
   
+  if (nodeEnv === 'production') {
+    if (!razorpayKeyId || !razorpayKeySecret) {
+      logger.warn('Razorpay keys are not configured. Payment features may not work correctly.');
+    } else if (razorpayKeyId.length < 10 || razorpayKeySecret.length < 10) {
+      logger.warn('Razorpay keys appear to be invalid. Please verify your configuration.');
+    }
+  }
+
+  // CORS is now open to all origins (web and mobile apps)
+  // No validation needed as all origins are allowed
+
   return {
     DATABASE_URL: process.env.DATABASE_URL!,
     JWT_SECRET: process.env.JWT_SECRET!,
@@ -77,8 +92,8 @@ function validateEnv(): EnvConfig {
     LOG_LEVEL: process.env.LOG_LEVEL || 'info',
     CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5175,http://localhost:5173',
     DISABLE_TEST_AUTH: process.env.DISABLE_TEST_AUTH === 'true',
-    RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || '',
-    RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || '',
+    RAZORPAY_KEY_ID: razorpayKeyId,
+    RAZORPAY_KEY_SECRET: razorpayKeySecret,
   };
 }
 

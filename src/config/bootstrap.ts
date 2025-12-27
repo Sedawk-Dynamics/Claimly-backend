@@ -3,9 +3,11 @@ import { Prisma } from '@prisma/client';
 import logger from './logger';
 import prisma from './prismaClient';
 
+// Default admin credentials for automatic creation on server startup
+// These will be used if no admin exists with this email
 const DEFAULT_ADMIN_EMAIL = 'admin@claimly.com';
-const DEFAULT_ADMIN_PASSWORD ='Claimly@123';
-const DEFAULT_ADMIN_NAME ='Admin User';
+const DEFAULT_ADMIN_PASSWORD = 'Claimly@123';
+const DEFAULT_ADMIN_NAME = 'Admin User';
 const DEFAULT_ADMIN_ROLE = 'SUPER_ADMIN';
 
 const ensureAdminTableExists = async (): Promise<void> => {

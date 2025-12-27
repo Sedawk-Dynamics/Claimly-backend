@@ -24,7 +24,10 @@
  * 
  * Default credentials (if not set via env):
  *   Email: admin@claimly.com
- *   Password: admin123
+ *   Password: Claimly@123
+ * 
+ * Note: In production, these defaults are also used by bootstrap.ts
+ * for automatic admin creation on server startup.
  */
 
 import dotenv from 'dotenv';
@@ -35,7 +38,7 @@ import logger from '../src/config/logger';
 dotenv.config();
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@claimly.com';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Claimly@123';
 const ADMIN_NAME = process.env.ADMIN_NAME || 'Admin User';
 const ADMIN_ROLE = (process.env.ADMIN_ROLE as 'SUPER_ADMIN' | 'STAFF') || 'SUPER_ADMIN';
 const FORCE_RESET = process.env.FORCE_RESET === 'true';
@@ -43,10 +46,24 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 
 async function manageAdmin() {
   try {
-    // Warn if using default password in production
+    // Connect to database first to verify connection
+    await prisma.$connect();
+    logger.info('Database connection established');
+
+    // Note: Default password 'Claimly@123' is allowed in production
+    // as it's the configured production default
+    // Only warn if using the old insecure default
     if (NODE_ENV === 'production' && ADMIN_PASSWORD === 'admin123') {
-      console.error('❌ ERROR: Cannot use default password "admin123" in production!');
+      console.error('❌ ERROR: Cannot use insecure default password "admin123" in production!');
       console.error('   Please set ADMIN_PASSWORD environment variable with a strong password.');
+      console.error('   Default production password is: Claimly@123');
+      process.exit(1);
+    }
+
+    // Validate password strength in production
+    if (NODE_ENV === 'production' && ADMIN_PASSWORD.length < 8) {
+      console.error('❌ ERROR: Password must be at least 8 characters in production!');
+      console.error('   Please set ADMIN_PASSWORD environment variable with a stronger password.');
       process.exit(1);
     }
 

@@ -45,14 +45,16 @@ app.set('trust proxy', 1);
 // Security headers (must be before other middleware)
 app.use(securityHeaders);
 
-// CORS configuration - Allow all origins (for development/testing)
+// CORS configuration - Allow all origins (including mobile apps)
+// Mobile apps don't have CORS restrictions, but this ensures web and mobile both work
 const corsOptions = {
   origin: true, // Allow all origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Length', 'Content-Type'],
+  exposedHeaders: ['Content-Length', 'Content-Type', 'X-Request-ID'],
   optionsSuccessStatus: 200,
+  maxAge: 86400, // 24 hours
 };
 
 // Apply CORS middleware (automatically handles OPTIONS preflight requests)
@@ -435,32 +437,67 @@ app.get('/diagnostics/uploads', (req, res) => {
   }
 });
 
-// Health check endpoint with database status
+// Health check endpoint with comprehensive status
 app.get('/health', async (req, res) => {
+  const healthCheck: any = {
+    status: 'OK',
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    environment: env.NODE_ENV,
+    uptime: process.uptime(),
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      unit: 'MB',
+    },
+  };
+
   try {
     // Test database connection
+    const dbStart = Date.now();
     await prisma.$queryRaw`SELECT 1`;
+    const dbLatency = Date.now() - dbStart;
     
-    res.json({
-      status: 'OK',
-      message: 'Server is running',
-      database: 'connected',
-      timestamp: new Date().toISOString(),
-      environment: env.NODE_ENV,
-      cors: {
-        allowedOrigins: 'all',
-        note: 'All origins are currently allowed',
-      },
-    });
+    healthCheck.database = {
+      status: 'connected',
+      latency: `${dbLatency}ms`,
+    };
+
+    // Check Firebase initialization
+    try {
+      const admin = await import('./config/firebase');
+      healthCheck.firebase = {
+        status: admin.default.apps.length > 0 ? 'initialized' : 'not initialized',
+      };
+    } catch (firebaseError) {
+      healthCheck.firebase = {
+        status: 'error',
+        error: firebaseError instanceof Error ? firebaseError.message : 'Unknown error',
+      };
+    }
+
+    // CORS configuration info
+    healthCheck.cors = {
+      mode: 'open',
+      allowedOrigins: 'all',
+      note: 'CORS restrictions removed - accessible from web and mobile apps',
+    };
+
+    res.json(healthCheck);
   } catch (error) {
-    logger.error('Health check failed', { error: error instanceof Error ? error.message : 'Unknown error' });
-    res.status(503).json({
-      status: 'ERROR',
-      message: 'Server is running but database connection failed',
-      database: 'disconnected',
-      timestamp: new Date().toISOString(),
-      environment: env.NODE_ENV,
+    logger.error('Health check failed', { 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      requestId: req.requestId,
     });
+    
+    healthCheck.status = 'ERROR';
+    healthCheck.message = 'Server is running but database connection failed';
+    healthCheck.database = {
+      status: 'disconnected',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+    
+    res.status(503).json(healthCheck);
   }
 });
 
@@ -526,6 +563,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
       message: issue.message || 'Validation error',
     }));
     logger.error('Validation error', {
+      requestId: req.requestId,
       errors,
       path: req.path,
       method: req.method,
@@ -609,10 +647,12 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   // In production, still log the error message for debugging but don't expose it to client
   const errorMessage = err.message || 'Unknown error';
   logger.error('Unhandled error', {
+    requestId: req.requestId,
     message: errorMessage,
     stack: err.stack,
     path: req.path,
     method: req.method,
+    ip: req.ip,
   });
   
   res.status(500).json({
@@ -655,11 +695,15 @@ app.use((req, res) => {
 });
 
 // Start server and test database connection
-app.listen(PORT, async () => {
-  logger.info(`Server is running on port ${PORT}`, { port: PORT, env: env.NODE_ENV, cors: 'all origins allowed' });
+const server = app.listen(PORT, async () => {
+  logger.info(`Server is running on port ${PORT}`, { 
+    port: PORT, 
+    env: env.NODE_ENV, 
+    cors: 'All origins allowed (web and mobile)' 
+  });
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📦 Environment: ${env.NODE_ENV}`);
-  console.log(`🌐 CORS: All origins allowed`);
+  console.log(`🌐 CORS: All origins allowed (web and mobile apps)`);
   
   // Test database connection
   try {
@@ -745,6 +789,64 @@ function startNotificationCleanupTask() {
     interval: '24 hours',
   });
 }
+
+// Graceful shutdown handler
+const gracefulShutdown = async (signal: string) => {
+  logger.info(`Received ${signal}, starting graceful shutdown...`);
+  console.log(`\n🛑 Received ${signal}, starting graceful shutdown...`);
+  
+  server.close(async () => {
+    logger.info('HTTP server closed');
+    console.log('✅ HTTP server closed');
+    
+    try {
+      // Disconnect Prisma
+      await prisma.$disconnect();
+      logger.info('Database connection closed');
+      console.log('✅ Database connection closed');
+      
+      // Exit process
+      process.exit(0);
+    } catch (error) {
+      logger.error('Error during shutdown', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      console.error('❌ Error during shutdown:', error);
+      process.exit(1);
+    }
+  });
+  
+  // Force shutdown after 30 seconds
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    console.error('❌ Forced shutdown after timeout');
+    process.exit(1);
+  }, 30000);
+};
+
+// Handle shutdown signals
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', {
+    error: error.message,
+    stack: error.stack,
+  });
+  console.error('❌ Uncaught exception:', error);
+  gracefulShutdown('uncaughtException');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled rejection', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    promise: String(promise),
+  });
+  console.error('❌ Unhandled rejection:', reason);
+  // Don't exit on unhandled rejection, just log it
+});
 
 export default app;
 

@@ -29,11 +29,24 @@ export const securityHeaders = (req: Request, res: Response, next: NextFunction)
   // Permissions Policy (formerly Feature Policy)
   res.setHeader(
     'Permissions-Policy',
-    'geolocation=(), microphone=(), camera=()'
+    'geolocation=(), microphone=(), camera=(), payment=()'
   );
+  
+  // Strict Transport Security (HSTS) - only in production with HTTPS
+  if (env.NODE_ENV === 'production' && req.secure) {
+    res.setHeader(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains; preload'
+    );
+  }
   
   // Remove X-Powered-By header
   res.removeHeader('X-Powered-By');
+  
+  // Add request ID to response if available
+  if (req.requestId) {
+    res.setHeader('X-Request-ID', req.requestId);
+  }
   
   next();
 };

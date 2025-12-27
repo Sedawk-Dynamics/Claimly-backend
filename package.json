@@ -21,6 +21,7 @@
     "test:token-direct": "ts-node scripts/get-token-direct.ts",
     "admin": "ts-node scripts/reset-admin.ts",
     "check:admin": "ts-node scripts/check-admin.ts",
+    "verify:production": "ts-node scripts/verify-production.ts",
     "backfill:referral-codes": "ts-node scripts/backfill-referral-codes.ts",
     "update:referral-codes": "ts-node scripts/update-referral-codes-to-new-format.ts",
     "backfill:subscription-expiry": "ts-node scripts/backfill-subscription-expiry.ts"
