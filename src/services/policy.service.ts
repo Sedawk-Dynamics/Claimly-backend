@@ -128,6 +128,82 @@ export const derivePolicyStatusFromNominees = (
 };
 
 /**
+ * Helper function to determine document status message and action type for a policy
+ * Returns an object with message and actionType, or null if no action needed
+ */
+export const getDocumentStatusInfo = (
+  documents: Array<{
+    is_verified: boolean;
+    verified_at: Date | null;
+    rejected_at: Date | null;
+    uploaded_at: Date;
+  }>,
+  nomineesCount: number,
+  status: PolicyStatusType
+): { message: string; actionType: 'ADD_NOMINEE' | 'UPLOAD_DOCUMENTS' | 'RESUBMIT_DOCUMENTS' | 'VERIFICATION_PENDING' | 'RE_VERIFICATION_PENDING' } | null => {
+  const rejectedDocs = documents.filter((d) => d.rejected_at !== null);
+  const verifiedDocs = documents.filter((d) => d.is_verified && d.verified_at !== null);
+  const unverifiedDocs = documents.filter((d) => !d.is_verified && d.rejected_at === null);
+
+  // If no documents uploaded
+  if (documents.length === 0) {
+    return {
+      message: 'No documents uploaded. Please upload policy documents for verification.',
+      actionType: 'UPLOAD_DOCUMENTS',
+    };
+  }
+
+  // If all documents are verified, no message needed
+  if (verifiedDocs.length === documents.length) {
+    return null;
+  }
+
+  // If there are rejected documents
+  if (rejectedDocs.length > 0) {
+    return {
+      message: 'Some documents were rejected. Please upload new documents for verification.',
+      actionType: 'RESUBMIT_DOCUMENTS',
+    };
+  }
+
+  // If no nominees and status is DRAFT, show "Add Nominee"
+  if (nomineesCount === 0 && status === 'DRAFT' && documents.length > 0) {
+    return {
+      message: 'Add Nominee',
+      actionType: 'ADD_NOMINEE',
+    };
+  }
+
+  // Check if it's re-verification (new docs after verification)
+  if (verifiedDocs.length > 0 && unverifiedDocs.length > 0) {
+    const latestVerification = verifiedDocs
+      .map((d) => d.verified_at ? d.verified_at.getTime() : 0)
+      .sort((a, b) => b - a)[0];
+    
+    const needsReverification = unverifiedDocs.some((doc) => 
+      doc.uploaded_at.getTime() > latestVerification
+    );
+
+    if (needsReverification) {
+      return {
+        message: 'Re-verification pending. Please wait for admin approval.',
+        actionType: 'RE_VERIFICATION_PENDING',
+      };
+    }
+  }
+
+  // Default: verification pending
+  if (unverifiedDocs.length > 0) {
+    return {
+      message: 'Verification pending. Please wait for admin approval.',
+      actionType: 'VERIFICATION_PENDING',
+    };
+  }
+
+  return null;
+};
+
+/**
  * Helper function to update policy status based on completeness
  * Only updates status for DRAFT and PENDING policies, never for ACCEPTED or REJECTED
  * Ensures policies without nominees are always set to DRAFT
@@ -286,6 +362,20 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
     },
   });
 
+  const resolvedStatus = derivePolicyStatusFromNominees(policy.status, policy.policy_nominees);
+  
+  // Get document status info (message and action type)
+  const documentStatusInfo = getDocumentStatusInfo(
+    policy.documents.map((doc) => ({
+      is_verified: doc.is_verified,
+      verified_at: doc.verified_at,
+      rejected_at: doc.rejected_at,
+      uploaded_at: doc.uploaded_at,
+    })),
+    policy.policy_nominees.length,
+    resolvedStatus
+  );
+
   const result = {
     id: policy.id.toString(),
     userId: policy.user_id.toString(),
@@ -297,7 +387,7 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
     },
     policyNumber: policy.policy_number,
     sumAssured: policy.sum_assured.toString(),
-    status: derivePolicyStatusFromNominees(policy.status, policy.policy_nominees),
+    status: resolvedStatus,
     uploadedAt: policy.uploaded_at,
     nominees: policy.policy_nominees.map((pn) => ({
       id: pn.id.toString(),
@@ -319,6 +409,7 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
       verifiedAt: doc.verified_at,
       rejectedAt: doc.rejected_at,
     })),
+    documentStatusInfo,
   };
 
   logger.info('Policy created successfully', { policyId: policy.id.toString(), userId });
@@ -443,6 +534,23 @@ export const createPolicyDraft = async (userId: string, data: CreatePolicyDraftD
     select: { status: true },
   });
 
+  const resolvedStatus = derivePolicyStatusFromNominees(
+    policyWithStatus?.status || policy.status,
+    policy.policy_nominees
+  );
+  
+  // Get document status info (message and action type)
+  const documentStatusInfo = getDocumentStatusInfo(
+    policy.documents.map((doc) => ({
+      is_verified: doc.is_verified,
+      verified_at: doc.verified_at,
+      rejected_at: doc.rejected_at,
+      uploaded_at: doc.uploaded_at,
+    })),
+    policy.policy_nominees.length,
+    resolvedStatus
+  );
+
   return {
     id: policy.id.toString(),
     userId: policy.user_id.toString(),
@@ -454,10 +562,7 @@ export const createPolicyDraft = async (userId: string, data: CreatePolicyDraftD
     },
     policyNumber: policy.policy_number,
     sumAssured: policy.sum_assured.toString(),
-    status: derivePolicyStatusFromNominees(
-      policyWithStatus?.status || policy.status,
-      policy.policy_nominees
-    ),
+    status: resolvedStatus,
     uploadedAt: policy.uploaded_at,
     nominees: policy.policy_nominees.map((pn) => ({
       id: pn.id.toString(),
@@ -479,6 +584,7 @@ export const createPolicyDraft = async (userId: string, data: CreatePolicyDraftD
       verifiedAt: doc.verified_at,
       rejectedAt: doc.rejected_at,
     })),
+    documentStatusInfo,
   };
 };
 
@@ -550,6 +656,18 @@ export const getUserPolicies = async (userId: string) => {
       : policy.status;
     const resolvedStatus = derivePolicyStatusFromNominees(baseStatus, policy.policy_nominees);
 
+    // Get document status info (message and action type)
+    const documentStatusInfo = getDocumentStatusInfo(
+      policy.documents.map((doc) => ({
+        is_verified: doc.is_verified,
+        verified_at: doc.verified_at,
+        rejected_at: doc.rejected_at,
+        uploaded_at: doc.uploaded_at,
+      })),
+      policy.policy_nominees.length,
+      resolvedStatus
+    );
+
     return {
       id: policy.id.toString(),
       insuranceCompany: {
@@ -582,6 +700,7 @@ export const getUserPolicies = async (userId: string) => {
         verifiedAt: doc.verified_at,
         rejectedAt: doc.rejected_at,
       })),
+      documentStatusInfo,
     };
   });
 };
@@ -658,6 +777,18 @@ export const getPolicyById = async (userId: string, policyId: string) => {
 
   const resolvedStatus = derivePolicyStatusFromNominees(policy.status, policy.policy_nominees);
 
+  // Get document status info (message and action type)
+  const documentStatusInfo = getDocumentStatusInfo(
+    policy.documents.map((doc) => ({
+      is_verified: doc.is_verified,
+      verified_at: doc.verified_at,
+      rejected_at: doc.rejected_at,
+      uploaded_at: doc.uploaded_at,
+    })),
+    policy.policy_nominees.length,
+    resolvedStatus
+  );
+
   return {
     id: policy.id.toString(),
     insuranceCompany: {
@@ -697,6 +828,7 @@ export const getPolicyById = async (userId: string, policyId: string) => {
       verifiedAt: doc.verified_at,
       rejectedAt: doc.rejected_at,
     })),
+    documentStatusInfo,
   };
 };
 
@@ -825,6 +957,18 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
     policyWithStatus.status || 'DRAFT',
     policyWithStatus.policy_nominees
   );
+  
+  // Get document status info (message and action type)
+  const documentStatusInfo = getDocumentStatusInfo(
+    policyWithStatus.documents.map((doc) => ({
+      is_verified: doc.is_verified,
+      verified_at: doc.verified_at,
+      rejected_at: doc.rejected_at,
+      uploaded_at: doc.uploaded_at,
+    })),
+    policyWithStatus.policy_nominees.length,
+    resolvedStatus
+  );
 
   return {
     id: policyWithStatus.id.toString(),
@@ -858,6 +1002,7 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
       verifiedAt: doc.verified_at,
       rejectedAt: doc.rejected_at,
     })),
+    documentStatusInfo,
   };
 };
 

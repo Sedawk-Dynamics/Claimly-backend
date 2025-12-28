@@ -164,7 +164,12 @@ export const verifyPolicyDocument = async (documentId: string, adminId: string) 
         nextStatus = 'ACCEPTED';
       }
     } else if (policyWithRelations.status === 'DRAFT') {
-      nextStatus = 'PENDING';
+      // Only change to PENDING if there are nominees
+      // If no nominees, keep status as DRAFT
+      if (policyWithRelations.policy_nominees.length > 0) {
+        nextStatus = 'PENDING';
+      }
+      // If no nominees, nextStatus remains null, so status stays DRAFT
     }
 
     if (nextStatus && nextStatus !== policyWithRelations.status) {
@@ -432,17 +437,28 @@ export const rejectPolicyDocument = async (documentId: string, adminId: string) 
     include: {
       documents: true,
       user: true,
+      policy_nominees: {
+        select: {
+          id: true,
+        },
+      },
     },
   });
 
   if (policyWithRelations) {
     const allRejected = areAllDocumentsRejected(policyWithRelations.documents);
-    let nextStatus: 'REJECTED' | 'PENDING' | null = null;
+    let nextStatus: 'REJECTED' | 'PENDING' | 'DRAFT' | null = null;
 
     if (allRejected) {
       nextStatus = 'REJECTED';
     } else if (policyWithRelations.status === 'ACCEPTED' || policyWithRelations.status === 'REJECTED') {
-      nextStatus = 'PENDING';
+      // Only change to PENDING if there are nominees
+      // If no nominees, change to DRAFT
+      if (policyWithRelations.policy_nominees.length > 0) {
+        nextStatus = 'PENDING';
+      } else {
+        nextStatus = 'DRAFT';
+      }
     }
 
     if (nextStatus && nextStatus !== policyWithRelations.status) {
@@ -451,15 +467,18 @@ export const rejectPolicyDocument = async (documentId: string, adminId: string) 
         data: { status: nextStatus },
       });
 
-      const notificationType = nextStatus === 'REJECTED' ? 'POLICY_REJECTED' : 'POLICY_PENDING';
-      await sendAdminActionNotification(
-        adminId,
-        policyWithRelations.user_id.toString(),
-        notificationType,
-        {
-          policyNumber: policyWithRelations.policy_number,
-        }
-      );
+      // Only send notification if status is REJECTED or PENDING, not DRAFT
+      if (nextStatus === 'REJECTED' || nextStatus === 'PENDING') {
+        const notificationType = nextStatus === 'REJECTED' ? 'POLICY_REJECTED' : 'POLICY_PENDING';
+        await sendAdminActionNotification(
+          adminId,
+          policyWithRelations.user_id.toString(),
+          notificationType,
+          {
+            policyNumber: policyWithRelations.policy_number,
+          }
+        );
+      }
 
       logger.info('Policy status updated after rejection', {
         policyId: policyWithRelations.id.toString(),
