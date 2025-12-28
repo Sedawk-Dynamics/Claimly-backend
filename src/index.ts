@@ -36,6 +36,7 @@ import { testDatabaseConnection } from './config/prismaClient';
 import { ensureDefaultAdmin } from './config/bootstrap';
 import { ensurePrismaClientGenerated, runDatabaseMigrations } from './config/migrate';
 import prisma from './config/prismaClient';
+import { ensureLogoDirectory } from './services/receipt.service';
 
 const app = express();
 const PORT = env.PORT;
@@ -733,6 +734,16 @@ const server = app.listen(PORT, async () => {
     logger.warn('Could not parse DATABASE_URL for logging', {
       error: urlError instanceof Error ? urlError.message : 'Unknown error',
     });
+  }
+
+  // Ensure logo directory exists and verify logo file
+  try {
+    ensureLogoDirectory();
+  } catch (logoError) {
+    logger.error('Error checking logo directory', {
+      error: logoError instanceof Error ? logoError.message : 'Unknown error',
+    });
+    console.warn('⚠️  Warning: Could not verify logo file');
   }
 
   // Test database connection

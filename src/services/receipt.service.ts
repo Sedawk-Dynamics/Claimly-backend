@@ -7,7 +7,7 @@ import Razorpay from 'razorpay';
 
 const RECEIPTS_DIR = path.join(process.cwd(), 'uploads', 'receipts');
 const RECEIPT_SEQUENCE_FILE = path.join(RECEIPTS_DIR, 'receipt_sequence.json');
-const CLAIMLY_LOGO_PATH = path.join(process.cwd(), 'logo', 'claimly logo png.png');
+const CLAIMLY_LOGO_PATH = path.resolve(process.cwd(), 'logo', 'claimly logo png.png');
 const TOTAL_ALPHA_COMBINATIONS = 26 * 26;
 const MAX_NUMERIC_SEQUENCE = 9999;
 
@@ -35,6 +35,46 @@ function getRazorpayInstance(): Razorpay {
 const ensureReceiptsDirectory = (): void => {
   if (!fs.existsSync(RECEIPTS_DIR)) {
     fs.mkdirSync(RECEIPTS_DIR, { recursive: true });
+  }
+};
+
+export const ensureLogoDirectory = (): void => {
+  const logoDir = path.join(process.cwd(), 'logo');
+  if (!fs.existsSync(logoDir)) {
+    logger.warn('Logo directory does not exist, creating it', { logoDir });
+    fs.mkdirSync(logoDir, { recursive: true });
+  }
+  
+  // Log logo file status at startup
+  const logoExists = fs.existsSync(CLAIMLY_LOGO_PATH);
+  logger.info('Logo file check', {
+    logoPath: CLAIMLY_LOGO_PATH,
+    exists: logoExists,
+    cwd: process.cwd(),
+    logoDir,
+    logoDirExists: fs.existsSync(logoDir),
+  });
+  
+  if (logoExists) {
+    try {
+      const stats = fs.statSync(CLAIMLY_LOGO_PATH);
+      logger.info('Logo file details', {
+        logoPath: CLAIMLY_LOGO_PATH,
+        size: stats.size,
+        isFile: stats.isFile(),
+      });
+    } catch (error: any) {
+      logger.error('Error reading logo file stats', {
+        error: error.message,
+        logoPath: CLAIMLY_LOGO_PATH,
+      });
+    }
+  } else {
+    logger.error('Logo file not found at expected path', {
+      logoPath: CLAIMLY_LOGO_PATH,
+      cwd: process.cwd(),
+      logoDir,
+    });
   }
 };
 
@@ -187,8 +227,29 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
 
     // Header Section with logo
     const brandLogoAvailable = fs.existsSync(CLAIMLY_LOGO_PATH);
+    logger.info('Logo check for PDF', {
+      logoPath: CLAIMLY_LOGO_PATH,
+      exists: brandLogoAvailable,
+      cwd: process.cwd(),
+    });
+    
     if (brandLogoAvailable) {
-      doc.image(CLAIMLY_LOGO_PATH, 50, yPos, { fit: [90, 90] });
+      try {
+        doc.image(CLAIMLY_LOGO_PATH, 50, yPos, { fit: [90, 90] });
+        logger.info('Logo added to PDF successfully', { logoPath: CLAIMLY_LOGO_PATH });
+      } catch (logoError: any) {
+        logger.error('Error adding logo to PDF', {
+          error: logoError.message,
+          stack: logoError.stack,
+          logoPath: CLAIMLY_LOGO_PATH,
+        });
+        // Continue without logo if there's an error
+      }
+    } else {
+      logger.warn('Logo file not found, generating PDF without logo', {
+        logoPath: CLAIMLY_LOGO_PATH,
+        cwd: process.cwd(),
+      });
     }
     doc
       .fontSize(20)

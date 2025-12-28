@@ -35,9 +35,14 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/logo ./logo
 
+# Verify logo file was copied
+RUN ls -la /app/logo/ || echo "Warning: Logo directory not found"
+RUN test -f "/app/logo/claimly logo png.png" && echo "✅ Logo file found" || echo "❌ Logo file not found"
+
 RUN npm install --omit=dev
 
 RUN mkdir -p /app/uploads
+RUN mkdir -p /app/logo
 VOLUME ["/app/uploads"]
 
 ENV NODE_ENV=production
