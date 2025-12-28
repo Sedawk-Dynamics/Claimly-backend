@@ -5,6 +5,94 @@ import { getFileUrl } from '../utils/fileUpload';
 import { updatePolicyStatusBasedOnCompleteness } from './policy.service';
 import logger from '../config/logger';
 
+type NomineeStatusType = 'DRAFT' | 'PENDING' | 'ACCEPTED' | 'REJECTED';
+
+/**
+ * Helper function to determine document status message and action type for a nominee
+ * Returns an object with message and actionType, or null if no action needed
+ */
+export const getNomineeDocumentStatusInfo = (
+  documents: Array<{
+    is_verified: boolean;
+    verified_at: Date | null;
+    rejected_at: Date | null;
+    uploaded_at: Date;
+  }>,
+  status: NomineeStatusType
+): { message: string; actionType: 'UPLOAD_DOCUMENTS' | 'RESUBMIT_DOCUMENTS' | 'VERIFICATION_PENDING' | 'RE_VERIFICATION_PENDING' | 'UPDATE_DETAILS' | 'VERIFICATION_DONE_NO_ACTION_NEEDED' } | null => {
+  const rejectedDocs = documents.filter((d) => d.rejected_at !== null);
+  const verifiedDocs = documents.filter((d) => d.is_verified && d.verified_at !== null);
+  const unverifiedDocs = documents.filter((d) => !d.is_verified && d.rejected_at === null);
+
+  // If status is ACCEPTED, return verified message
+  if (status === 'ACCEPTED') {
+    return {
+      message: 'Verified',
+      actionType: 'VERIFICATION_DONE_NO_ACTION_NEEDED',
+    };
+  }
+
+  // If status is REJECTED, show message to update details
+  if (status === 'REJECTED') {
+    return {
+      message: 'Nominee was rejected. Please update details and resubmit documents.',
+      actionType: 'UPDATE_DETAILS',
+    };
+  }
+
+  // If no documents uploaded
+  if (documents.length === 0) {
+    return {
+      message: 'No documents uploaded. Please upload nominee documents for verification.',
+      actionType: 'UPLOAD_DOCUMENTS',
+    };
+  }
+
+  // If all documents are verified, return verified message
+  if (verifiedDocs.length === documents.length && documents.length > 0) {
+    return {
+      message: 'Verified',
+      actionType: 'VERIFICATION_DONE_NO_ACTION_NEEDED',
+    };
+  }
+
+  // If there are rejected documents
+  if (rejectedDocs.length > 0) {
+    return {
+      message: 'Some documents were rejected. Please upload new documents for verification.',
+      actionType: 'RESUBMIT_DOCUMENTS',
+    };
+  }
+
+  // Check if it's re-verification (new docs after verification)
+  if (verifiedDocs.length > 0 && unverifiedDocs.length > 0) {
+    const latestVerification = verifiedDocs
+      .map((d) => d.verified_at ? d.verified_at.getTime() : 0)
+      .sort((a, b) => b - a)[0];
+    
+    const needsReverification = unverifiedDocs.some((doc) => 
+      doc.uploaded_at.getTime() > latestVerification
+    );
+
+    if (needsReverification) {
+      return {
+        message: 'Re-verification pending. Please wait for admin approval.',
+        actionType: 'RE_VERIFICATION_PENDING',
+      };
+    }
+  }
+
+  // Default: verification pending
+  if (unverifiedDocs.length > 0) {
+    return {
+      message: 'Verification pending. Please wait for admin approval.',
+      actionType: 'VERIFICATION_PENDING',
+    };
+  }
+
+  return null;
+};
+
 /**
  * Helper function to check if a nominee is complete (all required fields and documents filled)
  * Returns true if complete, false otherwise
@@ -232,6 +320,19 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
     select: { status: true },
   });
 
+  const finalStatus = (nomineeWithStatus?.status || nominee.status) as NomineeStatusType;
+
+  // Get document status info (message and action type)
+  const documentStatusInfo = getNomineeDocumentStatusInfo(
+    nominee.documents.map((doc) => ({
+      is_verified: doc.is_verified,
+      verified_at: doc.verified_at,
+      rejected_at: doc.rejected_at,
+      uploaded_at: doc.uploaded_at,
+    })),
+    finalStatus
+  );
+
   return {
     id: nominee.id.toString(),
     name: nominee.name,
@@ -240,7 +341,7 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
     dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
-    status: nomineeWithStatus?.status || nominee.status,
+    status: finalStatus,
     createdAt: nominee.created_at,
     updatedAt: nominee.updated_at,
     policies: nominee.policy_links.map((link) => ({
@@ -259,6 +360,7 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
       verifiedAt: doc.verified_at,
       rejectedAt: doc.rejected_at,
     })),
+    documentStatusInfo,
   };
 };
 
@@ -351,6 +453,19 @@ export const createNomineeDraft = async (userId: string, data: CreateNomineeDraf
     select: { status: true },
   });
 
+  const finalStatus = (nomineeWithStatus?.status || nominee.status) as NomineeStatusType;
+
+  // Get document status info (message and action type)
+  const documentStatusInfo = getNomineeDocumentStatusInfo(
+    nominee.documents.map((doc) => ({
+      is_verified: doc.is_verified,
+      verified_at: doc.verified_at,
+      rejected_at: doc.rejected_at,
+      uploaded_at: doc.uploaded_at,
+    })),
+    finalStatus
+  );
+
   return {
     id: nominee.id.toString(),
     name: nominee.name,
@@ -359,7 +474,7 @@ export const createNomineeDraft = async (userId: string, data: CreateNomineeDraf
     dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
-    status: nomineeWithStatus?.status || nominee.status,
+    status: finalStatus,
     createdAt: nominee.created_at,
     updatedAt: nominee.updated_at,
     policies: nominee.policy_links.map((link) => ({
@@ -378,6 +493,7 @@ export const createNomineeDraft = async (userId: string, data: CreateNomineeDraf
       verifiedAt: doc.verified_at,
       rejectedAt: doc.rejected_at,
     })),
+    documentStatusInfo,
   };
 };
 
@@ -415,37 +531,51 @@ export const getUserNominees = async (userId: string) => {
     orderBy: { created_at: 'desc' },
   });
 
-  return nominees.map((nominee) => ({
-    id: nominee.id.toString(),
-    name: nominee.name,
-    relationship: nominee.relationship,
-    mobileNumber: nominee.mobile_number,
-    dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
-    email: nominee.email,
-    address: nominee.address,
-    status: nominee.status,
-    createdAt: nominee.created_at,
-    updatedAt: nominee.updated_at,
-    policies: nominee.policy_links.map((link) => ({
-      policyId: link.policy.id.toString(),
-      policyNumber: link.policy.policy_number,
-      sumAssured: link.policy.sum_assured.toString(),
-      sharePercentage: link.share_percentage.toString(),
-    })),
-    documents: nominee.documents.map((doc) => ({
-      id: doc.id.toString(),
-      documentType: doc.document_type,
-      documentName: doc.document_name,
-      documentUrl: doc.document_url,
-      isVerified: doc.is_verified,
-      uploadedAt: doc.uploaded_at,
-      verifiedAt: doc.verified_at,
-      rejectedAt: doc.rejected_at,
-    })),
-    documentsCount: nominee.documents.length,
-    verifiedDocumentsCount: nominee.documents.filter((d) => d.is_verified).length,
-    isVerified: nominee.documents.length > 0 && nominee.documents.every((d) => d.is_verified),
-  }));
+  return nominees.map((nominee) => {
+    // Get document status info (message and action type)
+    const documentStatusInfo = getNomineeDocumentStatusInfo(
+      nominee.documents.map((doc) => ({
+        is_verified: doc.is_verified,
+        verified_at: doc.verified_at,
+        rejected_at: doc.rejected_at,
+        uploaded_at: doc.uploaded_at,
+      })),
+      nominee.status as NomineeStatusType
+    );
+
+    return {
+      id: nominee.id.toString(),
+      name: nominee.name,
+      relationship: nominee.relationship,
+      mobileNumber: nominee.mobile_number,
+      dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
+      email: nominee.email,
+      address: nominee.address,
+      status: nominee.status,
+      createdAt: nominee.created_at,
+      updatedAt: nominee.updated_at,
+      policies: nominee.policy_links.map((link) => ({
+        policyId: link.policy.id.toString(),
+        policyNumber: link.policy.policy_number,
+        sumAssured: link.policy.sum_assured.toString(),
+        sharePercentage: link.share_percentage.toString(),
+      })),
+      documents: nominee.documents.map((doc) => ({
+        id: doc.id.toString(),
+        documentType: doc.document_type,
+        documentName: doc.document_name,
+        documentUrl: doc.document_url,
+        isVerified: doc.is_verified,
+        uploadedAt: doc.uploaded_at,
+        verifiedAt: doc.verified_at,
+        rejectedAt: doc.rejected_at,
+      })),
+      documentsCount: nominee.documents.length,
+      verifiedDocumentsCount: nominee.documents.filter((d) => d.is_verified).length,
+      isVerified: nominee.documents.length > 0 && nominee.documents.every((d) => d.is_verified),
+      documentStatusInfo,
+    };
+  });
 };
 
 export const getNomineeById = async (userId: string, nomineeId: string) => {
@@ -474,6 +604,17 @@ export const getNomineeById = async (userId: string, nomineeId: string) => {
   if (!nominee) {
     throw new NotFoundError('Nominee not found');
   }
+
+  // Get document status info (message and action type)
+  const documentStatusInfo = getNomineeDocumentStatusInfo(
+    nominee.documents.map((doc) => ({
+      is_verified: doc.is_verified,
+      verified_at: doc.verified_at,
+      rejected_at: doc.rejected_at,
+      uploaded_at: doc.uploaded_at,
+    })),
+    nominee.status as NomineeStatusType
+  );
 
   return {
     id: nominee.id.toString(),
@@ -505,6 +646,7 @@ export const getNomineeById = async (userId: string, nomineeId: string) => {
       verifiedAt: doc.verified_at,
       rejectedAt: doc.rejected_at,
     })),
+    documentStatusInfo,
   };
 };
 
@@ -715,6 +857,19 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     select: { status: true },
   });
 
+  const finalStatus = (nomineeWithStatus?.status || updatedNominee.status) as NomineeStatusType;
+
+  // Get document status info (message and action type)
+  const documentStatusInfo = getNomineeDocumentStatusInfo(
+    (nomineeWithDocs?.documents || []).map((doc) => ({
+      is_verified: doc.is_verified,
+      verified_at: doc.verified_at,
+      rejected_at: doc.rejected_at,
+      uploaded_at: doc.uploaded_at,
+    })),
+    finalStatus
+  );
+
   return {
     id: updatedNominee.id.toString(),
     name: updatedNominee.name,
@@ -723,7 +878,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     dob: updatedNominee.dob ? updatedNominee.dob.toISOString().split('T')[0] : null,
     email: updatedNominee.email,
     address: updatedNominee.address,
-    status: nomineeWithStatus?.status || updatedNominee.status,
+    status: finalStatus,
     createdAt: updatedNominee.created_at,
     updatedAt: updatedNominee.updated_at,
     documents: nomineeWithDocs?.documents.map((doc) => ({
@@ -734,7 +889,9 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
       isVerified: doc.is_verified,
       uploadedAt: doc.uploaded_at,
       verifiedAt: doc.verified_at,
+      rejectedAt: doc.rejected_at,
     })) || [],
+    documentStatusInfo,
   };
 };
 

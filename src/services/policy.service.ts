@@ -140,7 +140,7 @@ export const getDocumentStatusInfo = (
   }>,
   nomineesCount: number,
   status: PolicyStatusType
-): { message: string; actionType: 'ADD_NOMINEE' | 'UPLOAD_DOCUMENTS' | 'RESUBMIT_DOCUMENTS' | 'VERIFICATION_PENDING' | 'RE_VERIFICATION_PENDING' } | null => {
+): { message: string; actionType: 'ADD_NOMINEE' | 'UPLOAD_DOCUMENTS' | 'RESUBMIT_DOCUMENTS' | 'VERIFICATION_PENDING' | 'RE_VERIFICATION_PENDING' | 'VERIFICATION_DONE_NO_ACTION_NEEDED' } | null => {
   const rejectedDocs = documents.filter((d) => d.rejected_at !== null);
   const verifiedDocs = documents.filter((d) => d.is_verified && d.verified_at !== null);
   const unverifiedDocs = documents.filter((d) => !d.is_verified && d.rejected_at === null);
@@ -153,9 +153,12 @@ export const getDocumentStatusInfo = (
     };
   }
 
-  // If all documents are verified, no message needed
-  if (verifiedDocs.length === documents.length) {
-    return null;
+  // If all documents are verified, return verified message
+  if (verifiedDocs.length === documents.length && documents.length > 0) {
+    return {
+      message: 'Verified',
+      actionType: 'VERIFICATION_DONE_NO_ACTION_NEEDED',
+    };
   }
 
   // If there are rejected documents
