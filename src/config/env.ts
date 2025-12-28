@@ -139,7 +139,15 @@ function validateEnv(): EnvConfig {
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID!,
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY!,
     FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL!,
-    PORT: parseInt(process.env.PORT || '3000', 10),
+    PORT: (() => {
+      const rawPort = process.env.PORT;
+      const parsed = parseInt(rawPort || '3000', 10);
+      if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 65535) {
+        logger.warn(`Invalid PORT: "${rawPort}", defaulting to 3000`);
+        return 3000;
+      }
+      return parsed;
+    })(),
     NODE_ENV: nodeEnv,
     LOG_LEVEL: process.env.LOG_LEVEL || 'info',
     CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5175,http://localhost:5173',
