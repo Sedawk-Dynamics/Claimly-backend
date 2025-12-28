@@ -112,6 +112,105 @@ export class NotificationService {
 
     return result;
   }
+
+  /**
+   * Create bulk notifications to multiple users
+   * Supports: single user, all users, first N users, or selected users
+   */
+  async createBulkNotifications(
+    adminId: bigint,
+    title: string,
+    message: string,
+    mode: 'single' | 'all' | 'count' | 'selected',
+    userIds?: string[],
+    count?: number
+  ) {
+    let targetUserIds: bigint[] = [];
+
+    // Get target user IDs based on mode
+    switch (mode) {
+      case 'single':
+        if (!userIds || userIds.length === 0) {
+          throw new Error('User ID is required for single mode');
+        }
+        targetUserIds = [BigInt(userIds[0])];
+        break;
+
+      case 'selected':
+        if (!userIds || userIds.length === 0) {
+          throw new Error('User IDs are required for selected mode');
+        }
+        targetUserIds = userIds.map((id) => BigInt(id));
+        break;
+
+      case 'count':
+        if (!count || count <= 0) {
+          throw new Error('Valid count is required for count mode');
+        }
+        const usersCount = await prisma.user.findMany({
+          take: count,
+          orderBy: { created_at: 'desc' },
+          select: { id: true },
+        });
+        targetUserIds = usersCount.map((user) => user.id);
+        break;
+
+      case 'all':
+        const allUsers = await prisma.user.findMany({
+          select: { id: true },
+        });
+        targetUserIds = allUsers.map((user) => user.id);
+        break;
+
+      default:
+        throw new Error(`Invalid mode: ${mode}`);
+    }
+
+    if (targetUserIds.length === 0) {
+      throw new Error('No users found to send notifications to');
+    }
+
+    logger.info('Creating bulk notifications', {
+      adminId: adminId.toString(),
+      mode,
+      userCount: targetUserIds.length,
+      title,
+    });
+
+    // Create notifications for all target users
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: [] as Array<{ userId: string; error: string }>,
+    };
+
+    for (const userId of targetUserIds) {
+      try {
+        await this.createNotification(adminId, userId, title, message);
+        results.success++;
+      } catch (error) {
+        results.failed++;
+        results.errors.push({
+          userId: userId.toString(),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+        logger.error('Failed to create notification for user', {
+          userId: userId.toString(),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    logger.info('Bulk notification creation completed', {
+      adminId: adminId.toString(),
+      mode,
+      success: results.success,
+      failed: results.failed,
+      title,
+    });
+
+    return results;
+  }
 }
 
 export const notificationService = new NotificationService();

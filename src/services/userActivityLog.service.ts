@@ -96,3 +96,43 @@ export const getUserActivityLogs = async (
   };
 };
 
+export const deleteActivityLog = async (logId: string) => {
+  const activityLog = await prisma.userActivityLog.findUnique({
+    where: { id: BigInt(logId) },
+  });
+
+  if (!activityLog) {
+    throw new NotFoundError('Activity log not found');
+  }
+
+  await prisma.userActivityLog.delete({
+    where: { id: BigInt(logId) },
+  });
+
+  return {
+    message: 'Activity log deleted successfully',
+    logId,
+  };
+};
+
+export const deleteAllActivityLogs = async (userId: string) => {
+  // Verify user exists
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  const result = await prisma.userActivityLog.deleteMany({
+    where: { user_id: BigInt(userId) },
+  });
+
+  return {
+    message: 'All activity logs deleted successfully',
+    deletedCount: result.count,
+    userId,
+  };
+};
+

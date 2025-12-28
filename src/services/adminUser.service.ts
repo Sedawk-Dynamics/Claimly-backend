@@ -79,6 +79,10 @@ export const getUserById = async (userId: string) => {
             select: {
               id: true,
               name: true,
+              contact_email: true,
+              contact_number: true,
+              website_url: true,
+              address: true,
             },
           },
           documents: {
@@ -86,10 +90,22 @@ export const getUserById = async (userId: string) => {
               uploaded_at: 'desc',
             },
           },
+          policy_nominees: {
+            include: {
+              nominee: {
+                select: {
+                  id: true,
+                  name: true,
+                  relationship: true,
+                },
+              },
+            },
+          },
         },
-        orderBy: {
-          uploaded_at: 'desc',
-        },
+        orderBy: [
+          { uploaded_at: 'desc' },
+          { id: 'desc' },
+        ],
         take: 10,
       },
       nominees: {
@@ -105,10 +121,15 @@ export const getUserById = async (userId: string) => {
                 select: {
                   id: true,
                   policy_number: true,
+                  sum_assured: true,
+                  status: true,
                 },
               },
             },
           },
+        },
+        orderBy: {
+          created_at: 'desc',
         },
       },
       subscriptions: {
@@ -152,6 +173,8 @@ export const getUserById = async (userId: string) => {
     mobileNumber: user.mobile_number,
     firebaseUid: user.firebase_id,
     deviceId: user.device_id,
+    referralCode: user.referral_code,
+    walletBalance: Number(user.wallet_balance),
     subscriptionStatus: user.subscription_status,
     createdAt: user.created_at,
     updatedAt: user.updated_at,
@@ -176,6 +199,9 @@ export const getUserById = async (userId: string) => {
       policies: nominee.policy_links.map((link) => ({
         id: link.policy.id.toString(),
         policyNumber: link.policy.policy_number,
+        sumAssured: link.policy.sum_assured.toString(),
+        status: link.policy.status,
+        sharePercentage: link.share_percentage ? link.share_percentage.toString() : '0',
       })),
       documents: nominee.documents.map((document) => ({
         id: document.id.toString(),
@@ -185,6 +211,7 @@ export const getUserById = async (userId: string) => {
         isVerified: document.is_verified,
         uploadedAt: document.uploaded_at,
         verifiedAt: document.verified_at,
+        rejectedAt: document.rejected_at,
       })),
     })),
     documents: user.documents.map((document) => ({
@@ -195,16 +222,28 @@ export const getUserById = async (userId: string) => {
       isVerified: document.is_verified,
       uploadedAt: document.uploaded_at,
       verifiedAt: document.verified_at,
+      rejectedAt: document.rejected_at,
     })),
     recentPolicies: user.policies.map((policy) => ({
       id: policy.id.toString(),
       policyNumber: policy.policy_number,
       sumAssured: policy.sum_assured.toString(),
       status: policy.status,
+      uploadedAt: policy.uploaded_at,
       insuranceCompany: {
         id: policy.insurance_company.id.toString(),
         name: policy.insurance_company.name,
+        contactEmail: policy.insurance_company.contact_email,
+        contactNumber: policy.insurance_company.contact_number,
+        websiteUrl: policy.insurance_company.website_url,
+        address: policy.insurance_company.address,
       },
+      nominees: policy.policy_nominees.map((pn) => ({
+        id: pn.nominee.id.toString(),
+        name: pn.nominee.name,
+        relationship: pn.nominee.relationship,
+        sharePercentage: pn.share_percentage.toString(),
+      })),
       documents: policy.documents.map((document) => ({
         id: document.id.toString(),
         documentType: document.document_type,
@@ -213,6 +252,7 @@ export const getUserById = async (userId: string) => {
         isVerified: document.is_verified,
         uploadedAt: document.uploaded_at,
         verifiedAt: document.verified_at,
+        rejectedAt: document.rejected_at,
       })),
     })),
     recentSubscriptions: user.subscriptions.map((sub) => ({

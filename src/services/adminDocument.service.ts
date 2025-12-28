@@ -1073,7 +1073,7 @@ export const getKycDocuments = async (
     // All: Return all users regardless of status (only exclude inactive users)
     statusConditions = {};
   } else if (status === 'rejected') {
-    // Rejected: Users who have ALL documents rejected
+    // Rejected: Users who have at least ONE document rejected
     statusConditions = {
       AND: [
         // User has at least one document of required types
@@ -1084,12 +1084,12 @@ export const getKycDocuments = async (
             },
           },
         },
-        // User has NO documents that are not rejected (all documents are rejected)
+        // User has at least one document that is rejected
         {
           documents: {
-            none: {
+            some: {
               document_type: { in: documentTypes },
-              rejected_at: null,
+              rejected_at: { not: null },
             },
           },
         },
@@ -1172,64 +1172,40 @@ export const getKycDocuments = async (
       ],
     };
   } else {
-    // Pending: Users who DON'T have all required documents verified OR have some (but not all) rejected documents
+    // Pending: Users who have BOTH documents uploaded but are NOT fully verified AND have NO rejected documents
+    // Excludes DRAFT users (0 or 1 document) - those should be filtered separately
+    // Excludes users with any rejected documents - those should be in rejected filter
     statusConditions = {
-      OR: [
-        // User has no documents of required types
+      AND: [
+        // User has BOTH required document types (not DRAFT)
+        ...documentTypes.map((docType) => ({
+          documents: {
+            some: {
+              document_type: docType,
+            },
+          },
+        })),
+        // User does NOT have all required documents verified
+        {
+          NOT: {
+            AND: documentTypes.map((docType) => ({
+              documents: {
+                some: {
+                  document_type: docType,
+                  is_verified: true,
+                },
+              },
+            })),
+          },
+        },
+        // User has NO rejected documents (if any document is rejected, it's in rejected filter)
         {
           documents: {
             none: {
               document_type: { in: documentTypes },
+              rejected_at: { not: null },
             },
           },
-        },
-        // User has documents but does NOT have all required documents verified AND not all rejected
-        {
-          AND: [
-            // User has at least one document of required types
-            {
-              documents: {
-                some: {
-                  document_type: { in: documentTypes },
-                },
-              },
-            },
-            // User does NOT have all required documents verified
-            {
-              NOT: {
-                AND: documentTypes.map((docType) => ({
-                  documents: {
-                    some: {
-                      document_type: docType,
-                      is_verified: true,
-                    },
-                  },
-                })),
-              },
-            },
-            // User does NOT have all documents rejected (if all rejected, it's in rejected filter)
-            {
-              OR: [
-                // User has at least one document that is not rejected
-                {
-                  documents: {
-                    some: {
-                      document_type: { in: documentTypes },
-                      rejected_at: null,
-                    },
-                  },
-                },
-                // User has no documents (already covered above, but keeping for clarity)
-                {
-                  documents: {
-                    none: {
-                      document_type: { in: documentTypes },
-                    },
-                  },
-                },
-              ],
-            },
-          ],
         },
       ],
     };
