@@ -1,7 +1,7 @@
 # CORS Restrictions Removed
 
 ## Summary
-
+##
 CORS restrictions have been removed from the backend API to support both web frontends and mobile applications.
 
 ## Changes Made
