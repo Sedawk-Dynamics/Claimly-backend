@@ -130,6 +130,61 @@ You should get:
 }
 ```
 
+## 🐳 Run with Docker (Development)
+
+The backend `Dockerfile` supports a **development** target that runs `npm run dev` (nodemon + ts-node).
+
+### 1) Build the dev image
+
+```bash
+docker build --target development -t claimly-backend:dev .
+```
+
+### 2) Run the container
+
+#### Option A (recommended): hot-reload with bind mount
+
+**Bash / Git Bash:**
+
+```bash
+docker run --rm -it \
+  -p 3000:3000 \
+  --env-file .env \
+  -v "$(pwd)":/app \
+  -v /app/node_modules \
+  claimly-backend:dev
+```
+
+**PowerShell:**
+
+```powershell
+docker run --rm -it `
+  -p 3000:3000 `
+  --env-file .env `
+  -v ${PWD}:/app `
+  -v /app/node_modules `
+  claimly-backend:dev
+```
+
+#### Option B: run without bind mount (no hot reload)
+
+**Bash / Git Bash:**
+
+```bash
+docker run --rm -it -p 3000:3000 --env-file .env claimly-backend:dev
+```
+
+**PowerShell:**
+
+```powershell
+docker run --rm -it -p 3000:3000 --env-file .env claimly-backend:dev
+```
+
+### Important note about DATABASE_URL in Docker
+
+If your PostgreSQL is running on your **host machine**, `localhost` will NOT work from inside the container.
+On Docker Desktop (Windows/Mac), use `host.docker.internal` as the hostname in `DATABASE_URL`, or run Postgres as another container on the same Docker network.
+
 ## 🎯 Running in Production
 
 ### Build the Project

@@ -1,34 +1,65 @@
-FROM node:20-alpine AS deps
+# syntax=docker/dockerfile:1
 
+ARG NODE_VERSION=20-alpine
+
+FROM node:${NODE_VERSION} AS base
 WORKDIR /app
 
-# Copy package files
+# -------------------------
+# Dependencies + Prisma Client (build-time)
+# -------------------------
+FROM base AS deps
+
+# Copy package files first for better layer caching
 COPY package.json package-lock.json ./
 
-# Install dependencies (including dev dependencies needed for Prisma generation)
-RUN npm ci --only=production=false
+# Install dependencies but skip lifecycle scripts (we run prisma generate explicitly)
+RUN npm ci --ignore-scripts
 
-# Copy Prisma schema first (needed for generation)
+# Prisma schema is required for Prisma Client generation
 COPY src/prisma ./src/prisma
-COPY tsconfig.json ./
 
-# Generate Prisma Client with placeholder URL to avoid caching wrong connection
-# Prisma Client will use runtime DATABASE_URL via datasources config in prismaClient.ts
-RUN DATABASE_URL="postgresql://placeholder:placeholder@placeholder:5432/placeholder" \
-    npm run prisma:generate
+# Generate Prisma Client with a build-time placeholder URL (runtime uses env DATABASE_URL)
+ARG PRISMA_DATABASE_URL="postgresql://claimlydb:claimly123@claimly-claimlydb-tgyd5o:5432/claimlydb"
+RUN DATABASE_URL="${PRISMA_DATABASE_URL}" npm run prisma:generate
 
-# Copy remaining source files
+# -------------------------
+# Development image (hot reload)
+# -------------------------
+FROM deps AS development
+
+ENV NODE_ENV=development
+
+COPY tsconfig.json ./tsconfig.json
+COPY nodemon.json ./nodemon.json
+COPY scripts ./scripts
 COPY src ./src
 
-# Build the TypeScript project
+# Create folders used at runtime
+RUN mkdir -p uploads/users uploads/policies uploads/nominees uploads/receipts logs
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
+
+# -------------------------
+# Build (TypeScript -> dist)
+# -------------------------
+FROM deps AS build
+
+COPY tsconfig.json ./tsconfig.json
+COPY scripts ./scripts
+COPY src ./src
+
 RUN npm run build
 
-# Remove dev dependencies (Prisma CLI will be kept as it's needed for migrations)
+# Remove dev dependencies for runtime image
 RUN npm prune --omit=dev
 
-FROM node:20-alpine AS runner
-
-WORKDIR /app
+# -------------------------
+# Production runtime
+# -------------------------
+FROM base AS runner
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -37,26 +68,20 @@ RUN addgroup -g 1001 -S nodejs && \
 # Set production environment
 ENV NODE_ENV=production
 
-# Copy built application
-COPY --from=deps --chown=nodejs:nodejs /app/package.json /app/package-lock.json ./
-COPY --from=deps --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=deps --chown=nodejs:nodejs /app/dist ./dist
-COPY --from=deps --chown=nodejs:nodejs /app/src/prisma ./src/prisma
-
-# Copy scripts and config (needed for production troubleshooting)
-COPY --chown=nodejs:nodejs scripts ./scripts
-COPY --chown=nodejs:nodejs tsconfig.json ./
+# Copy built application + production deps
+COPY --from=build --chown=nodejs:nodejs /app/package.json /app/package-lock.json ./
+COPY --from=build --chown=nodejs:nodejs /app/node_modules ./node_modules
+COPY --from=build --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=build --chown=nodejs:nodejs /app/src/prisma ./src/prisma
+COPY --from=build --chown=nodejs:nodejs /app/scripts ./scripts
+COPY --from=build --chown=nodejs:nodejs /app/tsconfig.json ./tsconfig.json
 
 # Install ts-node globally for running scripts (as root, then switch user)
 RUN npm install -g ts-node typescript
 
-# Create uploads directory with proper permissions
-RUN mkdir -p uploads/users uploads/policies uploads/nominees uploads/receipts && \
-    chown -R nodejs:nodejs uploads
-
-# Create logs directory
-RUN mkdir -p logs && \
-    chown -R nodejs:nodejs logs
+# Create uploads + logs directories with proper permissions
+RUN mkdir -p uploads/users uploads/policies uploads/nominees uploads/receipts logs && \
+    chown -R nodejs:nodejs uploads logs
 
 # Switch to non-root user
 USER nodejs

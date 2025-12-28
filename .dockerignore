@@ -1,0 +1,29 @@
+# dependencies
+node_modules
+**/node_modules
+
+# build output
+dist
+**/dist
+
+# local runtime data
+logs
+uploads
+*.log
+
+# environment files (never bake secrets into images)
+.env
+.env.*
+
+# VCS / editor / OS noise
+.git
+.gitignore
+.DS_Store
+
+# test output
+coverage
+
+# legacy nested folder (not used by current build)
+claimly-backend/
+
+
