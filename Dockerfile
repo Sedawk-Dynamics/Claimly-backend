@@ -33,6 +33,7 @@ RUN apk add --no-cache openssl libssl3
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/logo ./logo
 
 RUN npm install --omit=dev
 
