@@ -437,6 +437,15 @@ app.get('/diagnostics/uploads', (req, res) => {
   }
 });
 
+// Liveness probe (does not depend on DB/Firebase). Useful for container health checks.
+app.get('/live', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'Service is alive',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Health check endpoint with comprehensive status
 app.get('/health', async (req, res) => {
   const healthCheck: any = {

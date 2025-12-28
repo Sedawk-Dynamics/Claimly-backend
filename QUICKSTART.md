@@ -134,6 +134,20 @@ You should get:
 
 The backend `Dockerfile` supports a **development** target that runs `npm run dev` (nodemon + ts-node).
 
+### Prerequisite: Docker engine must be running
+
+Run this first:
+
+```bash
+docker version
+```
+
+You should see **both** `Client:` and `Server:` sections. If you see an error like:
+- `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified` or
+- `open //./pipe/docker_engine: The system cannot find the file specified`
+
+Start **Docker Desktop** (Windows/Mac) and wait until it shows “Running”, then retry.
+
 ### 1) Build the dev image
 
 ```bash

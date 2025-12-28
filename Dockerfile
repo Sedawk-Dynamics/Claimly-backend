@@ -10,18 +10,19 @@ WORKDIR /app
 # -------------------------
 FROM base AS deps
 
+# Native deps for packages like bcrypt (node-gyp) on Alpine
+RUN apk add --no-cache python3 make g++ openssl
+
 # Copy package files first for better layer caching
 COPY package.json package-lock.json ./
 
-# Install dependencies but skip lifecycle scripts (we run prisma generate explicitly)
-RUN npm ci --ignore-scripts
-
-# Prisma schema is required for Prisma Client generation
+# Prisma schema is required for `postinstall` Prisma Client generation
 COPY src/prisma ./src/prisma
 
-# Generate Prisma Client with a build-time placeholder URL (runtime uses env DATABASE_URL)
-ARG PRISMA_DATABASE_URL="postgresql://claimlydb:claimly123@claimly-claimlydb-tgyd5o:5432/claimlydb"
-RUN DATABASE_URL="${PRISMA_DATABASE_URL}" npm run prisma:generate
+# Install dependencies (this runs `postinstall` -> `prisma generate`)
+# Use a build-time placeholder URL so Prisma can generate without leaking runtime secrets.
+ARG PRISMA_DATABASE_URL="postgresql://placeholder:placeholder@placeholder:5432/placeholder"
+RUN DATABASE_URL="${PRISMA_DATABASE_URL}" npm ci
 
 # -------------------------
 # Development image (hot reload)
@@ -90,7 +91,7 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+  CMD node -e "const port=process.env.PORT||3000;require('http').get(`http://localhost:${port}/live`,(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1));"
 
 # Start the application
 # Prisma Client will use runtime DATABASE_URL from environment via datasources config
