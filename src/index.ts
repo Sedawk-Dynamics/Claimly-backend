@@ -718,7 +718,7 @@ app.use((req, res) => {
 });
 
 // Start server and test database connection
-const server = app.listen(PORT, async () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   logger.info(`Server is running on port ${PORT}`, { 
     port: PORT, 
     env: env.NODE_ENV, 
