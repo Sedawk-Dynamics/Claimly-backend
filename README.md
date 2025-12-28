@@ -44,7 +44,7 @@ NODE_ENV=development
 npm run migrate
 
 # Or manually:
-npx prisma migrate dev --name init --schema=./src/prisma/schema.prisma
+npx prisma migrate dev --name init
 ```
 
 4. Generate Prisma Client:

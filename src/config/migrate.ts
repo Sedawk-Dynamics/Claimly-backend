@@ -3,9 +3,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import logger from './logger';
 
-const PRISMA_GENERATE_COMMAND = 'npx prisma generate --schema=./src/prisma/schema.prisma';
-const MIGRATE_COMMAND = 'npx prisma migrate deploy --schema=./src/prisma/schema.prisma';
-const DB_PUSH_COMMAND = 'npx prisma db push --schema=./src/prisma/schema.prisma';
+const PRISMA_GENERATE_COMMAND = 'npx prisma generate';
+const MIGRATE_COMMAND = 'npx prisma migrate deploy';
+const DB_PUSH_COMMAND = 'npx prisma db push';
 
 const runCommand = async (command: string, description: string): Promise<void> => {
   logger.info(description);
@@ -89,7 +89,7 @@ export const runDatabaseMigrations = async (): Promise<void> => {
         logger.warn('db push requires data loss acceptance, retrying with --accept-data-loss flag');
         console.warn('⚠️ db push requires data loss acceptance, retrying with --accept-data-loss flag');
         
-        const DB_PUSH_ACCEPT_LOSS_COMMAND = 'npx prisma db push --accept-data-loss --schema=./src/prisma/schema.prisma';
+        const DB_PUSH_ACCEPT_LOSS_COMMAND = 'npx prisma db push --accept-data-loss';
         await runCommand(DB_PUSH_ACCEPT_LOSS_COMMAND, 'Synchronizing Prisma schema with database (db push --accept-data-loss)');
         logger.info('Database schema synchronized via prisma db push with data loss accepted');
       } else {

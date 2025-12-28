@@ -4,16 +4,16 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
-    "postinstall": "prisma generate --schema=./src/prisma/schema.prisma",
+    "postinstall": "prisma generate",
     "prebuild": "npm run prisma:generate",
     "build": "tsc",
     "start": "node dist/index.js",
-    "seed": "prisma db seed --schema=./src/prisma/schema.prisma",
-    "migrate": "prisma migrate dev --schema=./src/prisma/schema.prisma",
-    "migrate:deploy": "prisma migrate deploy --schema=./src/prisma/schema.prisma",
-    "migrate:reset": "prisma migrate reset --schema=./src/prisma/schema.prisma",
-    "prisma:generate": "prisma generate --schema=./src/prisma/schema.prisma",
-    "prisma:studio": "prisma studio --schema=./src/prisma/schema.prisma",
+    "seed": "prisma db seed",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:reset": "prisma migrate reset",
+    "prisma:generate": "prisma generate",
+    "prisma:studio": "prisma studio",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -62,8 +62,5 @@
     "ts-jest": "^29.4.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
-  },
-  "prisma": {
-    "seed": "ts-node --transpile-only src/prisma/seed.ts"
   }
 }
