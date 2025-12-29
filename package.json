@@ -12,6 +12,7 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:reset": "prisma migrate reset",
+    "migrate:resolve": "ts-node scripts/resolve-failed-migration.ts",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "test": "jest",
