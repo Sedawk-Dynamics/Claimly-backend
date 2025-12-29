@@ -144,14 +144,9 @@ const getISTDate = (): Date => {
 
 const formatISTDateForReceipt = (date: Date): string => {
   const pad = (value: number) => value.toString().padStart(2, '0');
-  return (
-    date.getFullYear().toString() +
-    pad(date.getMonth() + 1) +
-    pad(date.getDate()) +
-    pad(date.getHours()) +
-    pad(date.getMinutes()) +
-    pad(date.getSeconds())
-  );
+  // Return YYMMDD format (2-digit year)
+  const year = date.getFullYear().toString().slice(-2);
+  return year + pad(date.getMonth() + 1) + pad(date.getDate());
 };
 
 export interface ReceiptData {
@@ -182,7 +177,7 @@ export const generateReceiptNumber = (): string => {
     const istDate = getISTDate();
     const datePart = formatISTDateForReceipt(istDate);
     const suffix = getNextAlphaNumericSuffix();
-    return `CLM-${datePart}-${suffix.letters}${suffix.digits}`;
+    return `CLM${datePart}-${suffix.letters}${suffix.digits}`;
   } catch (error) {
     logger.error('Falling back to timestamp-based receipt number generation', {
       error: error instanceof Error ? error.message : error,
@@ -190,7 +185,10 @@ export const generateReceiptNumber = (): string => {
     const fallbackRandom = Math.floor(Math.random() * 10000)
       .toString()
       .padStart(4, '0');
-    return `CLM-${Date.now()}-${fallbackRandom}`;
+    const year = new Date().getFullYear().toString().slice(-2);
+    const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
+    const day = new Date().getDate().toString().padStart(2, '0');
+    return `CLM${year}${month}${day}-${fallbackRandom}`;
   }
 };
 
@@ -202,6 +200,65 @@ const getRupeeSymbol = (): string => {
   return 'Rs.';
 };
 
+/**
+ * Company information for receipts
+ */
+const COMPANY_INFO = {
+  name: 'Tech Life Invention Pvt. Ltd.',
+  address: [
+    'Chandigarh, India'
+  ],
+  email: 'support@claimly.co.in',
+  phone: '+91 1800-XXX-XXXX',
+  gst: '', // GST number if available
+  cin: '', // Add CIN if available
+};
+
+/**
+ * Format date with day and time for receipt display (used at top)
+ */
+const formatDateWithTimeForReceipt = (date: Date): string => {
+  const dayName = date.toLocaleDateString('en-IN', { weekday: 'long' });
+  const dateStr = date.toLocaleDateString('en-IN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  const timeStr = date.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+  return `${dayName}, ${dateStr}, ${timeStr}`;
+};
+
+/**
+ * Format date only for receipt display (used in other places)
+ */
+const formatDateOnlyForReceipt = (date: Date): string => {
+  return date.toLocaleDateString('en-IN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+};
+
+/**
+ * Format date range for subscription period
+ */
+const formatDateRange = (startDate: Date, endDate: Date): string => {
+  const start = startDate.toLocaleDateString('en-IN', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+  const end = endDate.toLocaleDateString('en-IN', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+  return `${start} – ${end}`;
+};
 
 /**
  * Generate a PDF receipt for subscription payment
@@ -209,8 +266,15 @@ const getRupeeSymbol = (): string => {
 export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => {
   try {
     ensureReceiptsDirectory();
-    const fileName = `receipt_${data.subscriptionId}_${Date.now()}.pdf`;
+    const fileName = `receipt-${data.receiptNumber}.pdf`;
     const filePath = path.join(RECEIPTS_DIR, fileName);
+    
+    logger.info('Generating receipt PDF', {
+      receiptNumber: data.receiptNumber,
+      fileName,
+      filePath,
+      subscriptionId: data.subscriptionId
+    });
 
     // Create PDF document
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
@@ -224,18 +288,33 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
     };
 
     let yPos = 50;
+    const pageWidth = 595; // A4 width in points
+    const margin = 50;
+    const contentWidth = pageWidth - (margin * 2);
 
-    // Header Section with logo
+    // Header Section - Receipt title and logo
+    doc.fontSize(24).fillColor('#000000').text('Receipt', margin, yPos);
+    
+    // Invoice number and date
+    const invoiceNumber = data.receiptNumber;
+    const datePaid = formatDateWithTimeForReceipt(data.transactionDate);
+    
+    yPos += 30;
+    doc.fontSize(10).fillColor('#666666');
+    doc.text(`Invoice number ${invoiceNumber}`, margin, yPos);
+    yPos += 15;
+    doc.text(`Date paid ${datePaid}`, margin, yPos);
+    yPos += 20;
+
+    // Logo on the right side
     const brandLogoAvailable = fs.existsSync(CLAIMLY_LOGO_PATH);
-    logger.info('Logo check for PDF', {
-      logoPath: CLAIMLY_LOGO_PATH,
-      exists: brandLogoAvailable,
-      cwd: process.cwd(),
-    });
+    const logoSize = 80;
+    const logoX = pageWidth - margin - logoSize;
+    const logoY = 50;
     
     if (brandLogoAvailable) {
       try {
-        doc.image(CLAIMLY_LOGO_PATH, 50, yPos, { fit: [90, 90] });
+        doc.image(CLAIMLY_LOGO_PATH, logoX, logoY, { fit: [logoSize, logoSize] });
         logger.info('Logo added to PDF successfully', { logoPath: CLAIMLY_LOGO_PATH });
       } catch (logoError: any) {
         logger.error('Error adding logo to PDF', {
@@ -243,7 +322,6 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
           stack: logoError.stack,
           logoPath: CLAIMLY_LOGO_PATH,
         });
-        // Continue without logo if there's an error
       }
     } else {
       logger.warn('Logo file not found, generating PDF without logo', {
@@ -251,151 +329,160 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
         cwd: process.cwd(),
       });
     }
-    doc
-      .fontSize(20)
-      .fillColor('#0f172a')
-      .text('Payment Receipt', 320, yPos + 20, { align: 'left' });
-    yPos += 90;
 
-    // Line separator
-    doc.moveTo(50, yPos).lineTo(545, yPos).strokeColor('#e2e8f0').lineWidth(1).stroke();
-    yPos += 20;
+    // Two-column layout: Company info (left) and Bill to (right)
+    yPos = 150;
+    const leftColX = margin;
+    const rightColX = margin + (contentWidth / 2) + 20;
+    const colWidth = (contentWidth / 2) - 20;
 
-    // Receipt Number Section
-    doc.fontSize(14).fillColor('#0f172a').text('Receipt Number:', 50, yPos);
-    doc.fontSize(14).fillColor('#64748b').text(data.receiptNumber, 200, yPos);
-    yPos += 25;
-
-    // Payment Information Section
-    doc.fontSize(16).fillColor('#0f172a').text('Payment Information', 50, yPos);
-    yPos += 25;
-
-    // Two-column layout for payment details
-    const leftCol = 50;
-    const rightCol = 300;
+    // Left column - Company information
+    doc.fontSize(11).fillColor('#000000').font('Helvetica-Bold');
+    doc.text(COMPANY_INFO.name, leftColX, yPos);
+    doc.font('Helvetica').fontSize(10).fillColor('#333333');
+    yPos += 15;
     
-    doc.fontSize(11).fillColor('#64748b');
-    doc.text('Currency:', leftCol, yPos);
-    doc.text(data.currency, leftCol + 80, yPos);
-    doc.text('Date & Time:', rightCol, yPos);
-    doc.text(
-      `${data.transactionDate.toLocaleDateString('en-IN', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
-      })} ${data.transactionDate.toLocaleTimeString('en-IN', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      })}`,
-      rightCol + 100,
-      yPos
-    );
-    yPos += 30;
+    COMPANY_INFO.address.forEach((line) => {
+      doc.text(line, leftColX, yPos);
+      yPos += 12;
+    });
+    
+    doc.text(COMPANY_INFO.phone, leftColX, yPos);
+    yPos += 12;
+    doc.text(COMPANY_INFO.email, leftColX, yPos);
+    yPos += 12;
+    if (COMPANY_INFO.gst) {
+      doc.text(COMPANY_INFO.gst, leftColX, yPos);
+    }
 
-    // Line separator
-    doc.moveTo(50, yPos).lineTo(545, yPos).strokeColor('#e2e8f0').lineWidth(1).stroke();
-    yPos += 20;
-
-    // Customer Details Section
-    doc.fontSize(16).fillColor('#0f172a').text('Customer Details', 50, yPos);
-    yPos += 25;
-
-    doc.fontSize(11).fillColor('#64748b');
-    doc.text('Name:', leftCol, yPos);
-    doc.fontSize(11).fillColor('#0f172a');
-    doc.text(data.userName, leftCol + 50, yPos);
-    yPos += 20;
-
-    doc.fontSize(11).fillColor('#64748b');
-    doc.text('User ID:', leftCol, yPos);
-    doc.fontSize(11).fillColor('#0f172a');
-    doc.text(data.userId, leftCol + 70, yPos);
-    yPos += 20;
-
+    // Right column - Bill to (Customer information)
+    yPos = 150;
+    doc.fontSize(11).fillColor('#000000').font('Helvetica-Bold');
+    doc.text('Bill to', rightColX, yPos);
+    doc.font('Helvetica').fontSize(10).fillColor('#333333');
+    yPos += 15;
+    
+    doc.text(data.userName, rightColX, yPos);
+    yPos += 12;
     if (data.userEmail) {
-      doc.fontSize(11).fillColor('#64748b');
-      doc.text('Email:', leftCol, yPos);
-      doc.fontSize(11).fillColor('#0f172a');
-      doc.text(data.userEmail, leftCol + 55, yPos);
-      yPos += 20;
+      doc.text(data.userEmail, rightColX, yPos);
+      yPos += 12;
     }
+    doc.text(`+91 ${data.userPhone}`, rightColX, yPos);
 
-    doc.fontSize(11).fillColor('#64748b');
-    doc.text('Phone:', leftCol, yPos);
-    doc.fontSize(11).fillColor('#0f172a');
-    doc.text(`+91 ${data.userPhone}`, leftCol + 60, yPos);
+    // Payment summary statement
+    yPos = 250;
+    doc.fontSize(12).fillColor('#000000').font('Helvetica-Bold');
+    const datePaidOnly = formatDateOnlyForReceipt(data.transactionDate);
+    const paymentSummary = `${formatAmountWithSymbol(data.finalAmountPaid)} paid on ${datePaidOnly}`;
+    doc.text(paymentSummary, margin, yPos);
     yPos += 30;
 
-    // Line separator
-    doc.moveTo(50, yPos).lineTo(545, yPos).strokeColor('#e2e8f0').lineWidth(1).stroke();
+    // Line items table
+    const tableTop = yPos;
+    const tableLeft = margin;
+    const tableWidth = contentWidth;
+    
+    // Table header
+    doc.fontSize(10).fillColor('#000000').font('Helvetica-Bold');
+    doc.text('Description', tableLeft, tableTop);
+    doc.text('Qty', tableLeft + 200, tableTop);
+    doc.text('Unit price', tableLeft + 250, tableTop);
+    doc.text('Amount', tableLeft + 350, tableTop, { align: 'right', width: 100 });
+    
+    yPos = tableTop + 20;
+    doc.moveTo(tableLeft, yPos).lineTo(tableLeft + tableWidth, yPos).strokeColor('#cccccc').lineWidth(0.5).stroke();
+    yPos += 15;
+
+    // Subscription line item
+    doc.font('Helvetica').fontSize(10).fillColor('#333333');
+    const subscriptionPeriod = data.expiresAt 
+      ? formatDateRange(data.transactionDate, data.expiresAt)
+      : formatDateOnlyForReceipt(data.transactionDate);
+    
+    doc.text(data.planName, tableLeft, yPos);
+    yPos += 12;
+    doc.fontSize(9).fillColor('#666666');
+    doc.text(subscriptionPeriod, tableLeft, yPos);
+    yPos += 15;
+    
+    doc.fontSize(10).fillColor('#333333');
+    doc.text('1', tableLeft + 200, yPos - 15);
+    doc.text(formatAmountWithSymbol(data.amount), tableLeft + 250, yPos - 15);
+    doc.text(formatAmountWithSymbol(data.amount), tableLeft + 350, yPos - 15, { align: 'right', width: 100 });
+    
     yPos += 20;
+    doc.moveTo(tableLeft, yPos).lineTo(tableLeft + tableWidth, yPos).strokeColor('#cccccc').lineWidth(0.5).stroke();
+    yPos += 15;
 
-    // Subscription Details Section
-    doc.fontSize(16).fillColor('#0f172a').text('Subscription Details', 50, yPos);
-    yPos += 25;
-
-    doc.fontSize(11).fillColor('#64748b');
-    doc.text('Plan Name:', leftCol, yPos);
-    doc.fontSize(11).fillColor('#0f172a');
-    doc.text(data.planName, leftCol + 90, yPos);
-    yPos += 20;
-
-    if (data.expiresAt) {
-      doc.fontSize(11).fillColor('#64748b');
-      doc.text('Expires On:', leftCol, yPos);
-      doc.fontSize(11).fillColor('#0f172a');
-      doc.text(data.expiresAt.toLocaleDateString('en-IN', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      }), leftCol + 90, yPos);
-      yPos += 25;
-    } else {
-      yPos += 5;
-    }
-
-    // Line separator
-    doc.moveTo(50, yPos).lineTo(545, yPos).strokeColor('#e2e8f0').lineWidth(1).stroke();
-    yPos += 20;
-
-    // Amount Details Section
-    doc.fontSize(16).fillColor('#0f172a').text('Amount Details', 50, yPos);
-    yPos += 25;
-
-    doc.fontSize(11).fillColor('#64748b');
-    doc.text('Subscription Amount:', leftCol, yPos);
-    doc.fontSize(11).fillColor('#0f172a');
-    doc.text(formatAmountWithSymbol(data.amount), 450, yPos, { align: 'right', width: 95 });
-    yPos += 20;
-
+    // Totals section
+    doc.fontSize(10).fillColor('#333333');
+    doc.text('Subtotal', tableLeft + 300, yPos);
+    doc.text(formatAmountWithSymbol(data.amount), tableLeft + 350, yPos, { align: 'right', width: 100 });
+    yPos += 15;
+    
+    // Show wallet discount if applicable
     if (data.walletAmountUsed && data.walletAmountUsed > 0) {
-      doc.fontSize(11).fillColor('#64748b');
-      doc.text('Wallet Amount Used:', leftCol, yPos);
-      doc.fontSize(11).fillColor('#10b981');
+      doc.text('Wallet Discount', tableLeft + 300, yPos);
+      doc.fillColor('#10b981');
       const rupeeSymbol = getRupeeSymbol();
-      doc.text(`${rupeeSymbol}-${data.walletAmountUsed.toFixed(2)}`, 450, yPos, { align: 'right', width: 95 });
-      yPos += 20;
+      doc.text(`-${rupeeSymbol} ${data.walletAmountUsed.toFixed(2)}`, tableLeft + 350, yPos, { align: 'right', width: 100 });
+      doc.fillColor('#333333');
+      yPos += 15;
     }
-
-    // Final amount with emphasis
-    doc.moveTo(50, yPos).lineTo(545, yPos).strokeColor('#e2e8f0').lineWidth(1).stroke();
+    
+    doc.font('Helvetica-Bold');
+    doc.text('Total', tableLeft + 300, yPos);
+    doc.text(formatAmountWithSymbol(data.finalAmountPaid), tableLeft + 350, yPos, { align: 'right', width: 100 });
     yPos += 15;
-    doc.fontSize(13).fillColor('#64748b').text('Total Amount Paid:', leftCol, yPos);
-    doc.fontSize(18).fillColor('#10b981');
-    doc.text(formatAmountWithSymbol(data.finalAmountPaid), 450, yPos, { align: 'right', width: 95 });
-    yPos += 35;
+    
+    doc.text('Amount paid', tableLeft + 300, yPos);
+    doc.text(formatAmountWithSymbol(data.finalAmountPaid), tableLeft + 350, yPos, { align: 'right', width: 100 });
+    yPos += 30;
 
-    // Footer Section
-    doc.moveTo(50, yPos).lineTo(545, yPos).strokeColor('#e2e8f0').lineWidth(1).stroke();
+    // Payment history section
+    doc.fontSize(12).fillColor('#000000').font('Helvetica-Bold');
+    doc.text('Payment history', margin, yPos);
     yPos += 20;
 
-    doc.fontSize(10).fillColor('#94a3b8');
-    doc.text('This is a computer-generated receipt and does not require a signature.', 50, yPos, { align: 'center', width: 495 });
+    // Payment history table
+    const paymentTableTop = yPos;
+    doc.fontSize(10).fillColor('#000000').font('Helvetica-Bold');
+    doc.text('Payment method', tableLeft, paymentTableTop);
+    doc.text('Date', tableLeft + 150, paymentTableTop);
+    doc.text('Amount paid', tableLeft + 250, paymentTableTop);
+    doc.text('Receipt number', tableLeft + 350, paymentTableTop);
+    
+    yPos = paymentTableTop + 15;
+    doc.moveTo(tableLeft, yPos).lineTo(tableLeft + tableWidth, yPos).strokeColor('#cccccc').lineWidth(0.5).stroke();
     yPos += 15;
-    doc.text('Thank you for your subscription!', 50, yPos, { align: 'center', width: 495 });
+
+    // Payment entry
+    doc.font('Helvetica').fontSize(10).fillColor('#333333');
+    const paymentMethod = 'Razorpay'; // Could be enhanced to get actual payment method
+    doc.text(paymentMethod, tableLeft, yPos);
+    doc.text(datePaidOnly, tableLeft + 150, yPos);
+    doc.text(formatAmountWithSymbol(data.finalAmountPaid), tableLeft + 250, yPos);
+    doc.text(invoiceNumber, tableLeft + 350, yPos);
+    yPos += 30;
+
+    // Footer section with company legal info
+    doc.moveTo(margin, yPos).lineTo(margin + contentWidth, yPos).strokeColor('#cccccc').lineWidth(0.5).stroke();
     yPos += 15;
-    doc.text('For any queries, please contact our support team.', 50, yPos, { align: 'center', width: 495 });
+    
+    doc.fontSize(9).fillColor('#666666');
+    doc.text(COMPANY_INFO.name, margin, yPos);
+    if (COMPANY_INFO.cin) {
+      yPos += 12;
+      doc.text(`CIN: ${COMPANY_INFO.cin}`, margin, yPos);
+    }
     yPos += 20;
+
+    // Additional footer text
+    doc.fontSize(9).fillColor('#999999');
+    const footerText = `This is a computer-generated receipt and does not require a signature. For any queries, please contact our support team at ${COMPANY_INFO.email}.`;
+    doc.text(footerText, margin, yPos, { align: 'left', width: contentWidth });
+    yPos += 30;
 
     // Finalize PDF
     doc.end();

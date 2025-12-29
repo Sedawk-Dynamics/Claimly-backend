@@ -19,25 +19,34 @@ export const uploadDocumentController = async (
       return;
     }
 
-    if (!req.file) {
+    const files = (req.files as Express.Multer.File[]) || [];
+    
+    if (files.length === 0) {
       res.status(400).json({
         success: false,
-        error: 'No file uploaded',
+        error: 'No files uploaded',
       });
       return;
     }
 
     const { nomineeId } = req.params;
-    const { documentType, documentName } = req.body;
-    const document = await uploadNomineeDocument(req.user.userId, nomineeId, {
-      documentType,
-      documentName: documentName || req.file.originalname,
-      filename: req.file.filename,
-    });
+    const { documentType } = req.body;
+    const documents = [];
+
+    // Process each file
+    for (const file of files) {
+      const document = await uploadNomineeDocument(req.user.userId, nomineeId, {
+        documentType,
+        documentName: file.originalname,
+        filename: file.filename,
+      });
+      documents.push(document);
+    }
 
     res.status(201).json({
       success: true,
-      data: document,
+      data: documents.length === 1 ? documents[0] : documents,
+      count: documents.length,
     });
   } catch (error) {
     next(error);

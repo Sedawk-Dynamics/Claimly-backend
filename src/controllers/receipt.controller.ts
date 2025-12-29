@@ -53,7 +53,7 @@ export const downloadReceiptController = async (
     }
 
     // All receipts are stored as local files in uploads/receipts/ directory
-    // Receipt URL format: /uploads/receipts/receipt_xxx.pdf
+    // Receipt URL format: /uploads/receipts/receipt-CLM251229-AA0010.pdf
     const filePath = path.join(process.cwd(), subscription.receipt_url.replace(/^\//, ''));
     
     // Check if file exists
@@ -63,9 +63,38 @@ export const downloadReceiptController = async (
       return;
     }
 
+    // Extract receipt number from filename
+    // New format: receipt-CLM251229-AA0010.pdf
+    // Old format: receipt_{subscriptionId}_{timestamp}.pdf (fallback)
+    const fileName = path.basename(subscription.receipt_url);
+    let downloadFileName: string;
+    
+    if (fileName.startsWith('receipt-') && fileName.endsWith('.pdf')) {
+      // New format: receipt-CLM251229-AA0010.pdf
+      downloadFileName = fileName;
+      logger.info('Using new receipt filename format', { downloadFileName, fileName });
+    } else {
+      // Old format or unexpected format - try to extract receipt number from path
+      // For old format, use subscription ID as fallback
+      downloadFileName = `receipt-${subscriptionId}.pdf`;
+      logger.warn('Receipt filename in old format, using subscription ID', { 
+        fileName, 
+        subscriptionId,
+        receiptUrl: subscription.receipt_url 
+      });
+    }
+
     // Set headers for PDF download
+    // Using both standard and RFC 5987 format for better browser compatibility
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="receipt_${subscriptionId}.pdf"`);
+    const encodedFileName = encodeURIComponent(downloadFileName);
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadFileName}"; filename*=UTF-8''${encodedFileName}`);
+    
+    logger.info('Setting receipt download headers', { 
+      downloadFileName, 
+      encodedFileName,
+      subscriptionId 
+    });
     
     // Send file
     res.sendFile(filePath, (err) => {

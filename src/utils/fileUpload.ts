@@ -57,8 +57,8 @@ export const uploadUsers = multer({
   storage: createStorage('users'),
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 1,
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    files: 40 
   },
 });
 
@@ -66,8 +66,8 @@ export const uploadPolicies = multer({
   storage: createStorage('policies'),
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 1,
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    files: 40, 
   },
 });
 
@@ -76,7 +76,7 @@ export const uploadNominees = multer({
   fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit per file
-    files: 10, // Allow up to 10 files for update operations
+    files: 100, 
   },
 });
 
@@ -120,7 +120,17 @@ export const deleteFile = (filename: string, uploadType: 'users' | 'policies' | 
   }
 };
 
-const createFlexibleSingleFileUpload = (uploadInstance: multer.Multer) => {
+// Multiple file upload middleware - allows multiple files up to the configured limit
+const createMultipleFileUpload = (uploadInstance: multer.Multer) => {
+  return uploadInstance.any();
+};
+
+export const multipleUserFileUpload = createMultipleFileUpload(uploadUsers);
+export const multiplePolicyFileUpload = createMultipleFileUpload(uploadPolicies);
+export const multipleNomineeFileUpload = createMultipleFileUpload(uploadNominees);
+
+// Flexible file upload middleware - supports multiple files, sets req.file to first file for backward compatibility
+const createFlexibleFileUpload = (uploadInstance: multer.Multer) => {
   const uploadAny = uploadInstance.any();
 
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -132,14 +142,8 @@ const createFlexibleSingleFileUpload = (uploadInstance: multer.Multer) => {
 
       const files = (req.files as Express.Multer.File[]) || [];
 
-      if (files.length > 1) {
-        const multerError = new multer.MulterError('LIMIT_UNEXPECTED_FILE', files[1].fieldname);
-        multerError.message = 'Only one file can be uploaded per request.';
-        next(multerError);
-        return;
-      }
-
-      if (files.length === 1) {
+      // Set req.file to first file for backward compatibility
+      if (files.length > 0) {
         req.file = files[0];
       }
 
@@ -148,10 +152,8 @@ const createFlexibleSingleFileUpload = (uploadInstance: multer.Multer) => {
   };
 };
 
-export const singleUserFileUpload = createFlexibleSingleFileUpload(uploadUsers);
-export const singlePolicyFileUpload = createFlexibleSingleFileUpload(uploadPolicies);
-export const singleNomineeFileUpload = createFlexibleSingleFileUpload(uploadNominees);
-
-// Multiple file upload middleware for nominees (used in update operations)
-export const multipleNomineeFileUpload = uploadNominees.any();
+// These now support multiple files (up to configured limits)
+export const singleUserFileUpload = createFlexibleFileUpload(uploadUsers);
+export const singlePolicyFileUpload = createFlexibleFileUpload(uploadPolicies);
+export const singleNomineeFileUpload = createFlexibleFileUpload(uploadNominees);
 

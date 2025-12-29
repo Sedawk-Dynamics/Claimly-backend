@@ -36,7 +36,6 @@ import { testDatabaseConnection } from './config/prismaClient';
 import { ensureDefaultAdmin } from './config/bootstrap';
 import { ensurePrismaClientGenerated, runDatabaseMigrations } from './config/migrate';
 import prisma from './config/prismaClient';
-import { ensureLogoDirectory } from './services/receipt.service';
 
 const app = express();
 const PORT = env.PORT;
@@ -589,14 +588,21 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
     if (multerError.code === 'LIMIT_FILE_SIZE') {
       res.status(400).json({
         success: false,
-        error: 'File size too large. Maximum size is 10MB.',
+        error: 'File size too large. Maximum size is 10MB per file.',
+      });
+      return;
+    }
+    if (multerError.code === 'LIMIT_FILE_COUNT') {
+      res.status(400).json({
+        success: false,
+        error: 'Too many files uploaded in this request. Maximum allowed per request: 40 files for user/policy documents, 100 files for nominee documents.',
       });
       return;
     }
     if (multerError.code === 'LIMIT_UNEXPECTED_FILE') {
       res.status(400).json({
         success: false,
-        error: 'Unexpected file input. Upload exactly one file per request.',
+        error: 'Unexpected file input.',
       });
       return;
     }
@@ -734,16 +740,6 @@ const server = app.listen(PORT, async () => {
     logger.warn('Could not parse DATABASE_URL for logging', {
       error: urlError instanceof Error ? urlError.message : 'Unknown error',
     });
-  }
-
-  // Ensure logo directory exists and verify logo file
-  try {
-    ensureLogoDirectory();
-  } catch (logoError) {
-    logger.error('Error checking logo directory', {
-      error: logoError instanceof Error ? logoError.message : 'Unknown error',
-    });
-    console.warn('⚠️  Warning: Could not verify logo file');
   }
 
   // Test database connection
