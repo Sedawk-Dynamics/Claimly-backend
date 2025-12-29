@@ -289,7 +289,6 @@ enum UserDocumentType {
 
 enum PolicyDocumentType {
   POLICY_DOCUMENT
-  POLICY_COPY  // Deprecated: Use POLICY_DOCUMENT instead. Kept for backward compatibility with PostgreSQL.
   RECEIPT
   OTHER
 }
@@ -297,8 +296,6 @@ enum PolicyDocumentType {
 enum NomineeDocumentType {
   NOMINEE_PAN
   NOMINEE_AADHAAR
-  NOMINEE_ID  // Deprecated: Use NOMINEE_PAN instead. Kept for backward compatibility with PostgreSQL.
-  ADDRESS_PROOF  // Deprecated: Use NOMINEE_AADHAAR instead. Kept for backward compatibility with PostgreSQL.
   OTHER
 }
 
