@@ -222,7 +222,7 @@ export const validateLinkNominee = (req: Request, res: Response, next: NextFunct
 export const validateUploadDocument = (req: Request, res: Response, next: NextFunction): void => {
   const { documentType, documentName, documentUrl } = req.body;
 
-  const validTypes = ['POLICY_COPY', 'RECEIPT', 'OTHER'];
+  const validTypes = ['POLICY_DOCUMENT', 'RECEIPT', 'OTHER'];
   if (!documentType || !validTypes.includes(documentType)) {
     res.status(400).json({
       success: false,

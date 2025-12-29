@@ -91,6 +91,7 @@ model Nominee {
   dob           DateTime?
   email         String?
   address       String?
+  gender        Gender?
   status        PolicyStatus @default(DRAFT)
   created_at    DateTime   @default(now())
   updated_at    DateTime   @updatedAt
@@ -287,14 +288,17 @@ enum UserDocumentType {
 }
 
 enum PolicyDocumentType {
-  POLICY_COPY
+  POLICY_DOCUMENT
+  POLICY_COPY  // Deprecated: Use POLICY_DOCUMENT instead. Kept for backward compatibility with PostgreSQL.
   RECEIPT
   OTHER
 }
 
 enum NomineeDocumentType {
-  NOMINEE_ID
-  ADDRESS_PROOF
+  NOMINEE_PAN
+  NOMINEE_AADHAAR
+  NOMINEE_ID  // Deprecated: Use NOMINEE_PAN instead. Kept for backward compatibility with PostgreSQL.
+  ADDRESS_PROOF  // Deprecated: Use NOMINEE_AADHAAR instead. Kept for backward compatibility with PostgreSQL.
   OTHER
 }
 
@@ -318,4 +322,10 @@ enum WalletTransactionType {
   REFERRAL_REWARD
   REDEMPTION
   REFUND
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
 }

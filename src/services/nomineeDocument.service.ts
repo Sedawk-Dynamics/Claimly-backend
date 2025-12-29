@@ -4,9 +4,10 @@ import { getFileUrl } from '../utils/fileUpload';
 import { createActivityLog } from './userActivityLog.service';
 import { updateNomineeStatusBasedOnCompleteness } from './nominee.service';
 import logger from '../config/logger';
+import { NomineeDocumentType } from '@prisma/client';
 
 export interface UploadNomineeDocumentData {
-  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'OTHER';
+  documentType: NomineeDocumentType;
   documentName: string;
   filename: string;
 }
@@ -25,8 +26,8 @@ export const uploadNomineeDocument = async (userId: string, nomineeId: string, d
   }
 
   // Validate document type
-  const validTypes = ['NOMINEE_ID', 'ADDRESS_PROOF', 'OTHER'];
-  if (!validTypes.includes(data.documentType)) {
+  const validTypes = ['NOMINEE_PAN', 'NOMINEE_AADHAAR', 'OTHER'] as const;
+  if (!validTypes.includes(data.documentType as any)) {
     throw new ValidationError(`documentType must be one of: ${validTypes.join(', ')}`);
   }
 
@@ -177,8 +178,8 @@ export const updateNomineeDocument = async (
   }
 
   // Validate document type
-  const validTypes = ['NOMINEE_ID', 'ADDRESS_PROOF', 'OTHER'];
-  if (!validTypes.includes(data.documentType)) {
+  const validTypes = ['NOMINEE_PAN', 'NOMINEE_AADHAAR', 'OTHER'] as const;
+  if (!validTypes.includes(data.documentType as any)) {
     throw new ValidationError(`documentType must be one of: ${validTypes.join(', ')}`);
   }
 

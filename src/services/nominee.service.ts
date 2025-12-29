@@ -183,6 +183,7 @@ export interface CreateNomineeData {
   dob: string;
   email?: string;
   address?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
 }
 
 export interface CreateNomineeDraftData {
@@ -192,17 +193,18 @@ export interface CreateNomineeDraftData {
   dob?: string;
   email?: string;
   address?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
 }
 
 export interface DocumentToAdd {
-  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'OTHER';
+  documentType: 'NOMINEE_PAN' | 'NOMINEE_AADHAAR' | 'OTHER';
   documentName: string;
   filename: string;
 }
 
 export interface DocumentToUpdate {
   documentId: string;
-  documentType: 'NOMINEE_ID' | 'ADDRESS_PROOF' | 'OTHER';
+  documentType: 'NOMINEE_PAN' | 'NOMINEE_AADHAAR' | 'OTHER';
   documentName: string;
   filename: string;
 }
@@ -214,6 +216,7 @@ export interface UpdateNomineeData {
   dob?: string;
   email?: string;
   address?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
   status?: 'DRAFT';
   documentsToAdd?: DocumentToAdd[];
   documentsToUpdate?: DocumentToUpdate[];
@@ -258,8 +261,9 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
       dob: dobDate,
       email: data.email || null,
       address: data.address || null,
+      gender: (data.gender || null) as any,
       status: 'DRAFT', // New nominees start as DRAFT
-    },
+    } as any,
     include: {
       policy_links: {
         include: {
@@ -323,8 +327,9 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
   const finalStatus = (nomineeWithStatus?.status || nominee.status) as NomineeStatusType;
 
   // Get document status info (message and action type)
+  const nomineeWithIncludes = nominee as any;
   const documentStatusInfo = getNomineeDocumentStatusInfo(
-    nominee.documents.map((doc) => ({
+    nomineeWithIncludes.documents.map((doc: any) => ({
       is_verified: doc.is_verified,
       verified_at: doc.verified_at,
       rejected_at: doc.rejected_at,
@@ -341,16 +346,17 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
     dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
+    gender: nomineeWithIncludes.gender ?? null,
     status: finalStatus,
     createdAt: nominee.created_at,
     updatedAt: nominee.updated_at,
-    policies: nominee.policy_links.map((link) => ({
+    policies: nomineeWithIncludes.policy_links.map((link: any) => ({
       policyId: link.policy.id.toString(),
       policyNumber: link.policy.policy_number,
       sumAssured: link.policy.sum_assured.toString(),
       sharePercentage: link.share_percentage.toString(),
     })),
-    documents: nominee.documents.map((doc) => ({
+    documents: nomineeWithIncludes.documents.map((doc: any) => ({
       id: doc.id.toString(),
       documentType: doc.document_type,
       documentName: doc.document_name,
@@ -399,8 +405,9 @@ export const createNomineeDraft = async (userId: string, data: CreateNomineeDraf
       dob: dobDate,
       email: data.email || null,
       address: data.address || null,
+      gender: (data.gender || null) as any,
       status: 'DRAFT',
-    },
+    } as any,
     include: {
       policy_links: {
         include: {
@@ -456,8 +463,9 @@ export const createNomineeDraft = async (userId: string, data: CreateNomineeDraf
   const finalStatus = (nomineeWithStatus?.status || nominee.status) as NomineeStatusType;
 
   // Get document status info (message and action type)
+  const nomineeWithIncludes = nominee as any;
   const documentStatusInfo = getNomineeDocumentStatusInfo(
-    nominee.documents.map((doc) => ({
+    nomineeWithIncludes.documents.map((doc: any) => ({
       is_verified: doc.is_verified,
       verified_at: doc.verified_at,
       rejected_at: doc.rejected_at,
@@ -474,16 +482,17 @@ export const createNomineeDraft = async (userId: string, data: CreateNomineeDraf
     dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
+    gender: nomineeWithIncludes.gender ?? null,
     status: finalStatus,
     createdAt: nominee.created_at,
     updatedAt: nominee.updated_at,
-    policies: nominee.policy_links.map((link) => ({
+    policies: nomineeWithIncludes.policy_links.map((link: any) => ({
       policyId: link.policy.id.toString(),
       policyNumber: link.policy.policy_number,
       sumAssured: link.policy.sum_assured.toString(),
       sharePercentage: link.share_percentage.toString(),
     })),
-    documents: nominee.documents.map((doc) => ({
+    documents: nomineeWithIncludes.documents.map((doc: any) => ({
       id: doc.id.toString(),
       documentType: doc.document_type,
       documentName: doc.document_name,
@@ -533,8 +542,9 @@ export const getUserNominees = async (userId: string) => {
 
   return nominees.map((nominee) => {
     // Get document status info (message and action type)
+    const nomineeWithIncludes = nominee as any;
     const documentStatusInfo = getNomineeDocumentStatusInfo(
-      nominee.documents.map((doc) => ({
+      nomineeWithIncludes.documents.map((doc: any) => ({
         is_verified: doc.is_verified,
         verified_at: doc.verified_at,
         rejected_at: doc.rejected_at,
@@ -551,16 +561,17 @@ export const getUserNominees = async (userId: string) => {
       dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
       email: nominee.email,
       address: nominee.address,
+      gender: nomineeWithIncludes.gender ?? null,
       status: nominee.status,
       createdAt: nominee.created_at,
       updatedAt: nominee.updated_at,
-      policies: nominee.policy_links.map((link) => ({
+      policies: nomineeWithIncludes.policy_links.map((link: any) => ({
         policyId: link.policy.id.toString(),
         policyNumber: link.policy.policy_number,
         sumAssured: link.policy.sum_assured.toString(),
         sharePercentage: link.share_percentage.toString(),
       })),
-      documents: nominee.documents.map((doc) => ({
+      documents: nomineeWithIncludes.documents.map((doc: any) => ({
         id: doc.id.toString(),
         documentType: doc.document_type,
         documentName: doc.document_name,
@@ -570,9 +581,9 @@ export const getUserNominees = async (userId: string) => {
         verifiedAt: doc.verified_at,
         rejectedAt: doc.rejected_at,
       })),
-      documentsCount: nominee.documents.length,
-      verifiedDocumentsCount: nominee.documents.filter((d) => d.is_verified).length,
-      isVerified: nominee.documents.length > 0 && nominee.documents.every((d) => d.is_verified),
+      documentsCount: nomineeWithIncludes.documents.length,
+      verifiedDocumentsCount: nomineeWithIncludes.documents.filter((d: any) => d.is_verified).length,
+      isVerified: nomineeWithIncludes.documents.length > 0 && nomineeWithIncludes.documents.every((d: any) => d.is_verified),
       documentStatusInfo,
     };
   });
@@ -606,8 +617,9 @@ export const getNomineeById = async (userId: string, nomineeId: string) => {
   }
 
   // Get document status info (message and action type)
+  const nomineeWithIncludes = nominee as any;
   const documentStatusInfo = getNomineeDocumentStatusInfo(
-    nominee.documents.map((doc) => ({
+    nomineeWithIncludes.documents.map((doc: any) => ({
       is_verified: doc.is_verified,
       verified_at: doc.verified_at,
       rejected_at: doc.rejected_at,
@@ -624,10 +636,11 @@ export const getNomineeById = async (userId: string, nomineeId: string) => {
     dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
     email: nominee.email,
     address: nominee.address,
+    gender: nomineeWithIncludes.gender ?? null,
     status: nominee.status,
     createdAt: nominee.created_at,
     updatedAt: nominee.updated_at,
-    policies: nominee.policy_links.map((link) => ({
+    policies: nomineeWithIncludes.policy_links.map((link: any) => ({
       id: link.id.toString(),
       policyId: link.policy.id.toString(),
       policyNumber: link.policy.policy_number,
@@ -636,7 +649,7 @@ export const getNomineeById = async (userId: string, nomineeId: string) => {
       sharePercentage: link.share_percentage.toString(),
       createdAt: link.created_at,
     })),
-    documents: nominee.documents.map((doc) => ({
+    documents: nomineeWithIncludes.documents.map((doc: any) => ({
       id: doc.id.toString(),
       documentType: doc.document_type,
       documentName: doc.document_name,
@@ -691,7 +704,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
   }
 
   // Validate document types
-  const validDocumentTypes = ['NOMINEE_ID', 'ADDRESS_PROOF', 'OTHER'];
+  const validDocumentTypes = ['NOMINEE_PAN', 'NOMINEE_AADHAAR', 'OTHER'] as const;
   
   if (data.documentsToAdd) {
     for (const doc of data.documentsToAdd) {
@@ -717,6 +730,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
   if (data.email !== undefined) updateData.email = data.email || null;
   if (data.address !== undefined) updateData.address = data.address || null;
   if (data.dob !== undefined) updateData.dob = data.dob ? parseDob(data.dob) : null;
+  if (data.gender !== undefined) updateData.gender = data.gender || null;
   if (data.status === 'DRAFT') updateData.status = 'DRAFT';
 
   const updatedNominee = await prisma.nominee.update({
@@ -776,7 +790,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
       await prisma.nomineeDocument.update({
         where: { id: BigInt(docUpdate.documentId) },
         data: {
-          document_type: docUpdate.documentType,
+          document_type: docUpdate.documentType as any,
           document_name: docUpdate.documentName,
           document_url: documentUrl,
           is_verified: false,
@@ -794,7 +808,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
       await prisma.nomineeDocument.create({
         data: {
           nominee_id: BigInt(nomineeId),
-          document_type: docAdd.documentType,
+          document_type: docAdd.documentType as any,
           document_name: docAdd.documentName,
           document_url: documentUrl,
           is_verified: false,
@@ -878,6 +892,7 @@ export const updateNominee = async (userId: string, nomineeId: string, data: Upd
     dob: updatedNominee.dob ? updatedNominee.dob.toISOString().split('T')[0] : null,
     email: updatedNominee.email,
     address: updatedNominee.address,
+    gender: (updatedNominee as any).gender ?? null,
     status: finalStatus,
     createdAt: updatedNominee.created_at,
     updatedAt: updatedNominee.updated_at,

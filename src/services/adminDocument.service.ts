@@ -1787,6 +1787,7 @@ export const getNomineeDocuments = async (
         dob: nominee.dob ? nominee.dob.toISOString().split('T')[0] : null,
         email: nominee.email,
         address: nominee.address,
+        gender: (nominee as any).gender ?? null,
         status: nominee.status,
         createdAt: nominee.created_at,
         updatedAt: nominee.updated_at,

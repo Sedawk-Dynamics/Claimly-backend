@@ -164,6 +164,7 @@ export const createNomineeSchema = z.object({
       z.string().email('Invalid email address').nullable().optional()
     ),
     address: z.string().nullable().optional(),
+    gender: z.enum(['MALE', 'FEMALE', 'OTHER']).nullable().optional(),
   }),
 });
 
@@ -175,6 +176,7 @@ export const updateNomineeSchema = z.object({
     dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     email: z.string().email().nullable().optional(),
     address: z.string().nullable().optional(),
+    gender: z.enum(['MALE', 'FEMALE', 'OTHER']).nullable().optional(),
   }),
   params: z.object({
     id: z.string().min(1, 'Nominee ID is required'),
@@ -278,7 +280,7 @@ export const createSubscriptionSchema = z.object({
 // Document validation schemas
 export const uploadDocumentSchema = z.object({
   body: z.object({
-    documentType: z.enum(['AADHAAR', 'PAN', 'OTHER']).or(z.enum(['POLICY_COPY', 'RECEIPT', 'OTHER'])).or(z.enum(['NOMINEE_ID', 'ADDRESS_PROOF', 'OTHER'])),
+    documentType: z.enum(['AADHAAR', 'PAN', 'OTHER']).or(z.enum(['POLICY_DOCUMENT', 'RECEIPT', 'OTHER'])).or(z.enum(['NOMINEE_PAN', 'NOMINEE_AADHAAR', 'OTHER'])),
     documentName: z.string().min(1, 'documentName is required'),
   }),
 });

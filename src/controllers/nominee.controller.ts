@@ -20,7 +20,7 @@ export const createNomineeController = async (
       return;
     }
 
-    const { name, relationship, mobileNumber, dob, email, address } = req.body;
+    const { name, relationship, mobileNumber, dob, email, address, gender } = req.body;
     const isDraft = !relationship || !mobileNumber || !dob;
 
     const nominee = isDraft
@@ -31,6 +31,7 @@ export const createNomineeController = async (
           dob,
           email,
           address,
+          gender,
         })
       : await createNominee(req.user.userId, {
           name,
@@ -39,6 +40,7 @@ export const createNomineeController = async (
           dob: dob!,
           email,
           address,
+          gender,
         });
 
     res.status(201).json({
@@ -105,7 +107,7 @@ export const updateNomineeController = async (
     }
 
     const { id } = req.params;
-    const { name, relationship, mobileNumber, dob, email, address, documentsToDelete, status } = req.body;
+    const { name, relationship, mobileNumber, dob, email, address, gender, documentsToDelete, status } = req.body;
     
     // Parse documentsToDelete if it's a string (from form data)
     let documentsToDeleteArray: string[] = [];
@@ -177,6 +179,7 @@ export const updateNomineeController = async (
       dob,
       email,
       address,
+      gender,
       status: normalizedStatus,
       documentsToAdd: documentsToAdd.length > 0 ? documentsToAdd : undefined,
       documentsToUpdate: documentsToUpdate.length > 0 ? documentsToUpdate : undefined,

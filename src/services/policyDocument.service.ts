@@ -3,9 +3,10 @@ import { NotFoundError, ValidationError, safeBigInt } from '../utils/errors';
 import { getFileUrl } from '../utils/fileUpload';
 import { createActivityLog } from './userActivityLog.service';
 import { updatePolicyStatusBasedOnCompleteness } from './policy.service';
+import { PolicyDocumentType } from '@prisma/client';
 
 export interface UploadPolicyDocumentData {
-  documentType: 'POLICY_COPY' | 'RECEIPT' | 'OTHER';
+  documentType: PolicyDocumentType;
   documentName: string;
   filename: string;
 }
