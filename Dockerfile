@@ -34,6 +34,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/logo ./logo
+COPY --from=builder /app/scripts ./scripts
 
 # Verify logo file was copied
 RUN ls -la /app/logo/ || echo "Warning: Logo directory not found"
@@ -43,10 +44,11 @@ RUN npm install --omit=dev
 
 RUN mkdir -p /app/uploads
 RUN mkdir -p /app/logo
+RUN chmod +x /app/scripts/pre-migrate.sh 2>/dev/null || true
 VOLUME ["/app/uploads"]
 
 ENV NODE_ENV=production
 EXPOSE 3000
 
 # Run migrations & start app
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]    
+CMD ["sh", "-c", "/app/scripts/pre-migrate.sh && node dist/index.js"]    
