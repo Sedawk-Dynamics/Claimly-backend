@@ -17,6 +17,8 @@ import {
   acceptNomineeWithoutDocuments,
   rejectNomineeWithoutDocuments,
   deleteUserDocumentByAdmin,
+  deletePolicyDocumentByAdmin,
+  deleteNomineeDocumentByAdmin,
   deleteKycDocumentsByAdmin,
   deleteUserByAdmin,
   deletePolicyByAdmin,
@@ -360,10 +362,16 @@ export const deleteDocumentByAdminController = async (
       case 'user':
         result = await deleteUserDocumentByAdmin(id, req.admin.adminId);
         break;
+      case 'policy':
+        result = await deletePolicyDocumentByAdmin(id, req.admin.adminId);
+        break;
+      case 'nominee':
+        result = await deleteNomineeDocumentByAdmin(id, req.admin.adminId);
+        break;
       default:
         res.status(400).json({
           success: false,
-          error: 'Invalid documentType. Currently only "user" documents can be deleted by admin.',
+          error: 'Invalid documentType. Must be "user", "policy", or "nominee".',
         });
         return;
     }

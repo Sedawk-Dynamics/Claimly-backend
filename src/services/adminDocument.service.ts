@@ -985,6 +985,106 @@ export const deleteUserDocumentByAdmin = async (documentId: string, adminId: str
   };
 };
 
+export const deletePolicyDocumentByAdmin = async (documentId: string, adminId: string) => {
+  const document = await prisma.policyDocument.findUnique({
+    where: { id: BigInt(documentId) },
+    include: { policy: true },
+  });
+
+  if (!document) {
+    throw new NotFoundError('Policy document not found');
+  }
+
+  const policyId = document.policy_id.toString();
+
+  // Extract filename from URL
+  const urlParts = document.document_url.split('/');
+  const filename = urlParts[urlParts.length - 1];
+
+  // Delete file from filesystem
+  const { deleteFile } = await import('../utils/fileUpload');
+  try {
+    deleteFile(filename, 'policies');
+  } catch (error) {
+    logger.warn('Failed to delete file from filesystem', { filename, error });
+    // Continue with database deletion even if file deletion fails
+  }
+
+  // Delete from database
+  await prisma.policyDocument.delete({
+    where: { id: BigInt(documentId) },
+  });
+
+  // Update policy status based on completeness
+  const { updatePolicyStatusBasedOnCompleteness } = await import('./policy.service');
+  await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
+    logger.warn('Failed to update policy status after document deletion', { policyId, error: err });
+  });
+
+  logger.info('Policy document deleted by admin', {
+    documentId,
+    adminId,
+    policyId,
+    documentType: document.document_type,
+  });
+
+  return {
+    message: 'Document deleted successfully',
+    documentId: document.id.toString(),
+    policyId,
+  };
+};
+
+export const deleteNomineeDocumentByAdmin = async (documentId: string, adminId: string) => {
+  const document = await prisma.nomineeDocument.findUnique({
+    where: { id: BigInt(documentId) },
+    include: { nominee: true },
+  });
+
+  if (!document) {
+    throw new NotFoundError('Nominee document not found');
+  }
+
+  const nomineeId = document.nominee_id.toString();
+
+  // Extract filename from URL
+  const urlParts = document.document_url.split('/');
+  const filename = urlParts[urlParts.length - 1];
+
+  // Delete file from filesystem
+  const { deleteFile } = await import('../utils/fileUpload');
+  try {
+    deleteFile(filename, 'nominees');
+  } catch (error) {
+    logger.warn('Failed to delete file from filesystem', { filename, error });
+    // Continue with database deletion even if file deletion fails
+  }
+
+  // Delete from database
+  await prisma.nomineeDocument.delete({
+    where: { id: BigInt(documentId) },
+  });
+
+  // Update nominee status based on completeness
+  const { updateNomineeStatusBasedOnCompleteness } = await import('./nominee.service');
+  await updateNomineeStatusBasedOnCompleteness(nomineeId).catch((err) => {
+    logger.warn('Failed to update nominee status after document deletion', { nomineeId, error: err });
+  });
+
+  logger.info('Nominee document deleted by admin', {
+    documentId,
+    adminId,
+    nomineeId,
+    documentType: document.document_type,
+  });
+
+  return {
+    message: 'Document deleted successfully',
+    documentId: document.id.toString(),
+    nomineeId,
+  };
+};
+
 export const rejectNomineeWithoutDocuments = async (nomineeId: string, adminId: string) => {
   const nominee = await prisma.nominee.findUnique({
     where: { id: BigInt(nomineeId) },
