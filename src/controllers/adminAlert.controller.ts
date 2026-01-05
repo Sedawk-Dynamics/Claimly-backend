@@ -6,6 +6,7 @@ import {
   verifyAlert,
   getAlertStats,
   bulkVerifyAlerts,
+  deleteAlert,
 } from '../services/adminAlert.service';
 
 export const getAllAlertsController = async (
@@ -125,6 +126,29 @@ export const bulkVerifyAlertsController = async (
       verificationStatus,
       remarks,
     });
+    
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteAlertController = async (
+  req: AdminRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.admin) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { id } = req.params;
+    const result = await deleteAlert(req.admin.adminId, id);
     
     res.status(200).json({
       success: true,

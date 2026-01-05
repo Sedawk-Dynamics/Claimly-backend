@@ -393,3 +393,39 @@ export const bulkVerifyAlerts = async (
   };
 };
 
+export const deleteAlert = async (adminId: string, alertId: string) => {
+  const alert = await prisma.deceasedAlert.findUnique({
+    where: { id: BigInt(alertId) },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  if (!alert) {
+    throw new NotFoundError('Alert not found');
+  }
+
+  await prisma.deceasedAlert.delete({
+    where: { id: BigInt(alertId) },
+  });
+
+  // Send notification about alert deletion
+  await sendAdminActionNotification(adminId, alert.user.id.toString(), 'ALERT_DELETED', {
+    alertId,
+  }).catch((err) => {
+    // Log but don't fail if notification fails
+    console.warn('Failed to send alert deletion notification', { error: err });
+  });
+
+  return {
+    message: 'Alert deleted successfully',
+    alertId,
+  };
+};
+
