@@ -179,9 +179,10 @@ export const getCurrentSubscription = async (userId: string) => {
     if (latestSubscription.expires_at) {
       expiresAt = latestSubscription.expires_at.toISOString();
     } else {
-      // Backfill: Calculate expiry date from transaction_date (30 days)
+      // Backfill: Calculate expiry date from transaction_date
+      // Keep in sync with SUBSCRIPTION_VALIDITY_DAYS in subscription.service (lifetime-style duration)
       const calculatedExpiry = new Date(latestSubscription.transaction_date);
-      calculatedExpiry.setDate(calculatedExpiry.getDate() + 30);
+      calculatedExpiry.setDate(calculatedExpiry.getDate() + 365 * 110); // ~110 years
       expiresAt = calculatedExpiry.toISOString();
 
       // Optionally update the database (async, don't wait)

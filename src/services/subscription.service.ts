@@ -15,8 +15,9 @@ export interface CreateSubscriptionData {
   orderId?: string; // Razorpay Order ID
 }
 
-// Subscription validity period in days (1 month = 30 days)
-const SUBSCRIPTION_VALIDITY_DAYS = 30;
+// Subscription validity period in days
+// Set to a very large value so that subscriptions are effectively lifetime
+const SUBSCRIPTION_VALIDITY_DAYS = 365 * 110; // ~110 years (treated as lifetime)
 
 export const createSubscription = async (data: CreateSubscriptionData) => {
   logger.info('Creating subscription', { 

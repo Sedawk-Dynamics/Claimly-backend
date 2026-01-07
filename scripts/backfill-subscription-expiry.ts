@@ -1,8 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 
+// Declare Node's process to avoid needing @types/node for this simple script
+declare const process: any;
+
 const prisma = new PrismaClient();
 
-const SUBSCRIPTION_VALIDITY_DAYS = 30;
+// Keep in sync with SUBSCRIPTION_VALIDITY_DAYS in src/services/subscription.service.ts
+// Use a very large value so subscriptions are effectively lifetime
+const SUBSCRIPTION_VALIDITY_DAYS = 365 * 110; // ~110 years (treated as lifetime)
 
 async function backfillSubscriptionExpiry() {
   try {
