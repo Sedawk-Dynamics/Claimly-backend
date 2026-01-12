@@ -17,6 +17,7 @@ model User {
   mobile_number       String     @unique
   firebase_id         String     @unique
   device_id           String?
+  profile_picture     String?
   subscription_status SubscriptionStatus @default(INACTIVE)
   referral_code       String?    @unique
   referred_by         BigInt?

@@ -11,6 +11,7 @@ import {
   generateUserReferralCode,
   registerFCMToken,
   unregisterFCMToken,
+  uploadProfilePicture,
 } from '../services/user.service';
 
 export const getProfileController = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -196,6 +197,32 @@ export const unregisterFCMTokenController = async (req: AuthRequest, res: Respon
     res.status(200).json({
       success: true,
       message: 'FCM token unregistered successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const uploadProfilePictureController = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({
+        success: false,
+        error: 'No file uploaded',
+      });
+      return;
+    }
+
+    const updatedProfile = await uploadProfilePicture(req.user.userId, req.file.filename);
+
+    res.status(200).json({
+      success: true,
+      data: updatedProfile,
     });
   } catch (error) {
     next(error);

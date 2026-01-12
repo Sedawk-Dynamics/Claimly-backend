@@ -6,6 +6,7 @@ import type { Request, Response, NextFunction } from 'express';
 // Ensure upload directories exist
 const uploadDirs = {
   users: path.join(process.cwd(), 'uploads', 'users'),
+  'users/profile-pic': path.join(process.cwd(), 'uploads', 'users', 'profile-pic'),
   policies: path.join(process.cwd(), 'uploads', 'policies'),
   nominees: path.join(process.cwd(), 'uploads', 'nominees'),
 };
@@ -52,6 +53,22 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   }
 };
 
+// File filter for profile pictures - only images
+const profilePictureFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedTypes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+  ];
+
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only images (JPEG, PNG, WebP) are allowed for profile pictures.'));
+  }
+};
+
 // Configure multer for different upload types
 export const uploadUsers = multer({
   storage: createStorage('users'),
@@ -80,6 +97,28 @@ export const uploadNominees = multer({
   },
 });
 
+// Profile picture upload - stores in users/profile-pic
+export const uploadProfilePicture = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadDirs['users/profile-pic']);
+    },
+    filename: (req, file, cb) => {
+      // Generate unique filename: timestamp-randomstring-originalname
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(file.originalname);
+      const name = path.basename(file.originalname, ext);
+      const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_');
+      cb(null, `${sanitizedName}-${uniqueSuffix}${ext}`);
+    },
+  }),
+  fileFilter: profilePictureFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit for profile pictures
+    files: 1,
+  },
+});
+
 // Default export for backward compatibility
 export const upload = uploadUsers;
 
@@ -100,20 +139,25 @@ const getUploadsBaseUrl = (): string | null => {
   return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 };
 
-export const getFileUrl = (filename: string, uploadType: 'users' | 'policies' | 'nominees'): string => {
+export const getFileUrl = (filename: string, uploadType: 'users' | 'policies' | 'nominees' | 'users/profile-pic'): string => {
   const relativePath = `/uploads/${uploadType}/${filename}`;
   const baseUrl = getUploadsBaseUrl();
 
   return baseUrl ? `${baseUrl}${relativePath}` : relativePath;
 };
 
+// Helper function to get profile picture URL
+export const getProfilePictureUrl = (filename: string): string => {
+  return getFileUrl(filename, 'users/profile-pic');
+};
+
 // Helper function to get file path
-export const getFilePath = (filename: string, uploadType: 'users' | 'policies' | 'nominees'): string => {
+export const getFilePath = (filename: string, uploadType: 'users' | 'policies' | 'nominees' | 'users/profile-pic'): string => {
   return path.join(uploadDirs[uploadType], filename);
 };
 
 // Helper function to delete file
-export const deleteFile = (filename: string, uploadType: 'users' | 'policies' | 'nominees'): void => {
+export const deleteFile = (filename: string, uploadType: 'users' | 'policies' | 'nominees' | 'users/profile-pic'): void => {
   const filePath = getFilePath(filename, uploadType);
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
@@ -156,4 +200,7 @@ const createFlexibleFileUpload = (uploadInstance: multer.Multer) => {
 export const singleUserFileUpload = createFlexibleFileUpload(uploadUsers);
 export const singlePolicyFileUpload = createFlexibleFileUpload(uploadPolicies);
 export const singleNomineeFileUpload = createFlexibleFileUpload(uploadNominees);
+
+// Profile picture upload middleware
+export const singleProfilePictureUpload = createFlexibleFileUpload(uploadProfilePicture);
 

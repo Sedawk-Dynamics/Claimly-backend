@@ -161,6 +161,33 @@ app.use('/uploads', express.static(uploadsPath, {
   fallthrough: true, // Allow request to continue to next handler if file not found
 }));
 
+// Route handler for profile pictures
+app.get('/uploads/users/profile-pic/:filename', (req, res, next) => {
+  const { filename } = req.params;
+  
+  // Sanitize filename to prevent directory traversal
+  const sanitizedFilename = path.basename(filename);
+  if (sanitizedFilename !== filename || filename.includes('..')) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid filename',
+    });
+  }
+  
+  const filePath = path.join(uploadsPath, 'users', 'profile-pic', sanitizedFilename);
+  const normalizedPath = path.normalize(filePath);
+  
+  if (fs.existsSync(normalizedPath)) {
+    res.sendFile(normalizedPath, (err) => {
+      if (err && !res.headersSent) {
+        res.status(500).json({ success: false, error: 'Error serving file' });
+      }
+    });
+  } else {
+    res.status(404).json({ success: false, error: 'File not found' });
+  }
+});
+
 // Route handler for uploaded files with proper error handling
 app.get('/uploads/:type/:filename', (req, res, next) => {
   const { type, filename } = req.params;
@@ -175,7 +202,11 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
   
   // Validate type to prevent directory traversal
   const allowedTypes = ['users', 'policies', 'nominees'];
-  if (!allowedTypes.includes(type)) {
+  // Handle profile-pic subdirectory
+  const isProfilePic = type === 'users' && filename.includes('profile-pic');
+  const actualType = isProfilePic ? 'users/profile-pic' : type;
+  
+  if (!allowedTypes.includes(type) && !isProfilePic) {
     logger.warn('Invalid upload type requested', { type, filename });
     return res.status(400).json({
       success: false,
@@ -196,7 +227,10 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
     });
   }
   
-  const filePath = path.join(uploadsPath, type, sanitizedFilename);
+  // Handle profile-pic path
+  const filePath = isProfilePic 
+    ? path.join(uploadsPath, 'users', 'profile-pic', sanitizedFilename)
+    : path.join(uploadsPath, type, sanitizedFilename);
   const normalizedPath = path.normalize(filePath);
   
   logger.info('Checking file existence', {
@@ -215,7 +249,9 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
   
   // If not found, try case-insensitive lookup
   if (!fileExists) {
-    const typeDir = path.join(uploadsPath, type);
+    const typeDir = isProfilePic 
+      ? path.join(uploadsPath, 'users', 'profile-pic')
+      : path.join(uploadsPath, type);
     if (fs.existsSync(typeDir)) {
       try {
         const dirContents = fs.readdirSync(typeDir);

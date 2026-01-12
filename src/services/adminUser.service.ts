@@ -30,6 +30,7 @@ export const getAllUsers = async (page: number = 1, limit: number = 20, search?:
         email: true,
         mobile_number: true,
         subscription_status: true,
+        profile_picture: true,
         created_at: true,
         updated_at: true,
         _count: {
@@ -52,6 +53,7 @@ export const getAllUsers = async (page: number = 1, limit: number = 20, search?:
       email: user.email,
       mobileNumber: user.mobile_number,
       subscriptionStatus: user.subscription_status,
+      profilePicture: user.profile_picture || null,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
       stats: {
@@ -176,6 +178,7 @@ export const getUserById = async (userId: string) => {
     referralCode: user.referral_code,
     walletBalance: Number(user.wallet_balance),
     subscriptionStatus: user.subscription_status,
+    profilePicture: user.profile_picture || null,
     createdAt: user.created_at,
     updatedAt: user.updated_at,
     stats: {

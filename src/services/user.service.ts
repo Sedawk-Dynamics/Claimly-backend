@@ -2,6 +2,7 @@ import prisma from '../config/prismaClient';
 import { NotFoundError, ConflictError, AppError } from '../utils/errors';
 import { generateReferralCode } from '../utils/referral';
 import logger from '../config/logger';
+import { getProfilePictureUrl, deleteFile } from '../utils/fileUpload';
 
 export interface UpdateProfileData {
   name?: string;
@@ -42,6 +43,7 @@ export const getUserProfile = async (userId: string) => {
       subscription_status: true,
       referral_code: true,
       wallet_balance: true,
+      profile_picture: true,
       created_at: true,
       updated_at: true,
     },
@@ -61,6 +63,7 @@ export const getUserProfile = async (userId: string) => {
     subscriptionStatus: user.subscription_status,
     referralCode: user.referral_code,
     walletBalance: Number(user.wallet_balance),
+    profilePicture: user.profile_picture || null,
     createdAt: user.created_at,
     updatedAt: user.updated_at,
   };
@@ -102,6 +105,7 @@ export const updateUserProfile = async (userId: string, data: UpdateProfileData)
       subscription_status: true,
       referral_code: true,
       wallet_balance: true,
+      profile_picture: true,
       created_at: true,
       updated_at: true,
     },
@@ -117,6 +121,7 @@ export const updateUserProfile = async (userId: string, data: UpdateProfileData)
     subscriptionStatus: updatedUser.subscription_status,
     referralCode: updatedUser.referral_code,
     walletBalance: Number(updatedUser.wallet_balance),
+    profilePicture: updatedUser.profile_picture || null,
     createdAt: updatedUser.created_at,
     updatedAt: updatedUser.updated_at,
   };
@@ -225,6 +230,7 @@ export const getUserById = async (userId: string) => {
       subscription_status: true,
       referral_code: true,
       wallet_balance: true,
+      profile_picture: true,
       created_at: true,
       updated_at: true,
     },
@@ -244,6 +250,7 @@ export const getUserById = async (userId: string) => {
     subscriptionStatus: user.subscription_status,
     referralCode: user.referral_code,
     walletBalance: Number(user.wallet_balance),
+    profilePicture: user.profile_picture || null,
     createdAt: user.created_at,
     updatedAt: user.updated_at,
   };
@@ -285,6 +292,7 @@ export const updateUserById = async (userId: string, data: UpdateProfileData) =>
       subscription_status: true,
       referral_code: true,
       wallet_balance: true,
+      profile_picture: true,
       created_at: true,
       updated_at: true,
     },
@@ -300,6 +308,7 @@ export const updateUserById = async (userId: string, data: UpdateProfileData) =>
     subscriptionStatus: updatedUser.subscription_status,
     referralCode: updatedUser.referral_code,
     walletBalance: Number(updatedUser.wallet_balance),
+    profilePicture: updatedUser.profile_picture || null,
     createdAt: updatedUser.created_at,
     updatedAt: updatedUser.updated_at,
   };
@@ -494,6 +503,67 @@ export const getFCMToken = async (userId: string): Promise<string | null> => {
   }
 
   return user.device_id;
+};
+
+export const uploadProfilePicture = async (userId: string, filename: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: BigInt(userId) },
+    select: { profile_picture: true },
+  });
+
+  if (!user) {
+    throw new NotFoundError('User not found');
+  }
+
+  // Delete old profile picture if exists
+  if (user.profile_picture) {
+    const oldFilename = user.profile_picture.split('/').pop();
+    if (oldFilename) {
+      try {
+        deleteFile(oldFilename, 'users/profile-pic');
+      } catch (error) {
+        logger.warn('Failed to delete old profile picture', { userId, filename: oldFilename, error });
+      }
+    }
+  }
+
+  // Generate file URL
+  const profilePictureUrl = getProfilePictureUrl(filename);
+
+  // Update user with new profile picture
+  const updatedUser = await prisma.user.update({
+    where: { id: BigInt(userId) },
+    data: { profile_picture: profilePictureUrl },
+    select: {
+      id: true,
+      name: true,
+      dob: true,
+      email: true,
+      mobile_number: true,
+      device_id: true,
+      subscription_status: true,
+      referral_code: true,
+      wallet_balance: true,
+      profile_picture: true,
+      created_at: true,
+      updated_at: true,
+    },
+  });
+
+  return {
+    id: updatedUser.id.toString(),
+    name: updatedUser.name,
+    dob: updatedUser.dob ? updatedUser.dob.toISOString().split('T')[0] : null,
+    email: updatedUser.email,
+    mobileNumber: updatedUser.mobile_number,
+    deviceId: updatedUser.device_id,
+    subscriptionStatus: updatedUser.subscription_status,
+    referralCode: updatedUser.referral_code,
+    walletBalance: Number(updatedUser.wallet_balance),
+    profilePicture: updatedUser.profile_picture || null,
+    createdAt: updatedUser.created_at,
+    updatedAt: updatedUser.updated_at,
+  };
 };
 
 
