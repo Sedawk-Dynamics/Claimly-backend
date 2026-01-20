@@ -245,7 +245,42 @@
                 "profile"
               ]
             },
-            "description": "Update the authenticated user's profile"
+            "description": "Update the authenticated user's basic profile details (name, dob, email, deviceId). Does not handle profile picture upload."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Profile Picture",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/profile/picture",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "profile",
+                "picture"
+              ]
+            },
+            "description": "**Upload or Update Profile Picture**\n\nUploads a profile picture for the authenticated user.\n\n**Details:**\n- Endpoint: `POST /user/profile/picture`\n- Auth: Required (Bearer token)\n- Content-Type: `multipart/form-data`\n- Field:\n  - `file`: image file (JPEG/PNG/WebP)\n- Max file size: **5MB**\n- Stored on server in: `uploads/users/profile-pic/`\n- Database: stores full URL in `User.profile_picture`\n\n**Behavior:**\n- If user already has a profile picture, the previous file is deleted from `uploads/users/profile-pic/`\n- Profile picture is optional; if not set, frontends show the first letter of the user's name instead\n\n**Example (form-data):**\n- `file`: `my_photo.png`\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"42\",\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"mobileNumber\": \"9876543210\",\n    \"subscriptionStatus\": \"ACTIVE\",\n    \"profilePicture\": \"/uploads/users/profile-pic/john_doe-1712345678.png\",\n    \"createdAt\": \"2024-01-01T10:00:00.000Z\",\n    \"updatedAt\": \"2024-02-01T09:30:00.000Z\"\n  }\n}\n```"
           },
           "response": []
         },
