@@ -177,7 +177,8 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
         }
 
         // Validate and find referrer if referral code is provided
-        let referredById: bigint | null = null;
+        let referredById: bigint | null = null;           // normal user referrer
+        let referredByAgentId: bigint | null = null;      // agent referrer (Admin with role AGENT)
         let referralCode: string | undefined;
 
         // Check if referral_code column exists by trying a simple query
@@ -203,20 +204,37 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           }
 
           try {
-            const referrer = await prisma.user.findUnique({
-              where: { referral_code: data.referralCode.toUpperCase() },
+            const normalizedCode = data.referralCode.toUpperCase();
+
+            // First try to resolve as a normal user referral code
+            const userReferrer = await prisma.user.findUnique({
+              where: { referral_code: normalizedCode },
               select: { id: true },
             });
 
-            if (!referrer) {
-              throw new ValidationError('Invalid referral code');
-            }
+            if (userReferrer) {
+              referredById = userReferrer.id;
+              logger.info('User referral code validated', {
+                referralCode: normalizedCode,
+                referrerId: userReferrer.id.toString(),
+              });
+            } else {
+              // If no user found, try to resolve as an AGENT referral code on Admin
+              const agentReferrer = await prisma.admin.findFirst({
+                where: { referral_code: normalizedCode, role: 'AGENT' },
+                select: { id: true },
+              });
 
-            referredById = referrer.id;
-            logger.info('Referral code validated', {
-              referralCode: data.referralCode,
-              referrerId: referrer.id.toString()
-            });
+              if (!agentReferrer) {
+                throw new ValidationError('Invalid referral code');
+              }
+
+              referredByAgentId = agentReferrer.id;
+              logger.info('Agent referral code validated', {
+                referralCode: normalizedCode,
+                agentId: agentReferrer.id.toString(),
+              });
+            }
           } catch (error: any) {
             // If error is about missing column, skip referral validation
             if (error?.message?.includes('referral_code') && error?.message?.includes('does not exist')) {
@@ -288,6 +306,9 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           if (referredById) {
             userData.referred_by = referredById;
           }
+          if (referredByAgentId) {
+            userData.referred_by_agent = referredByAgentId;
+          }
         }
 
         user = await prisma.user.create({
@@ -299,6 +320,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<AuthResponse> =
           mobileNumber: normalizedMobileNumber,
           referralCode: referralCode || 'N/A (column not available)',
           referredBy: referredById?.toString() || null,
+          referredByAgent: referredByAgentId?.toString() || null,
         });
 
         // Alert creation removed - alerts now only come from mobile app SMS reading

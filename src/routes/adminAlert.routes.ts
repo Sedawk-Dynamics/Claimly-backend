@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateAdmin } from '../middlewares/adminAuth.middleware';
+import { authenticateAdmin, requireVerifiedAgent } from '../middlewares/adminAuth.middleware';
 import {
   getAllAlertsController,
   getAlertByIdController,
@@ -11,8 +11,9 @@ import {
 
 const router = Router();
 
-// All admin alert routes require authentication
+// All admin alert routes require authentication and verified agent status
 router.use(authenticateAdmin);
+router.use(requireVerifiedAgent);
 
 router.get('/stats', getAlertStatsController);
 router.get('/', getAllAlertsController);

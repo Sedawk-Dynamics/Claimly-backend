@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateAdmin } from '../middlewares/adminAuth.middleware';
+import { authenticateAdmin, requireVerifiedAgent } from '../middlewares/adminAuth.middleware';
 import {
   createCompanyController,
   getAllCompaniesController,
@@ -10,8 +10,9 @@ import {
 
 const router = Router();
 
-// All admin company routes require authentication
+// All admin company routes require authentication and verified agent status
 router.use(authenticateAdmin);
+router.use(requireVerifiedAgent);
 
 router.post('/', createCompanyController);
 router.get('/', getAllCompaniesController);

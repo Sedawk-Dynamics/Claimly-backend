@@ -21,6 +21,7 @@ model User {
   subscription_status SubscriptionStatus @default(INACTIVE)
   referral_code       String?    @unique
   referred_by         BigInt?
+  referred_by_agent   BigInt?
   wallet_balance      Decimal    @default(0) @db.Decimal(10,2)
   created_at          DateTime   @default(now())
   updated_at          DateTime   @updatedAt
@@ -36,6 +37,7 @@ model User {
   notifications       AdminNotification[]
   referrer            User?      @relation("UserReferrals", fields: [referred_by], references: [id])
   referrals           User[]     @relation("UserReferrals")
+  referred_agent      Admin?     @relation("AgentReferrals", fields: [referred_by_agent], references: [id])
 }
 
 model Subscription {
@@ -186,14 +188,23 @@ model Admin {
   id            BigInt     @id @default(autoincrement())
   name          String
   email         String     @unique
+  mobile_number String?    @unique
   password_hash String
   role          AdminRole  @default(STAFF)
+  is_verified   Boolean    @default(false)
+  verified_by   BigInt?
+  verified_at   DateTime?
+  referral_code String?    @unique
   created_at    DateTime   @default(now())
   updated_at    DateTime   @updatedAt
 
   admin_actions AdminAction[]
   verified_alerts DeceasedAlert[]
   notifications AdminNotification[]
+  verified_agents Admin[]   @relation("AgentVerification")
+  verified_by_admin Admin?  @relation("AgentVerification", fields: [verified_by], references: [id])
+  agent_referrals User[]    @relation("AgentReferrals")
+  banners        Banner[]
 }
 
 model AdminNotification {
@@ -245,6 +256,18 @@ model SubscriptionPlan {
   updated_at      DateTime   @updatedAt
 }
 
+model Banner {
+  id              BigInt     @id @default(autoincrement())
+  title           String?
+  image_url       String
+  is_active       Boolean    @default(false)
+  created_by      BigInt
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+
+  creator         Admin      @relation(fields: [created_by], references: [id])
+}
+
 // ===== ENUMS =====
 
 enum SubscriptionStatus {
@@ -289,7 +312,6 @@ enum UserDocumentType {
 }
 
 enum PolicyDocumentType {
-  POLICY_COPY
   POLICY_DOCUMENT
   RECEIPT
   OTHER
@@ -315,6 +337,7 @@ enum VerificationStatus {
 enum AdminRole {
   SUPER_ADMIN
   STAFF
+  AGENT
 }
 
 enum WalletTransactionType {

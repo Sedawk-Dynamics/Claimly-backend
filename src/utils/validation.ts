@@ -47,6 +47,26 @@ export const adminLoginSchema = z.object({
   }),
 });
 
+export const agentSignupSchema = z.object({
+  body: z.object({
+    idToken: z.string().min(1, 'Firebase ID token is required'),
+    name: z.string().min(1, 'Name is required'),
+    email: z.string().email('Invalid email format'),
+    mobileNumber: z.string()
+      .transform((val) => normalizePhoneNumber(val))
+      .pipe(z.string().regex(/^[0-9]{10}$/, 'Invalid mobile number format. Must be 10 digits.')),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+  }),
+});
+
+export const agentLoginSchema = z.object({
+  body: z.object({
+    idToken: z.string().min(1, 'Firebase ID token is required'),
+    email: z.string().email('Invalid email format'),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+  }),
+});
+
 // User validation schemas
 export const updateProfileSchema = z.object({
   body: z.object({

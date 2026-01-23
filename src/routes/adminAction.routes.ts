@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateAdmin } from '../middlewares/adminAuth.middleware';
+import { authenticateAdmin, requireVerifiedAgent } from '../middlewares/adminAuth.middleware';
 import {
   createAdminActionController,
   getAllAdminActionsController,
@@ -8,8 +8,9 @@ import {
 
 const router = Router();
 
-// All admin action routes require authentication
+// All admin action routes require authentication and verified agent status
 router.use(authenticateAdmin);
+router.use(requireVerifiedAgent);
 
 router.post('/', createAdminActionController);
 router.get('/', getAllAdminActionsController);

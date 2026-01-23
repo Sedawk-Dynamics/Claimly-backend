@@ -9,6 +9,7 @@ const uploadDirs = {
   'users/profile-pic': path.join(process.cwd(), 'uploads', 'users', 'profile-pic'),
   policies: path.join(process.cwd(), 'uploads', 'policies'),
   nominees: path.join(process.cwd(), 'uploads', 'nominees'),
+  banners: path.join(process.cwd(), 'uploads', 'banners'),
 };
 
 Object.values(uploadDirs).forEach((dir) => {
@@ -139,7 +140,7 @@ const getUploadsBaseUrl = (): string | null => {
   return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 };
 
-export const getFileUrl = (filename: string, uploadType: 'users' | 'policies' | 'nominees' | 'users/profile-pic'): string => {
+export const getFileUrl = (filename: string, uploadType: 'users' | 'policies' | 'nominees' | 'users/profile-pic' | 'banners'): string => {
   const relativePath = `/uploads/${uploadType}/${filename}`;
   const baseUrl = getUploadsBaseUrl();
 
@@ -152,12 +153,12 @@ export const getProfilePictureUrl = (filename: string): string => {
 };
 
 // Helper function to get file path
-export const getFilePath = (filename: string, uploadType: 'users' | 'policies' | 'nominees' | 'users/profile-pic'): string => {
+export const getFilePath = (filename: string, uploadType: 'users' | 'policies' | 'nominees' | 'users/profile-pic' | 'banners'): string => {
   return path.join(uploadDirs[uploadType], filename);
 };
 
 // Helper function to delete file
-export const deleteFile = (filename: string, uploadType: 'users' | 'policies' | 'nominees' | 'users/profile-pic'): void => {
+export const deleteFile = (filename: string, uploadType: 'users' | 'policies' | 'nominees' | 'users/profile-pic' | 'banners'): void => {
   const filePath = getFilePath(filename, uploadType);
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
@@ -203,4 +204,33 @@ export const singleNomineeFileUpload = createFlexibleFileUpload(uploadNominees);
 
 // Profile picture upload middleware
 export const singleProfilePictureUpload = createFlexibleFileUpload(uploadProfilePicture);
+
+// Banner upload - stores in banners directory
+export const uploadBanner = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadDirs['banners']);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(file.originalname);
+      const name = path.basename(file.originalname, ext);
+      const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_');
+      cb(null, `${sanitizedName}-${uniqueSuffix}${ext}`);
+    },
+  }),
+  fileFilter: profilePictureFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit for banners
+    files: 1,
+  },
+});
+
+// Banner upload middleware
+export const singleBannerUpload = createFlexibleFileUpload(uploadBanner);
+
+// Helper function to get banner URL
+export const getBannerUrl = (filename: string): string => {
+  return getFileUrl(filename, 'banners');
+};
 

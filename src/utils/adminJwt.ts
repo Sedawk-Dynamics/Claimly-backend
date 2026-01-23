@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 export interface AdminJWTPayload {
   adminId: string;
   email: string;
-  role: 'SUPER_ADMIN' | 'STAFF';
+  role: 'SUPER_ADMIN' | 'STAFF' | 'AGENT';
 }
 
 export const generateAdminToken = (payload: AdminJWTPayload): string => {

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateAdmin } from '../middlewares/adminAuth.middleware';
+import { authenticateAdmin, requireVerifiedAgent } from '../middlewares/adminAuth.middleware';
 import {
   getAllUsersController,
   getUserByIdController,
@@ -9,8 +9,9 @@ import { getUserActivityLogsController, deleteActivityLogController, deleteAllAc
 
 const router = Router();
 
-// All admin user routes require authentication
+// All admin user routes require authentication and verified agent status
 router.use(authenticateAdmin);
+router.use(requireVerifiedAgent);
 
 router.get('/', getAllUsersController);
 router.get('/:id', getUserByIdController);

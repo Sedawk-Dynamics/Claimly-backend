@@ -1,12 +1,13 @@
 import { Router } from 'express';
-import { authenticateAdmin } from '../middlewares/adminAuth.middleware';
+import { authenticateAdmin, requireVerifiedAgent } from '../middlewares/adminAuth.middleware';
 import { validate, verifyDocumentSchema, rejectDocumentSchema } from '../utils/validation';
 import { verifyDocumentController, rejectDocumentController, getKycDocumentsController, getPolicyDocumentsController, getNomineeDocumentsController, acceptEntityWithoutDocumentsController, rejectEntityWithoutDocumentsController, deleteDocumentByAdminController, deleteKycDocumentsByAdminController, deleteUserByAdminController, deletePolicyByAdminController, deleteNomineeByAdminController, verifyEntityDetailsController } from '../controllers/adminDocument.controller';
 
 const router = Router();
 
-// All admin document routes require authentication
+// All admin document routes require authentication and verified agent status
 router.use(authenticateAdmin);
+router.use(requireVerifiedAgent);
 
 router.get('/', getKycDocumentsController);
 router.get('/kyc-documents', getKycDocumentsController);

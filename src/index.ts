@@ -24,6 +24,7 @@ import testAuthRoutes from './routes/testAuth.routes';
 import companyRoutes from './routes/company.routes';
 import walletRoutes from './routes/wallet.routes';
 import notificationRoutes from './routes/notification.routes';
+import bannerRoutes from './routes/banner.routes';
 import { notificationService } from './services/notification.service';
 import path from 'path';
 import fs from 'fs';
@@ -123,7 +124,7 @@ try {
 // In production warn if uploads appear ephemeral or empty — common misconfiguration
 try {
   if (env.NODE_ENV === 'production') {
-    ['users', 'policies', 'nominees'].forEach((subdir) => {
+    ['users', 'policies', 'nominees', 'banners'].forEach((subdir) => {
       const subdirPath = path.join(uploadsPath, subdir);
       if (fs.existsSync(subdirPath)) {
         const files = fs.readdirSync(subdirPath);
@@ -201,7 +202,7 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
   });
   
   // Validate type to prevent directory traversal
-  const allowedTypes = ['users', 'policies', 'nominees'];
+  const allowedTypes = ['users', 'policies', 'nominees', 'banners'];
   // Handle profile-pic subdirectory
   const isProfilePic = type === 'users' && filename.includes('profile-pic');
   const actualType = isProfilePic ? 'users/profile-pic' : type;
@@ -582,6 +583,7 @@ app.use('/admin/companies', adminLimiter, adminCompanyRoutes);
 app.use('/admin/policies', adminLimiter, adminPolicyRoutes);
 app.use('/admin/documents', adminLimiter, adminDocumentRoutes);
 app.use('/admin', adminLimiter, adminVerifyRoutes);
+app.use('/banners', bannerRoutes);
 
 // Alert Routes
 app.use('/alerts', alertRoutes);
