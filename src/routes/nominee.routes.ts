@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware';
 import { validate, createNomineeSchema } from '../utils/validation';
-import { requireActiveSubscription } from '../middlewares/subscription.middleware';
+import { requireActiveSubscription, requireCompletedKyc } from '../middlewares/subscription.middleware';
 import { multipleNomineeFileUpload } from '../utils/fileUpload';
 import {
   createNomineeController,
@@ -17,7 +17,8 @@ const router = Router();
 router.use(authenticate);
 router.use(requireActiveSubscription);
 
-router.post('/', validate(createNomineeSchema), createNomineeController);
+// Require completed KYC before creating nominees (including drafts)
+router.post('/', requireCompletedKyc, validate(createNomineeSchema), createNomineeController);
 router.get('/', getNomineesController);
 router.get('/:id', getNomineeByIdController);
 router.put('/:id', multipleNomineeFileUpload, updateNomineeController);

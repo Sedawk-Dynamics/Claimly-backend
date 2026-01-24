@@ -441,6 +441,16 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
 export const createPolicyDraft = async (userId: string, data: CreatePolicyDraftData) => {
   logger.info('Saving policy draft', { userId, policyNumber: data.policyNumber });
 
+  // Ensure user has completed KYC before creating policies (including drafts)
+  const kycStatus = await getUserKycStatus(userId);
+  if (kycStatus.status !== 'COMPLETED') {
+    logger.warn('Attempt to create policy draft without completed KYC', {
+      userId,
+      missingDocuments: kycStatus.missingDocuments,
+    });
+    throw new ValidationError('KYC verification is required before adding policies');
+  }
+
   if (!data.insuranceCompanyId) {
     throw new ValidationError('insuranceCompanyId is required to save a draft policy');
   }

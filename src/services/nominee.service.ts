@@ -4,6 +4,7 @@ import { createActivityLog } from './userActivityLog.service';
 import { getFileUrl } from '../utils/fileUpload';
 import { updatePolicyStatusBasedOnCompleteness } from './policy.service';
 import logger from '../config/logger';
+import { getUserKycStatus } from './user.service';
 
 type NomineeStatusType = 'DRAFT' | 'PENDING' | 'ACCEPTED' | 'REJECTED';
 
@@ -236,6 +237,16 @@ const parseDob = (dob?: string) => {
 };
 
 export const createNominee = async (userId: string, data: CreateNomineeData) => {
+  // Ensure user has completed KYC before creating nominees
+  const kycStatus = await getUserKycStatus(userId);
+  if (kycStatus.status !== 'COMPLETED') {
+    logger.warn('Attempt to create nominee without completed KYC', {
+      userId,
+      missingDocuments: kycStatus.missingDocuments,
+    });
+    throw new ValidationError('KYC verification is required before adding nominees');
+  }
+
   // Validate mobile number format
   const mobileRegex = /^[0-9]{10}$/;
   if (!mobileRegex.test(data.mobileNumber.replace(/[^0-9]/g, ''))) {
@@ -371,6 +382,16 @@ export const createNominee = async (userId: string, data: CreateNomineeData) => 
 };
 
 export const createNomineeDraft = async (userId: string, data: CreateNomineeDraftData) => {
+  // Ensure user has completed KYC before creating nominee drafts
+  const kycStatus = await getUserKycStatus(userId);
+  if (kycStatus.status !== 'COMPLETED') {
+    logger.warn('Attempt to create nominee draft without completed KYC', {
+      userId,
+      missingDocuments: kycStatus.missingDocuments,
+    });
+    throw new ValidationError('KYC verification is required before adding nominees');
+  }
+
   const mobileRegex = /^[0-9]{10}$/;
 
   const trimmedName = data.name?.trim();

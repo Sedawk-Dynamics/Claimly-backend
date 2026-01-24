@@ -179,7 +179,11 @@ export const createNomineeSchema = z.object({
         if (val === '' || val === null || val === undefined) {
           return null;
         }
-        return typeof val === 'string' ? val.trim() : null;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          return trimmed === '' ? null : trimmed;
+        }
+        return null;
       },
       z.string().email('Invalid email address').nullable().optional()
     ),
