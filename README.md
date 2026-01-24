@@ -36,6 +36,16 @@ FIREBASE_CLIENT_EMAIL="firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.
 # Server Configuration
 PORT=3000
 NODE_ENV=development
+
+# Payments – Razorpay (Android / Web)
+RAZORPAY_KEY_ID=""
+RAZORPAY_KEY_SECRET=""
+
+# Payments – Apple In-App Purchase (iOS, second option alongside Razorpay)
+APPLE_IAP_SHARED_SECRET=""
+APPLE_IAP_USE_SANDBOX=false
+# Optional: JSON mapping product_id -> plan name, e.g. {"com.yourapp.premium":"Premium Plan"}
+APPLE_IAP_PRODUCT_PLAN_MAP=""
 ```
 
 3. Set up the database:

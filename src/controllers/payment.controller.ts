@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { createOrder, verifyAndCreateSubscription } from '../services/payment.service';
+import { verifyAndCreateSubscriptionAppleIap } from '../services/appleIap.service';
 import { env } from '../config/env';
 
 /**
@@ -80,6 +81,42 @@ export const verifyPaymentController = async (
       userId: req.user.userId,
       planName,
       amount,
+      walletAmountUsed,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Verify Apple In-App Purchase receipt and create subscription (iOS).
+ * Wallet, referral, and discount work the same as Razorpay.
+ * POST /payment/apple-verify
+ */
+export const verifyAppleIapController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { receiptData, planName, productId, transactionId, walletAmountUsed } = req.body;
+
+    const result = await verifyAndCreateSubscriptionAppleIap({
+      receiptData,
+      planName,
+      productId,
+      transactionId,
+      userId: req.user.userId,
       walletAmountUsed,
     });
 

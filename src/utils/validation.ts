@@ -277,6 +277,17 @@ export const verifyPaymentSchema = z.object({
   }),
 });
 
+/** Apple In-App Purchase (iOS) – verify receipt and create subscription */
+export const verifyAppleIapSchema = z.object({
+  body: z.object({
+    receiptData: z.string().min(1, 'receiptData (base64 receipt) is required'),
+    planName: z.string().min(1, 'planName is required'),
+    productId: z.string().min(1, 'productId (Apple product ID) is required'),
+    transactionId: z.string().optional(),
+    walletAmountUsed: z.string().optional(),
+  }),
+});
+
 // Subscription validation schemas
 export const createSubscriptionSchema = z.object({
   body: z.object({

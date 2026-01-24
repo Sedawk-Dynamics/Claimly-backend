@@ -26,9 +26,22 @@ interface EnvConfig {
   // Security
   DISABLE_TEST_AUTH: boolean;
   
-  // Razorpay
+  // Razorpay (Android / Web)
   RAZORPAY_KEY_ID: string;
   RAZORPAY_KEY_SECRET: string;
+
+  // Apple In-App Purchase (iOS) – second payment option alongside Razorpay
+  APPLE_IAP_SHARED_SECRET: string;
+  APPLE_IAP_USE_SANDBOX: boolean;
+  /** Expected iOS bundle id (recommended in production). Example: "com.yourcompany.yourapp" */
+  APPLE_IAP_BUNDLE_ID: string;
+  /** Optional JSON: {"com.yourapp.premium":"Premium Plan"} – maps Apple product_id to plan name */
+  APPLE_IAP_PRODUCT_PLAN_MAP: Record<string, string>;
+  /**
+   * Optional App Apple ID (numeric) used for App Store Server Notifications verification in production.
+   * Example: 1234567890
+   */
+  APPLE_IAP_APP_APPLE_ID?: number;
 }
 
 const requiredEnvVars = [
@@ -77,6 +90,33 @@ function validateEnv(): EnvConfig {
       logger.warn('Razorpay keys appear to be invalid. Please verify your configuration.');
     }
   }
+
+  // Apple IAP (optional – required only for iOS in-app purchase)
+  const appleIapSharedSecret = process.env.APPLE_IAP_SHARED_SECRET || '';
+  const appleIapUseSandbox = process.env.APPLE_IAP_USE_SANDBOX === 'true';
+  const appleIapBundleId = (process.env.APPLE_IAP_BUNDLE_ID || '').trim();
+  let appleIapProductPlanMap: Record<string, string> = {};
+  const mapRaw = process.env.APPLE_IAP_PRODUCT_PLAN_MAP || '';
+  if (mapRaw.trim()) {
+    try {
+      appleIapProductPlanMap = JSON.parse(mapRaw) as Record<string, string>;
+    } catch {
+      logger.warn('APPLE_IAP_PRODUCT_PLAN_MAP is not valid JSON. Apple IAP product–plan validation will be skipped.');
+    }
+  }
+  if (nodeEnv === 'production' && !appleIapSharedSecret) {
+    logger.warn('APPLE_IAP_SHARED_SECRET is not set. Apple In-App Purchase (iOS) features will not work.');
+  }
+  if (nodeEnv === 'production' && !appleIapBundleId) {
+    logger.warn(
+      'APPLE_IAP_BUNDLE_ID is not set. Apple receipt bundle_id verification will be skipped (NOT recommended for production).'
+    );
+  }
+  const appleIapAppAppleIdRaw = (process.env.APPLE_IAP_APP_APPLE_ID || '').trim();
+  const appleIapAppAppleId =
+    appleIapAppAppleIdRaw && !Number.isNaN(Number(appleIapAppAppleIdRaw))
+      ? Number(appleIapAppAppleIdRaw)
+      : undefined;
 
   // CORS is now open to all origins (web and mobile apps)
   // No validation needed as all origins are allowed
@@ -146,6 +186,11 @@ function validateEnv(): EnvConfig {
     DISABLE_TEST_AUTH: process.env.DISABLE_TEST_AUTH === 'true',
     RAZORPAY_KEY_ID: razorpayKeyId,
     RAZORPAY_KEY_SECRET: razorpayKeySecret,
+    APPLE_IAP_SHARED_SECRET: appleIapSharedSecret,
+    APPLE_IAP_USE_SANDBOX: appleIapUseSandbox,
+    APPLE_IAP_BUNDLE_ID: appleIapBundleId,
+    APPLE_IAP_PRODUCT_PLAN_MAP: appleIapProductPlanMap,
+    APPLE_IAP_APP_APPLE_ID: appleIapAppAppleId,
   };
 }
 

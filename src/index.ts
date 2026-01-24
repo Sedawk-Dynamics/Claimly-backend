@@ -9,6 +9,7 @@ import policyDocumentRoutes from './routes/policyDocument.routes';
 import subscriptionRoutes from './routes/subscription.routes';
 import subscriptionPlanRoutes from './routes/subscriptionPlan.routes';
 import paymentRoutes from './routes/payment.routes';
+import appleWebhookRoutes from './routes/appleWebhook.routes';
 import adminAuthRoutes from './routes/adminAuth.routes';
 import adminUserRoutes from './routes/adminUser.routes';
 import adminAlertRoutes from './routes/adminAlert.routes';
@@ -563,6 +564,8 @@ app.use('/policy', policyDocumentRoutes);
 app.use('/subscription', subscriptionRoutes);
 app.use('/subscription-plan', subscriptionPlanRoutes);
 app.use('/payment', paymentRoutes);
+// App Store Server Notifications (no auth) - Apple posts signedPayload here
+app.use('/apple', appleWebhookRoutes);
 app.use('/wallet', walletRoutes);
 app.use('/', notificationRoutes);
 

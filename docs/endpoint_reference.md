@@ -339,8 +339,11 @@ All endpoints return JSON following the envelope `{ "success": boolean, "data"?:
 
 ### Subscription & Payments
 
-- **POST /payment/create-order** – Header required. Body `{ amount (number, rupees), currency?='INR', receipt?, notes? }`. Response `{ id, amount, currency, receipt, status, key_id }` (amount in paise).
-- **POST /payment/verify** – Header required. Body `{ razorpay_order_id, razorpay_payment_id, razorpay_signature, planName, amount, walletAmountUsed? }`. Response `{ success: true, subscription: SubscriptionRecord, paymentStatus }`.
+- **POST /payment/create-order** – Header required. **Razorpay (Android/Web).** Body `{ amount (number, rupees), currency?='INR', receipt?, notes? }`. Response `{ id, amount, currency, receipt, status, key_id }` (amount in paise).
+- **POST /payment/verify** – Header required. **Razorpay (Android/Web).** Body `{ razorpay_order_id, razorpay_payment_id, razorpay_signature, planName, amount, walletAmountUsed? }`. Response `{ success: true, subscription: SubscriptionRecord, paymentStatus }`.
+- **POST /payment/apple-verify** – Header required. **Apple In-App Purchase (iOS).** Body `{ receiptData (base64), planName, productId, transactionId?, walletAmountUsed? }`. Verifies receipt with Apple, creates subscription. Wallet, referral, and discount work the same as Razorpay. Response `{ success: true, subscription: SubscriptionRecord, paymentStatus, alreadyProcessed? }`.
+
+  **iOS flow (same concepts as Razorpay):** 1) Fetch plans: GET /subscription-plan/active. 2) Check wallet: GET /wallet/balance. 3) User selects plan; optionally use wallet → `finalAmount = planPrice - walletAmount`. 4) Complete purchase via StoreKit; get base64 receipt and `transaction_id`. 5) Call **POST /payment/apple-verify** with `receiptData`, `planName`, `productId` (Apple product ID), `transactionId`, `walletAmountUsed` if any. Backend validates receipt with Apple, then creates subscription (wallet deduction, referral rewards, receipt PDF) as with Razorpay.
 - **POST /subscription** – Legacy direct creation. Body matches `createSubscriptionSchema`. Response: `SubscriptionRecord`.
 - **GET /subscription/:id/receipt** – Header required. Streams PDF receipt. Errors: 404 if absent or different owner.
 - **GET /subscription/:id/receipt-url** – Header required. Response `{ receiptUrl, downloadUrl }`.
