@@ -205,6 +205,7 @@ model Admin {
   verified_by_admin Admin?  @relation("AgentVerification", fields: [verified_by], references: [id])
   agent_referrals User[]    @relation("AgentReferrals")
   banners        Banner[]
+  offer_banners  OfferBanner[]
 }
 
 model AdminNotification {
@@ -257,6 +258,18 @@ model SubscriptionPlan {
 }
 
 model Banner {
+  id              BigInt     @id @default(autoincrement())
+  title           String?
+  image_url       String
+  is_active       Boolean    @default(false)
+  created_by      BigInt
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+
+  creator         Admin      @relation(fields: [created_by], references: [id])
+}
+
+model OfferBanner {
   id              BigInt     @id @default(autoincrement())
   title           String?
   image_url       String

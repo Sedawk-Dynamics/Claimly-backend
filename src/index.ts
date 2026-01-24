@@ -26,6 +26,7 @@ import companyRoutes from './routes/company.routes';
 import walletRoutes from './routes/wallet.routes';
 import notificationRoutes from './routes/notification.routes';
 import bannerRoutes from './routes/banner.routes';
+import offerBannerRoutes from './routes/offerBanner.routes';
 import { notificationService } from './services/notification.service';
 import path from 'path';
 import fs from 'fs';
@@ -101,7 +102,7 @@ try {
     });
     
     // Log subdirectories
-    ['users', 'policies', 'nominees'].forEach((subdir) => {
+    ['users', 'policies', 'nominees', 'banners', 'offer-banners'].forEach((subdir) => {
       const subdirPath = path.join(uploadsPath, subdir);
       if (fs.existsSync(subdirPath)) {
         const files = fs.readdirSync(subdirPath);
@@ -125,7 +126,7 @@ try {
 // In production warn if uploads appear ephemeral or empty — common misconfiguration
 try {
   if (env.NODE_ENV === 'production') {
-    ['users', 'policies', 'nominees', 'banners'].forEach((subdir) => {
+    ['users', 'policies', 'nominees', 'banners', 'offer-banners'].forEach((subdir) => {
       const subdirPath = path.join(uploadsPath, subdir);
       if (fs.existsSync(subdirPath)) {
         const files = fs.readdirSync(subdirPath);
@@ -203,7 +204,7 @@ app.get('/uploads/:type/:filename', (req, res, next) => {
   });
   
   // Validate type to prevent directory traversal
-  const allowedTypes = ['users', 'policies', 'nominees', 'banners'];
+  const allowedTypes = ['users', 'policies', 'nominees', 'banners', 'offer-banners'];
   // Handle profile-pic subdirectory
   const isProfilePic = type === 'users' && filename.includes('profile-pic');
   const actualType = isProfilePic ? 'users/profile-pic' : type;
@@ -439,7 +440,7 @@ app.get('/diagnostics/uploads', (req, res) => {
       directories: {},
     };
     
-    ['users', 'policies', 'nominees'].forEach((type) => {
+    ['users', 'policies', 'nominees', 'banners', 'offer-banners'].forEach((type) => {
       const typeDir = path.join(uploadsPath, type);
       const exists = fs.existsSync(typeDir);
       diagnostics.directories[type] = {
@@ -587,6 +588,7 @@ app.use('/admin/policies', adminLimiter, adminPolicyRoutes);
 app.use('/admin/documents', adminLimiter, adminDocumentRoutes);
 app.use('/admin', adminLimiter, adminVerifyRoutes);
 app.use('/banners', bannerRoutes);
+app.use('/offer-banners', offerBannerRoutes);
 
 // Alert Routes
 app.use('/alerts', alertRoutes);

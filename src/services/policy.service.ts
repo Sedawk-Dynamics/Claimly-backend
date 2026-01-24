@@ -1,7 +1,6 @@
 import prisma from '../config/prismaClient';
 import { NotFoundError, ValidationError, ConflictError } from '../utils/errors';
 import logger from '../config/logger';
-import { getUserKycStatus } from './user.service';
 import { createActivityLog } from './userActivityLog.service';
 
 type PolicyStatusType = 'DRAFT' | 'PENDING' | 'ACCEPTED' | 'REJECTED';
@@ -297,17 +296,6 @@ export interface UpdatePolicyData {
 export const createPolicy = async (userId: string, data: CreatePolicyData) => {
   logger.info('Creating policy', { userId, policyNumber: data.policyNumber });
   
-  // Ensure user has completed KYC (uploaded Aadhaar and PAN)
-  const kycStatus = await getUserKycStatus(userId);
-
-  if (kycStatus.status !== 'COMPLETED') {
-    logger.warn('Attempt to create policy without completed KYC', {
-      userId,
-      missingDocuments: kycStatus.missingDocuments,
-    });
-    throw new ValidationError('KYC verification is required before adding policies');
-  }
-
   // Check if policy number already exists
   const existingPolicy = await prisma.policy.findUnique({
     where: { policy_number: data.policyNumber },
@@ -440,16 +428,6 @@ export const createPolicy = async (userId: string, data: CreatePolicyData) => {
 
 export const createPolicyDraft = async (userId: string, data: CreatePolicyDraftData) => {
   logger.info('Saving policy draft', { userId, policyNumber: data.policyNumber });
-
-  // Ensure user has completed KYC before creating policies (including drafts)
-  const kycStatus = await getUserKycStatus(userId);
-  if (kycStatus.status !== 'COMPLETED') {
-    logger.warn('Attempt to create policy draft without completed KYC', {
-      userId,
-      missingDocuments: kycStatus.missingDocuments,
-    });
-    throw new ValidationError('KYC verification is required before adding policies');
-  }
 
   if (!data.insuranceCompanyId) {
     throw new ValidationError('insuranceCompanyId is required to save a draft policy');
