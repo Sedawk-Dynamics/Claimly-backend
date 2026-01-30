@@ -3744,6 +3744,195 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Offer Banners",
+      "item": [
+        {
+          "name": "Get Active Offer Banner (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/offer-banners/active",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer-banners",
+                "active"
+              ]
+            },
+            "description": "**Get Active Offer Banner (Public)**\n\nFetch the currently active offer banner to display to end users.\n\n- Endpoint: `GET /offer-banners/active`\n- Auth: Not required\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"1\",\n    \"title\": \"New Year Offer\",\n    \"imageUrl\": \"/uploads/offer-banners/banner-123.png\",\n    \"isActive\": true,\n    \"createdBy\": \"2\",\n    \"createdAt\": \"2024-02-01T10:00:00.000Z\",\n    \"updatedAt\": \"2024-02-02T10:00:00.000Z\"\n  }\n}\n```\n\nIf no active banner exists, `data` will be `null`."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Offer Banner (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "title",
+                  "value": "Limited Time Offer",
+                  "type": "text",
+                  "description": "Optional banner title"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/offer-banners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer-banners"
+              ]
+            },
+            "description": "**Upload Offer Banner (Admin)**\n\nCreates a new offer banner (inactive by default) and uploads its image.\n\n- Endpoint: `POST /offer-banners`\n- Auth: Admin token required (`Bearer {{adminToken}}`)\n- Additional: Admin must be a *verified agent* (middleware enforced)\n- Content-Type: `multipart/form-data`\n\n**Form-data:**\n- `file` (required): image file\n- `title` (optional): banner title\n\n**Notes:**\n- New banners start with `isActive: false`\n- Activate a banner via `PUT /offer-banners/:id` with `{ \"isActive\": true }`"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Offer Banners (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/offer-banners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer-banners"
+              ]
+            },
+            "description": "**Get All Offer Banners (Admin)**\n\nReturns all offer banners (active + inactive), newest first.\n\n- Endpoint: `GET /offer-banners`\n- Auth: Admin token required\n- Additional: Admin must be a verified agent"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Offer Banner By ID (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/offer-banners/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer-banners",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "offer-banner-id-here"
+                }
+              ]
+            },
+            "description": "**Get Offer Banner By ID (Admin)**\n\nFetch a single offer banner.\n\n- Endpoint: `GET /offer-banners/:id`\n- Auth: Admin token required\n- Additional: Admin must be a verified agent"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Offer Banner (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Title\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/offer-banners/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer-banners",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "offer-banner-id-here"
+                }
+              ]
+            },
+            "description": "**Update Offer Banner (Admin)**\n\nUpdate banner metadata.\n\n- Endpoint: `PUT /offer-banners/:id`\n- Auth: Admin token required\n- Additional: Admin must be a verified agent\n\n**Body:**\n- `title` (optional)\n- `isActive` (optional)\n\n**Important:** If you set `isActive: true`, the backend will automatically deactivate any other active offer banner (only one active at a time)."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Offer Banner (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/offer-banners/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer-banners",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "offer-banner-id-here"
+                }
+              ]
+            },
+            "description": "**Delete Offer Banner (Admin)**\n\nDeletes the offer banner and attempts to remove its image from the server.\n\n- Endpoint: `DELETE /offer-banners/:id`\n- Auth: Admin token required\n- Additional: Admin must be a verified agent"
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [

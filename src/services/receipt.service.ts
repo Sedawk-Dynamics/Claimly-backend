@@ -156,8 +156,8 @@ export interface ReceiptData {
   userName: string;
   userEmail: string | null;
   userPhone: string;
-  orderId: string; // Razorpay Order ID
-  paymentId: string; // Razorpay Payment ID
+  orderId: string; // Razorpay Order ID or Apple IAP reference
+  paymentId: string; // Razorpay Payment ID or Apple transaction ID
   paymentStatus: 'SUCCESS' | 'PENDING' | 'FAILED';
   planName: string;
   amount: number;
@@ -166,6 +166,8 @@ export interface ReceiptData {
   finalAmountPaid: number;
   transactionDate: Date;
   expiresAt?: Date | null;
+  /** When 'iap', receipt shows "IAP"; otherwise "Razorpay" */
+  paymentMethod?: 'razorpay' | 'iap';
 }
 
 /**
@@ -394,11 +396,11 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
     doc.moveTo(tableLeft, yPos).lineTo(tableLeft + tableWidth, yPos).strokeColor('#cccccc').lineWidth(0.5).stroke();
     yPos += 15;
 
-    // Subscription line item
+    // Subscription line item (lifetime = never expires)
     doc.font('Helvetica').fontSize(10).fillColor('#333333');
-    const subscriptionPeriod = data.expiresAt 
+    const subscriptionPeriod = data.expiresAt
       ? formatDateRange(data.transactionDate, data.expiresAt)
-      : formatDateOnlyForReceipt(data.transactionDate);
+      : `${formatDateOnlyForReceipt(data.transactionDate)} — Never expires`;
     
     doc.text(data.planName, tableLeft, yPos);
     yPos += 12;
@@ -457,10 +459,10 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
     doc.moveTo(tableLeft, yPos).lineTo(tableLeft + tableWidth, yPos).strokeColor('#cccccc').lineWidth(0.5).stroke();
     yPos += 15;
 
-    // Payment entry
+    // Payment entry: show IAP for Apple In-App Purchase, Razorpay otherwise
     doc.font('Helvetica').fontSize(10).fillColor('#333333');
-    const paymentMethod = 'Razorpay'; // Could be enhanced to get actual payment method
-    doc.text(paymentMethod, tableLeft, yPos);
+    const paymentMethodLabel = data.paymentMethod === 'iap' ? 'IAP' : 'Razorpay';
+    doc.text(paymentMethodLabel, tableLeft, yPos);
     doc.text(datePaidOnly, tableLeft + 150, yPos);
     doc.text(formatAmountWithSymbol(data.finalAmountPaid), tableLeft + 250, yPos);
     doc.text(invoiceNumber, tableLeft + 350, yPos);

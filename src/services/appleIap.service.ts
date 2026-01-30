@@ -345,6 +345,7 @@ export async function verifyAndCreateSubscriptionAppleIap(data: VerifyAppleIapDa
     transactionDate: (purchaseDate || new Date()).toISOString(),
     walletAmountUsed: data.walletAmountUsed,
     orderId: `apple_iap_${txId}`,
+    paymentMethod: 'iap',
   });
 
   // If Apple provides an expiry (auto-renewable subscription), persist it.

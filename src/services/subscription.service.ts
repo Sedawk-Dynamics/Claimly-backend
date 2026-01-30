@@ -12,12 +12,13 @@ export interface CreateSubscriptionData {
   paymentStatus: 'SUCCESS' | 'PENDING' | 'FAILED';
   transactionDate?: string;
   walletAmountUsed?: string; // Amount paid from wallet
-  orderId?: string; // Razorpay Order ID
+  orderId?: string; // Razorpay Order ID or Apple IAP reference
+  /** When 'iap', receipt shows "IAP"; otherwise "Razorpay" */
+  paymentMethod?: 'razorpay' | 'iap';
 }
 
-// Subscription validity period in days
-// Set to a very large value so that subscriptions are effectively lifetime
-const SUBSCRIPTION_VALIDITY_DAYS = 365 * 110; // ~110 years (treated as lifetime)
+// Subscriptions are lifetime: no expiry date (expires_at = null)
+const LIFETIME_EXPIRES_AT: null = null;
 
 export const createSubscription = async (data: CreateSubscriptionData) => {
   logger.info('Creating subscription', { 
@@ -97,42 +98,9 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
   // Use provided transaction date or current date
   const transactionDate = data.transactionDate ? new Date(data.transactionDate) : new Date();
 
-  // Calculate subscription expiry date
-  // If user has active subscription, extend from current expiry
-  // Otherwise, start from transaction date
-  let expiresAt: Date;
-  if (user.subscription_status === 'ACTIVE') {
-    // Get the latest active subscription to find expiry date
-    const latestSubscription = await prisma.subscription.findFirst({
-      where: {
-        user_id: BigInt(data.userId),
-        payment_status: 'SUCCESS',
-      },
-      orderBy: {
-        transaction_date: 'desc',
-      },
-    });
-
-    if (latestSubscription?.expires_at) {
-      // Extend from current expiry date
-      expiresAt = new Date(latestSubscription.expires_at);
-      expiresAt.setDate(expiresAt.getDate() + SUBSCRIPTION_VALIDITY_DAYS);
-      logger.info('Extending existing subscription', { 
-        currentExpiry: latestSubscription.expires_at,
-        newExpiry: expiresAt,
-      });
-    } else {
-      // Fallback: start from transaction date if no expiry found
-      expiresAt = new Date(transactionDate);
-      expiresAt.setDate(expiresAt.getDate() + SUBSCRIPTION_VALIDITY_DAYS);
-      logger.info('No expiry date found, starting fresh from transaction date');
-    }
-  } else {
-    // New subscription: start from transaction date
-    expiresAt = new Date(transactionDate);
-    expiresAt.setDate(expiresAt.getDate() + SUBSCRIPTION_VALIDITY_DAYS);
-    logger.info('New subscription, expiry date set from transaction date');
-  }
+  // Lifetime subscription: no expiry (expires_at = null)
+  const expiresAt: null = LIFETIME_EXPIRES_AT;
+  logger.info('Creating lifetime subscription (no expiry date)');
 
   // Create subscription and deduct wallet in a transaction
   const subscription = await prisma.$transaction(async (tx) => {
@@ -273,6 +241,7 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
         finalAmountPaid: finalAmountPaid,
         transactionDate: transactionDate,
         expiresAt: expiresAt,
+        paymentMethod: data.paymentMethod ?? 'razorpay',
       });
       receiptUrl = receiptPath;
       logger.info('Receipt PDF generated and stored', { 
@@ -336,6 +305,7 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
     paymentStatus: updatedSubscription!.payment_status,
     transactionDate: updatedSubscription!.transaction_date,
     expiresAt: updatedSubscription!.expires_at ? updatedSubscription!.expires_at.toISOString() : null,
+    neverExpires: !updatedSubscription!.expires_at,
     walletAmountUsed: updatedSubscription!.wallet_amount_used ? updatedSubscription!.wallet_amount_used.toString() : '0',
     receiptUrl: updatedSubscription!.receipt_url || null,
   };

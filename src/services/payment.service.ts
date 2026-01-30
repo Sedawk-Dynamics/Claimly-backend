@@ -220,6 +220,7 @@ export const verifyAndCreateSubscription = async (data: VerifyPaymentData) => {
       transactionDate: new Date().toISOString(),
       walletAmountUsed: data.walletAmountUsed,
       orderId: data.razorpay_order_id, // Pass Razorpay Order ID
+      paymentMethod: 'razorpay',
     });
 
     logger.info('Payment verified and subscription created successfully', {

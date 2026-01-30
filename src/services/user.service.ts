@@ -141,6 +141,7 @@ export const getUserSubscriptions = async (userId: string) => {
     paymentStatus: sub.payment_status,
     transactionDate: sub.transaction_date,
     expiresAt: sub.expires_at ? sub.expires_at.toISOString() : null,
+    neverExpires: !sub.expires_at,
     receiptUrl: sub.receipt_url || null,
   }));
 };
@@ -178,31 +179,16 @@ export const getCurrentSubscription = async (userId: string) => {
 
   const latestSubscription = user.subscriptions[0] || null;
 
-  // Calculate expires_at if it's null (for old subscriptions)
+  // expires_at: null = lifetime (never expires)
   let expiresAt: string | null = null;
-  if (latestSubscription) {
-    if (latestSubscription.expires_at) {
-      expiresAt = latestSubscription.expires_at.toISOString();
-    } else {
-      // Backfill: Calculate expiry date from transaction_date
-      // Keep in sync with SUBSCRIPTION_VALIDITY_DAYS in subscription.service (lifetime-style duration)
-      const calculatedExpiry = new Date(latestSubscription.transaction_date);
-      calculatedExpiry.setDate(calculatedExpiry.getDate() + 365 * 110); // ~110 years
-      expiresAt = calculatedExpiry.toISOString();
-
-      // Optionally update the database (async, don't wait)
-      prisma.subscription.update({
-        where: { id: latestSubscription.id },
-        data: { expires_at: calculatedExpiry },
-      }).catch(err => {
-        console.error('Failed to update subscription expiry:', err);
-      });
-    }
+  if (latestSubscription?.expires_at) {
+    expiresAt = latestSubscription.expires_at.toISOString();
   }
+  const neverExpires = !latestSubscription?.expires_at;
 
   return {
     status: user.subscription_status,
-        subscription: latestSubscription
+    subscription: latestSubscription
       ? {
           id: latestSubscription.id.toString(),
           planName: latestSubscription.plan_name,
@@ -210,6 +196,7 @@ export const getCurrentSubscription = async (userId: string) => {
           paymentId: latestSubscription.payment_id,
           transactionDate: latestSubscription.transaction_date,
           expiresAt: expiresAt,
+          neverExpires,
           paymentStatus: latestSubscription.payment_status,
           receiptUrl: latestSubscription.receipt_url || null,
         }
