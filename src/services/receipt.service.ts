@@ -271,11 +271,15 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
     const fileName = `receipt-${data.receiptNumber}.pdf`;
     const filePath = path.join(RECEIPTS_DIR, fileName);
     
+    const isIapReceipt = data.paymentMethod === 'iap' || (typeof data.orderId === 'string' && data.orderId.startsWith('apple_iap_'));
     logger.info('Generating receipt PDF', {
       receiptNumber: data.receiptNumber,
       fileName,
       filePath,
-      subscriptionId: data.subscriptionId
+      subscriptionId: data.subscriptionId,
+      paymentMethod: data.paymentMethod,
+      orderIdPrefix: typeof data.orderId === 'string' ? data.orderId.slice(0, 20) : data.orderId,
+      receiptLabel: isIapReceipt ? 'IAP' : 'Razorpay',
     });
 
     // Create PDF document
@@ -460,8 +464,9 @@ export const generateReceiptPDF = async (data: ReceiptData): Promise<string> => 
     yPos += 15;
 
     // Payment entry: show IAP for Apple In-App Purchase, Razorpay otherwise
+    // Use paymentMethod when set; fallback: orderId from Apple IAP is "apple_iap_<txId>"
+    const paymentMethodLabel = isIapReceipt ? 'IAP' : 'Razorpay';
     doc.font('Helvetica').fontSize(10).fillColor('#333333');
-    const paymentMethodLabel = data.paymentMethod === 'iap' ? 'IAP' : 'Razorpay';
     doc.text(paymentMethodLabel, tableLeft, yPos);
     doc.text(datePaidOnly, tableLeft + 150, yPos);
     doc.text(formatAmountWithSymbol(data.finalAmountPaid), tableLeft + 250, yPos);

@@ -133,17 +133,27 @@ export const getUserSubscriptions = async (userId: string) => {
     orderBy: { transaction_date: 'desc' },
   });
 
-  return subscriptions.map((sub) => ({
-    id: sub.id.toString(),
-    planName: sub.plan_name,
-    amount: sub.amount.toString(),
-    paymentId: sub.payment_id,
-    paymentStatus: sub.payment_status,
-    transactionDate: sub.transaction_date,
-    expiresAt: sub.expires_at ? sub.expires_at.toISOString() : null,
-    neverExpires: !sub.expires_at,
-    receiptUrl: sub.receipt_url || null,
-  }));
+  return subscriptions.map((sub) => {
+    const txDate = sub.transaction_date;
+    const expAt = sub.expires_at ?? null;
+    const isSameDayExpiry = txDate && expAt && (
+      expAt.getFullYear() === txDate.getFullYear() &&
+      expAt.getMonth() === txDate.getMonth() &&
+      expAt.getDate() === txDate.getDate()
+    );
+    const treatAsLifetime = !expAt || isSameDayExpiry;
+    return {
+      id: sub.id.toString(),
+      planName: sub.plan_name,
+      amount: sub.amount.toString(),
+      paymentId: sub.payment_id,
+      paymentStatus: sub.payment_status,
+      transactionDate: sub.transaction_date,
+      expiresAt: treatAsLifetime ? null : (expAt ? expAt.toISOString() : null),
+      neverExpires: treatAsLifetime,
+      receiptUrl: sub.receipt_url || null,
+    };
+  });
 };
 
 export const getCurrentSubscription = async (userId: string) => {
@@ -179,12 +189,17 @@ export const getCurrentSubscription = async (userId: string) => {
 
   const latestSubscription = user.subscriptions[0] || null;
 
-  // expires_at: null = lifetime (never expires)
-  let expiresAt: string | null = null;
-  if (latestSubscription?.expires_at) {
-    expiresAt = latestSubscription.expires_at.toISOString();
-  }
-  const neverExpires = !latestSubscription?.expires_at;
+  // expires_at: null = lifetime. Same-day expiry (bug) is treated as lifetime so UI shows "Never expires"
+  const txDate = latestSubscription?.transaction_date;
+  const expAt = latestSubscription?.expires_at ?? null;
+  const isSameDayExpiry = txDate && expAt && (
+    expAt.getFullYear() === txDate.getFullYear() &&
+    expAt.getMonth() === txDate.getMonth() &&
+    expAt.getDate() === txDate.getDate()
+  );
+  const treatAsLifetime = !expAt || isSameDayExpiry;
+  const expiresAt: string | null = treatAsLifetime ? null : (expAt ? expAt.toISOString() : null);
+  const neverExpires = treatAsLifetime;
 
   return {
     status: user.subscription_status,
