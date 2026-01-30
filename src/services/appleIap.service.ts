@@ -198,7 +198,7 @@ function mapSubscriptionRow(sub: any) {
       sub.transaction_date instanceof Date
         ? sub.transaction_date.toISOString()
         : (sub.transaction_date as unknown as string),
-    expiresAt: sub.expires_at ? sub.expires_at.toISOString() : null,
+    expiresAt: sub.expires_at ? sub.expires_at.toISOString() : 'lifetime',
     walletAmountUsed: sub.wallet_amount_used ? sub.wallet_amount_used.toString() : '0',
     receiptUrl: sub.receipt_url || null,
   };

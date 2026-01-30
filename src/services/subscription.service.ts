@@ -304,7 +304,7 @@ export const createSubscription = async (data: CreateSubscriptionData) => {
     paymentId: updatedSubscription!.payment_id,
     paymentStatus: updatedSubscription!.payment_status,
     transactionDate: updatedSubscription!.transaction_date,
-    expiresAt: updatedSubscription!.expires_at ? updatedSubscription!.expires_at.toISOString() : null,
+    expiresAt: updatedSubscription!.expires_at ? updatedSubscription!.expires_at.toISOString() : 'lifetime',
     neverExpires: !updatedSubscription!.expires_at,
     walletAmountUsed: updatedSubscription!.wallet_amount_used ? updatedSubscription!.wallet_amount_used.toString() : '0',
     receiptUrl: updatedSubscription!.receipt_url || null,
