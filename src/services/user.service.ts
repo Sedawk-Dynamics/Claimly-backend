@@ -149,7 +149,7 @@ export const getUserSubscriptions = async (userId: string) => {
       paymentId: sub.payment_id,
       paymentStatus: sub.payment_status,
       transactionDate: sub.transaction_date,
-      expiresAt: treatAsLifetime ? 'lifetime' : (expAt ? expAt.toISOString() : 'lifetime'),
+      expiresAt: treatAsLifetime ? null : (expAt ? expAt.toISOString() : null),
       neverExpires: treatAsLifetime,
       receiptUrl: sub.receipt_url || null,
     };
@@ -198,7 +198,7 @@ export const getCurrentSubscription = async (userId: string) => {
     expAt.getDate() === txDate.getDate()
   );
   const treatAsLifetime = !expAt || isSameDayExpiry;
-  const expiresAt: string = treatAsLifetime ? 'lifetime' : (expAt ? expAt.toISOString() : 'lifetime');
+  const expiresAt: string | null = treatAsLifetime ? null : (expAt ? expAt.toISOString() : null);
   const neverExpires = treatAsLifetime;
 
   return {
@@ -210,7 +210,7 @@ export const getCurrentSubscription = async (userId: string) => {
           amount: latestSubscription.amount.toString(),
           paymentId: latestSubscription.payment_id,
           transactionDate: latestSubscription.transaction_date,
-          expiresAt,
+          expiresAt: expiresAt,
           neverExpires,
           paymentStatus: latestSubscription.payment_status,
           receiptUrl: latestSubscription.receipt_url || null,
