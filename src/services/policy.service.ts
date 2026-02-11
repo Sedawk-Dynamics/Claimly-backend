@@ -899,6 +899,17 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
   // Allow explicit DRAFT only; otherwise compute status based on completeness after update.
   if (data.status === 'DRAFT') updateData.status = 'DRAFT';
 
+  // If the policy was previously ACCEPTED and user is editing it (not saving as draft),
+  // reset status to PENDING so admin must re-review (documents keep their verification status)
+  if (existingPolicy.status === 'ACCEPTED' && data.status !== 'DRAFT') {
+    updateData.status = 'PENDING';
+
+    logger.info('Policy edit: reset ACCEPTED policy to PENDING', {
+      policyId,
+      userId,
+    });
+  }
+
   await prisma.policy.update({
     where: { id: BigInt(policyId) },
     data: updateData,
@@ -906,13 +917,16 @@ export const updatePolicy = async (userId: string, policyId: string, data: Updat
 
   // After updating basic fields, check completeness and update status accordingly
   // This will update status from DRAFT to PENDING if complete, or PENDING to DRAFT if incomplete
-  await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
-    // Don't fail the request if status update fails
-    logger.error('Failed to update policy status based on completeness', {
-      policyId,
-      error: err,
+  // Skip if we already set status to PENDING (from ACCEPTED reset above)
+  if (existingPolicy.status !== 'ACCEPTED' || data.status === 'DRAFT') {
+    await updatePolicyStatusBasedOnCompleteness(policyId).catch((err) => {
+      // Don't fail the request if status update fails
+      logger.error('Failed to update policy status based on completeness', {
+        policyId,
+        error: err,
+      });
     });
-  });
+  }
 
   // Fetch the policy again to get the updated status and nominees
   const policyWithStatus = await prisma.policy.findUnique({

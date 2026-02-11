@@ -1448,101 +1448,19 @@ export const getPolicyDocuments = async (
       status: 'DRAFT',
     };
   } else if (status === 'verified') {
-    // Policies that have all documents verified AND have NO unverified documents AND status is PENDING or ACCEPTED
+    // Verified: Only policies with ACCEPTED status
     statusConditions = {
-      AND: [
-        {
-          status: {
-            in: ['PENDING', 'ACCEPTED'],
-          },
-        },
-        // Policy has at least one document
-        {
-          documents: {
-            some: {},
-          },
-        },
-        // Policy has NO unverified documents
-        {
-          documents: {
-            none: {
-              is_verified: false,
-            },
-          },
-        },
-      ],
+      status: 'ACCEPTED',
     };
   } else if (status === 'rejected') {
-    // Rejected: Policies that have ALL documents rejected OR status is REJECTED
+    // Rejected: Policies with REJECTED status
     statusConditions = {
-      OR: [
-        {
-          status: 'REJECTED',
-        },
-        {
-          AND: [
-            // Policy has at least one document
-            {
-              documents: {
-                some: {},
-              },
-            },
-            // Policy has NO documents that are not rejected (all documents are rejected)
-            {
-              documents: {
-                none: {
-                  rejected_at: null,
-                },
-              },
-            },
-          ],
-        },
-      ],
+      status: 'REJECTED',
     };
   } else {
-    // Pending: Policies with PENDING status that have NO verified documents OR have some (but not all) rejected documents
-    // Excludes DRAFT status
+    // Pending: All policies with PENDING status (regardless of document verification)
     statusConditions = {
-      AND: [
-        {
-          status: 'PENDING',
-        },
-        {
-          OR: [
-            // Policy has no documents
-            {
-              documents: {
-                none: {},
-              },
-            },
-            // Policy has documents but none are verified AND not all rejected
-            {
-              AND: [
-                {
-                  documents: {
-                    some: {},
-                  },
-                },
-                {
-                  documents: {
-                    none: {
-                      is_verified: true,
-                    },
-                  },
-                },
-                // Policy has at least one document that is not rejected (if all rejected, it's in rejected filter)
-                {
-                  documents: {
-                    some: {
-                      rejected_at: null,
-                    },
-                  },
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      status: 'PENDING',
     };
   }
 
